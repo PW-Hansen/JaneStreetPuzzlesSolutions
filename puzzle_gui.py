@@ -11,8 +11,7 @@ from collections import deque
 from decimal import Decimal, localcontext
 from queue import Queue, Empty
 from fractions import Fraction
-from itertools import product
-from math import ceil, floor, isqrt
+from math import isqrt
 from pathlib import Path
 from tkinter import font as tkfont, messagebox, simpledialog, ttk
 
@@ -35,17 +34,6 @@ def variable_name(index):
     return name
 
 
-def candidate_domain(low, high, integer_only=True, max_denominator=10):
-    low, high = Fraction(low), Fraction(high)
-    if low > high:
-        raise ValueError("Min must not exceed Max")
-    if integer_only:
-        return list(range(ceil(low), floor(high)+1))
-    if max_denominator < 1:
-        raise ValueError("Max denominator must be at least 1")
-    return sorted({Fraction(numerator, denominator)
-                   for denominator in range(1, max_denominator+1)
-                   for numerator in range(ceil(low*denominator), floor(high*denominator)+1)})
 
 
 def clue_variables(expression, names):
@@ -67,6 +55,30 @@ def solve_rational_clue(expression, unknown, known, limit):
 
     Return None for forms requiring the bounded per-clue fallback.
     """
+    tree = ast.parse(expression.replace('^', '**'), mode='eval').body
+    def square_root(node):
+        return (isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+                and node.func.id == 'sqrt' and len(node.args) == 1 and not node.keywords)
+    if square_root(tree) or (isinstance(tree, ast.BinOp) and isinstance(tree.op, ast.Div)
+                             and (square_root(tree.left) or square_root(tree.right))):
+        solutions = set()
+        for target in range(1, limit+1):
+            if square_root(tree):
+                equation = f'({ast.unparse(tree.args[0])})-({target}^2)'
+            elif square_root(tree.left):
+                equation = f'({ast.unparse(tree.left.args[0])})-({target}^2)*({ast.unparse(tree.right)})^2'
+            else:
+                equation = f'({ast.unparse(tree.left)})^2-({target}^2)*({ast.unparse(tree.right.args[0])})'
+            roots = solve_rational_clue(f'({equation})+1', unknown, known, 1)
+            if roots is None:
+                return None
+            for root in roots:
+                try:
+                    if evaluate(expression, dict(known, **{unknown:root})) == target:
+                        solutions.add(root)
+                except (ValueError, ArithmeticError):
+                    pass
+        return solutions
     def add(a, b, sign=1):
         result = dict(a)
         for degree, coefficient in b.items():
@@ -139,78 +151,84 @@ def solve_rational_clue(expression, unknown, known, limit):
         return None
 
 
-def analyze_clues(expressions, bounds, limit, options=None):
-    """Keep correlated partial assignments, deriving one unknown at a time."""
-    options = options or {}
-    clues = sorted([(expression, clue_variables(expression, bounds)) for expression in expressions],
+def inferred_integer_variables(expression, known):
+    """An integral sum/difference with an integral operand forces the other operand integral."""
+    inferred = set()
+    tree = ast.parse(expression.replace('^', '**'), mode='eval').body
+    def integer(node):
+        try:
+            return evaluate(ast.unparse(node), known).denominator == 1
+        except (ValueError, ArithmeticError):
+            return False
+    def require_integer(node):
+        if isinstance(node, ast.Name):
+            inferred.add(node.id)
+        elif isinstance(node, ast.UnaryOp):
+            require_integer(node.operand)
+        elif isinstance(node, ast.BinOp) and isinstance(node.op, (ast.Add, ast.Sub)):
+            if integer(node.left): require_integer(node.right)
+            if integer(node.right): require_integer(node.left)
+    require_integer(tree)
+    return inferred
+
+
+def analyze_clues(expressions, names, limit):
+    """Solve included clues in variable-count order, without bounded enumeration."""
+    names = list(names)
+    clues = sorted([(expression, clue_variables(expression, names)) for expression in expressions],
                    key=lambda clue: len(clue[1]))
-    assignments = [{name: None for name in bounds}]
+    assignments = [{name: None for name in names}]
     notes = []
     pending = list(clues)
     while pending and assignments:
-        ready = next((i for i, (_, used) in enumerate(pending)
-                      if all(sum(assignment[name] is None for name in used) <= 1 for assignment in assignments)), 0)
+        ready = None
+        for i, (clue, used) in enumerate(pending):
+            solvable = True
+            for assignment in assignments:
+                unknowns = [name for name in used if assignment[name] is None]
+                if len(unknowns) > 1:
+                    solvable = False
+                    break
+                if unknowns:
+                    known = {name:value for name,value in assignment.items() if value is not None}
+                    if solve_rational_clue(clue, unknowns[0], known, limit) is None:
+                        solvable = False
+                        break
+            if solvable:
+                ready = i
+                break
+        if ready is None:
+            raise ValueError('More information is needed to solve these coupled clues analytically: ' +
+                             ', '.join(expression for expression, _ in pending))
         expression, used = pending.pop(ready)
         survivors = {}
-        fallbacks = 0
         for assignment in assignments:
-            unknowns = sorted(name for name in used if assignment[name] is None)
-            # If no clue anchors these variables, branch only within this clue,
-            # then solve the final unknown; unrelated variables remain unknown.
-            seeds = [assignment]
-            if len(unknowns) > 1:
-                fallbacks += 1
-                for name in unknowns[:-1]:
-                    domain = candidate_domain(*bounds[name], *options.get(name, (True, 10)))
-                    seeds = [dict(seed, **{name:value}) for seed in seeds for value in domain]
-            for seed in seeds:
-                unknown = unknowns[-1] if unknowns else None
-                known = {name:value for name, value in seed.items() if value is not None}
-                if unknown is None:
-                    candidates = [None]
-                else:
-                    candidates = solve_rational_clue(expression, unknown, known, limit)
-                    if candidates is None:
-                        fallbacks += 1
-                        candidates = candidate_domain(*bounds[unknown], *options.get(unknown, (True, 10)))
-                for candidate in sorted(candidates) if unknown is not None else candidates:
-                    updated = dict(seed)
-                    if unknown is not None:
-                        is_integer = Fraction(candidate).denominator == 1
-                        if options.get(unknown, (True, 10))[0] and not is_integer:
-                            continue
-                        updated[unknown] = Fraction(candidate)
-                    try:
-                        value = evaluate(expression, {name:value for name,value in updated.items() if value is not None})
-                        if value.denominator != 1 or not 1 <= value <= limit:
-                            continue
-                    except (ValueError, ArithmeticError):
+            unknowns = [name for name in used if assignment[name] is None]
+            unknown = unknowns[0] if unknowns else None
+            known = {name:value for name,value in assignment.items() if value is not None}
+            integer_required = inferred_integer_variables(expression, known)
+            candidates = [None] if unknown is None else solve_rational_clue(expression, unknown, known, limit)
+            if candidates is None:
+                raise ValueError(f'Cannot yet solve {expression} analytically; no brute-force fallback is used.')
+            for candidate in sorted(candidates) if unknown is not None else candidates:
+                updated = dict(assignment)
+                if unknown is not None:
+                    if unknown in integer_required and Fraction(candidate).denominator != 1:
                         continue
-                    survivors[tuple(updated.items())] = updated
+                    updated[unknown] = Fraction(candidate)
+                try:
+                    value = evaluate(expression, {name:value for name,value in updated.items() if value is not None})
+                    if value.denominator != 1 or not 1 <= value <= limit:
+                        continue
+                except (ValueError, ArithmeticError):
+                    continue
+                survivors[tuple(updated.items())] = updated
         assignments = list(survivors.values())
-        notes.append(f"{expression}: {len(assignments)} partial assignments" +
-                     (" (bounded per-clue fallback)" if fallbacks else " (solved analytically)"))
+        inferred = sorted(set().union(*(inferred_integer_variables(expression, {
+            name:value for name,value in assignment.items() if value is not None}) for assignment in assignments)))
+        notes.append(f'{expression}: {len(assignments)} partial assignments (solved analytically)' +
+                     (f"; integer rule: {', '.join(inferred)}" if inferred else ''))
     return assignments, notes
-
-
-def valid_combinations(expressions, bounds, region_limit, options=None):
-    """Yield valid assignments (or None) so searches can run in UI-sized batches."""
-    names = list(bounds)
-    options = options or {}
-    domains = [candidate_domain(low, high, *options.get(name, (True, 10)))
-               for name, (low, high) in bounds.items()]
-    for combination in product(*domains):
-        values = dict(zip(names, combination))
-        try:
-            valid = True
-            for expression in expressions:
-                value = evaluate(expression, values)
-                if value <= 0 or value.denominator != 1 or value > region_limit:
-                    valid = False
-                    break
-        except (ValueError, SyntaxError, ArithmeticError, RecursionError):
-            valid = False
-        yield values if valid else None
 
 
 def format_candidates(values):
@@ -305,21 +323,6 @@ def check_grid_connectivity(expressions, variables):
     return True, "Connectivity check passed. Each value can connect through blank cells within its region size."
 
 
-def connectivity_candidates(expressions, bounds, options=None):
-    """Project surviving joint assignments onto each variable's candidate list."""
-    flat = [cell for row in expressions for cell in row if cell.strip()]
-    values = {name: set() for name in bounds}
-    count = 0
-    first = None
-    for assignment in valid_combinations(flat, bounds, max_region_size(len(expressions)), options):
-        if assignment is None or not check_grid_connectivity(expressions, assignment)[0]:
-            continue
-        count += 1
-        if first is None:
-            first = assignment
-        for name, value in assignment.items():
-            values[name].add(value)
-    return count, values, first
 
 
 def region_completions(size, labels, number):
@@ -488,21 +491,9 @@ def read_state(path):
             or type(state.get("show_values", False)) is not bool):
         raise ValueError("Invalid saved settings")
     state["size"] = size
-    integer_settings = state.get("integer_only", {})
-    denominator_settings = state.get("denominator_limits", {})
-    if (not isinstance(integer_settings, dict) or any(type(value) is not bool for value in integer_settings.values())
-            or not isinstance(denominator_settings, dict)
-            or any(not isinstance(value, str) for value in denominator_settings.values())):
-        raise ValueError("Invalid saved variable search settings")
     disabled = state.get("disabled_cells", [])
     if (not isinstance(disabled, list) or any(type(cell) is not int or not 0 <= cell < size*size for cell in disabled)):
         raise ValueError("Invalid disabled cells")
-    bounds = state.get("bounds", {})
-    if (not isinstance(bounds, dict)
-            or any(not isinstance(value, dict)
-                   or not isinstance(value.get("min"), str)
-                   or not isinstance(value.get("max"), str) for value in bounds.values())):
-        raise ValueError("Invalid saved variable bounds")
     return state
 
 
@@ -897,15 +888,11 @@ class PuzzleApp:
         self.status = tk.StringVar()
         self.detail = tk.StringVar()
         self.variables = {}
-        self.bounds = {}
-        self.integer_only = {}
-        self.denominator_limits = {}
         self.valid_values = {}
-        self.search_job = None
         self.search_revision = 0
         self.analytical_assignments = None
         self.analysis_steps = []
-        self.search_message = tk.StringVar(value="Set bounds, then compute valid values.")
+        self.search_message = tk.StringVar(value="Analyze included clues to find valid values.")
         self.connectivity_message = tk.StringVar()
         self.region_labels = {}
         self.region_palette = {}
@@ -979,27 +966,13 @@ class PuzzleApp:
             field = ttk.LabelFrame(panel, text=name, padding=10)
             field.grid(row=1, column=column, sticky="new", padx=(0, 10), pady=(0, 10))
             field.columnconfigure(1, weight=1)
-            for row, (label, value) in enumerate((("Candidate", variable),
-                                                  ("Min", self.bounds[name]["min"]),
-                                                  ("Max", self.bounds[name]["max"]))):
-                ttk.Label(field, text=label).grid(row=row, column=0, sticky="w", padx=(0, 10), pady=3)
-                ttk.Entry(field, textvariable=value, width=10).grid(row=row, column=1, sticky="ew", pady=3)
-            self.valid_values[name] = tk.StringVar(value="Not computed")
-            ttk.Checkbutton(field, text="Integer only", variable=self.integer_only[name],
-                            command=self.bounds_changed).grid(row=3, column=0, columnspan=2, sticky="w", pady=4)
-            ttk.Label(field, text="Max denominator").grid(row=4, column=0, sticky="w", padx=(0, 8))
-            denominator_entry = ttk.Entry(field, textvariable=self.denominator_limits[name], width=6)
-            denominator_entry.grid(row=4, column=1, sticky="ew")
-            def update_denominator(*_, name=name, entry=denominator_entry):
-                entry.configure(state="disabled" if self.integer_only[name].get() else "normal")
-            self.integer_only[name].trace_add("write", update_denominator)
-            update_denominator()
-            ttk.Label(field, text="Valid values").grid(row=5, column=0, columnspan=2, sticky="w", pady=(8, 0))
-            ttk.Label(field, textvariable=self.valid_values[name], wraplength=210).grid(row=6, column=0, columnspan=2, sticky="w")
-        self.compute_button = ttk.Button(panel, text="Compute valid values", command=self.compute_valid_values)
-        self.compute_button.grid(row=2, column=0, sticky="ew", padx=(0, 10), pady=(0, 8))
+            ttk.Label(field, text="Candidate").grid(row=0, column=0, sticky="w", padx=(0,10))
+            ttk.Entry(field, textvariable=variable, width=10).grid(row=0, column=1, sticky="ew")
+            self.valid_values[name] = tk.StringVar(value="Not analyzed")
+            ttk.Label(field, text="Valid values").grid(row=1, column=0, columnspan=2, sticky="w", pady=(8,0))
+            ttk.Label(field, textvariable=self.valid_values[name], wraplength=210).grid(row=2, column=0, columnspan=2, sticky="w")
         self.analyze_button = ttk.Button(panel, text="Analyze valid values", command=self.analyze_valid_values)
-        self.analyze_button.grid(row=2, column=1, sticky="ew", padx=(0, 10), pady=(0, 8))
+        self.analyze_button.grid(row=2, column=0, sticky="ew", padx=(0, 10), pady=(0, 8))
         ttk.Label(panel, textvariable=self.search_message, wraplength=230).grid(row=3, column=0, sticky="nw", padx=(0, 10))
         self.connectivity_button = ttk.Button(panel, text="Check connectivity", command=self.check_connectivity)
         self.connectivity_button.grid(row=4, column=0, sticky="ew", padx=(0, 10), pady=(12, 8))
@@ -1025,7 +998,7 @@ class PuzzleApp:
         def wrap_grid_labels(event):
             width = max(100, min(self.board.winfo_width(), self.board.winfo_height()) - 8)
             for label in (detail_label, status_label, storage_label):
-                if int(float(label.cget("wraplength"))) != width:
+                if str(label.cget("wraplength")) != str(width):
                     label.configure(wraplength=width)
         self.board.bind("<Configure>", wrap_grid_labels, add="+")
         main.bind("<Configure>", lambda event: help_label.configure(wraplength=max(100, event.width)))
@@ -1057,11 +1030,6 @@ class PuzzleApp:
             self.search_message.set(f"Restored {len(self.analytical_assignments)} analyzed partial assignments.")
         for variable in self.variables.values():
             variable.trace_add("write", self.settings_changed)
-        for bound in self.bounds.values():
-            for value in bound.values():
-                value.trace_add("write", self.bounds_changed)
-        for value in self.denominator_limits.values():
-            value.trace_add("write", self.bounds_changed)
         root.update_idletasks()
         # Reserve room for controls even with Windows font/display scaling.
         body_height = max(minimum_board + 32 + footer.winfo_reqheight(),
@@ -1081,15 +1049,6 @@ class PuzzleApp:
             self.expressions = expressions
             self.disabled_cells = set(state.get("disabled_cells", []))
             self.variables = {name: tk.StringVar(value=value) for name, value in state["variables"].items()}
-            self.integer_only = {name: tk.BooleanVar(value=state.get("integer_only", {}).get(name, True))
-                                 for name in self.variables}
-            self.denominator_limits = {name: tk.StringVar(value=state.get("denominator_limits", {}).get(name, "10"))
-                                       for name in self.variables}
-            default_max = str(max_region_size(self.SIZE))
-            self.bounds = {
-                name: {key: tk.StringVar(value=state.get("bounds", {}).get(name, {}).get(key, default))
-                       for key, default in (("min", "1"), ("max", default_max))}
-                for name in self.variables}
             self.show_values.set(show_values)
             analysis = state.get("analysis")
             if analysis:
@@ -1104,10 +1063,6 @@ class PuzzleApp:
         state = {"size": self.SIZE, "expressions": self.expressions,
                  "disabled_cells": sorted(self.disabled_cells),
                  "variables": {name: value.get() for name, value in self.variables.items()},
-                 "integer_only": {name: value.get() for name, value in self.integer_only.items()},
-                 "denominator_limits": {name: value.get() for name, value in self.denominator_limits.items()},
-                 "bounds": {name: {key: value.get() for key, value in bound.items()}
-                            for name, bound in self.bounds.items()},
                  "show_values": self.show_values.get()}
         if self.analytical_assignments is not None:
             state["analysis"] = {
@@ -1121,11 +1076,33 @@ class PuzzleApp:
             self.storage_error.set(f"Could not save grid: {error}")
 
     def settings_changed(self, *_):
+        if getattr(self, "updating_candidates", False):
+            return
         if _:
             self.clear_regions()
         self.connectivity_message.set("")
         self.refresh()
         self.save_state()
+
+    def apply_single_assignment(self):
+        if self.analytical_assignments is None or len(self.analytical_assignments) != 1:
+            return False
+        changed = False
+        self.updating_candidates = True
+        try:
+            for name, value in self.analytical_assignments[0].items():
+                if value is not None and name in self.variables:
+                    text = str(value)
+                    if self.variables[name].get() != text:
+                        self.variables[name].set(text)
+                        changed = True
+        finally:
+            self.updating_candidates = False
+        if changed:
+            self.clear_regions()
+            self.connectivity_message.set("")
+            self.refresh()
+        return changed
 
     def update_display_button(self):
         self.display_button.configure(text="Prioritize equations" if self.show_values.get()
@@ -1141,36 +1118,17 @@ class PuzzleApp:
         self.analytical_assignments = None
         self.analysis_steps = []
         self.search_revision += 1
-        self.search_job = None
-        self.compute_button.configure(text="Compute valid values")
         for value in self.valid_values.values():
             value.set("Not computed")
-        self.search_message.set("Grid or bounds changed. Compute valid values again.")
+        self.search_message.set("Grid changed. Analyze valid values again.")
 
-    def bounds_changed(self, *_):
-        self.invalidate_search()
-        self.save_state()
 
-    def search_options(self):
-        options = {}
-        for name in self.variables:
-            integer = self.integer_only[name].get()
-            denominator = 10 if integer else int(self.denominator_limits[name].get())
-            if denominator < 1:
-                raise ValueError(f"{name}: Max denominator must be at least 1.")
-            options[name] = (integer, denominator)
-        return options
 
     def analyze_valid_values(self):
         try:
-            bounds = {name: (Fraction(fields["min"].get()), Fraction(fields["max"].get()))
-                      for name, fields in self.bounds.items()}
-            if any(low > high for low, high in bounds.values()):
-                raise ValueError("Min must not exceed Max")
-            options = self.search_options()
             expressions = [cell for row in self.active_expressions() for cell in row if cell.strip()]
             for expression in expressions:
-                clue_variables(expression, bounds)
+                clue_variables(expression, self.variables)
         except (ValueError, SyntaxError, ZeroDivisionError) as error:
             self.search_message.set(str(error))
             return
@@ -1181,7 +1139,7 @@ class PuzzleApp:
         results = Queue()
         def work():
             try:
-                results.put((analyze_clues(expressions, bounds, max_region_size(self.SIZE), options), None))
+                results.put((analyze_clues(expressions, self.variables, max_region_size(self.SIZE)), None))
             except Exception as error:
                 results.put((None, str(error)))
         threading.Thread(target=work, daemon=True).start()
@@ -1198,6 +1156,7 @@ class PuzzleApp:
                 self.search_message.set(f"Could not analyze: {error}")
                 return
             self.analytical_assignments, self.analysis_steps = result
+            self.apply_single_assignment()
             for name, label in self.valid_values.items():
                 values = {assignment[name] for assignment in self.analytical_assignments}
                 label.set("Unknown" if None in values else format_candidates(values))
@@ -1205,74 +1164,11 @@ class PuzzleApp:
             if self.analytical_assignments:
                 message += " Example: " + ", ".join(f"{name}: {'?' if value is None else value}"
                                                     for name,value in self.analytical_assignments[0].items()) + "."
-            if any("fallback" in step for step in self.analysis_steps):
-                message += " Some clues used a bounded per-clue search."
             self.search_message.set(message)
             self.save_state()
         self.root.after(50, poll)
 
-    def compute_valid_values(self):
-        self.search_revision += 1
-        if self.search_job is not None:
-            self.invalidate_search()
-            self.search_message.set("Search cancelled.")
-            return
-        try:
-            bounds = {}
-            options = self.search_options()
-            total = 1
-            for name, fields in self.bounds.items():
-                low, high = Fraction(fields["min"].get()), Fraction(fields["max"].get())
-                if low > high:
-                    raise ValueError(f"{name}: Min must not exceed Max.")
-                bounds[name] = (low, high)
-                total *= len(candidate_domain(low, high, *options[name]))
-            expressions = [cell for row in self.active_expressions() for cell in row if cell.strip()]
-            # Reject syntax mistakes and unknown names before enumerating candidates.
-            for expression in expressions:
-                tree = ast.parse(expression.replace("^", "**"), mode="eval")
-                for node in ast.walk(tree):
-                    if isinstance(node, ast.Name) and node.id not in bounds and node.id not in ("sqrt", "cbrt"):
-                        match = re.fullmatch(r"log_([a-z]+|\d+)", node.id)
-                        if not match or (not match[1].isdigit() and match[1] not in bounds):
-                            raise ValueError(f"Unknown variable: {node.id}")
-        except (ValueError, SyntaxError, ZeroDivisionError) as error:
-            self.search_message.set(str(error))
-            return
-        job = {"iterator": valid_combinations(expressions, bounds, max_region_size(self.SIZE), options), "total": total,
-               "checked": 0, "count": 0, "values": {name: set() for name in bounds}, "first": None}
-        self.search_job = job
-        for value in self.valid_values.values():
-            value.set("Searching…")
-        self.compute_button.configure(text="Cancel search")
-        self.search_step(job)
 
-    def search_step(self, job):
-        if self.search_job is not job:
-            return
-        for _ in range(100):
-            try:
-                assignment = next(job["iterator"])
-            except StopIteration:
-                self.search_job = None
-                self.compute_button.configure(text="Compute valid values")
-                for name, values in job["values"].items():
-                    self.valid_values[name].set(format_candidates(values))
-                message = f"{job['count']} valid combinations within these bounds."
-                if job["first"] is not None and job["first"]:
-                    message += " Example: " + ", ".join(f"{name}={value}" for name, value in job["first"].items()) + "."
-                    message += " Listed values must be used in a valid combination."
-                self.search_message.set(message)
-                return
-            job["checked"] += 1
-            if assignment is not None:
-                job["count"] += 1
-                if job["first"] is None:
-                    job["first"] = assignment
-                for name, value in assignment.items():
-                    job["values"][name].add(value)
-        self.search_message.set(f"Checked {job['checked']:,} of {job['total']:,} combinations…")
-        self.root.after(1, lambda: self.search_step(job))
 
     def select(self, x, y):
         self.selected = (x, y)
@@ -1328,16 +1224,10 @@ class PuzzleApp:
         expressions = self.active_expressions()
         try:
             variables = {name: Fraction(value.get().strip()) for name, value in self.variables.items()}
-            options = self.search_options()
-            bounds = {name: (Fraction(fields["min"].get()), Fraction(fields["max"].get()))
-                      for name, fields in self.bounds.items()}
-            if any(low > high for low, high in bounds.values()):
-                raise ValueError("Min exceeds Max")
         except (ValueError, ZeroDivisionError):
-            self.connectivity_message.set("Enter numeric candidates and bounds with Min ≤ Max, and a positive integer denominator limit.")
+            self.connectivity_message.set("Enter numeric candidate values.")
             return
-        if self.search_job is not None:
-            self.invalidate_search()
+        partials = None if self.analytical_assignments is None else [dict(item) for item in self.analytical_assignments]
         revision = self.search_revision
         self.connectivity_button.configure(state="disabled")
         self.connectivity_message.set("Checking connectivity…")
@@ -1345,7 +1235,17 @@ class PuzzleApp:
         def work():
             try:
                 message = check_grid_connectivity(expressions, variables)[1]
-                results.put((message, connectivity_candidates(expressions, bounds, options)))
+                survivors = None
+                if partials is not None:
+                    survivors = []
+                    for assignment in partials:
+                        used = set().union(*(clue_variables(cell, self.variables) for row in expressions for cell in row if cell.strip()))
+                        if any(assignment.get(name) is None for name in used):
+                            raise ValueError("Analyze the included clues before filtering connectivity.")
+                        known = {name:value for name,value in assignment.items() if value is not None}
+                        if check_grid_connectivity(expressions, known)[0]:
+                            survivors.append(assignment)
+                results.put((message, survivors))
             except Exception as error:
                 results.put((f"Could not finish connectivity check: {error}", None))
         threading.Thread(target=work, daemon=True).start()
@@ -1357,21 +1257,22 @@ class PuzzleApp:
                 return
             self.connectivity_button.configure(state="normal")
             if revision != self.search_revision or expressions != self.active_expressions():
-                self.connectivity_message.set("Grid, bounds, or search changed. Check connectivity again.")
+                self.connectivity_message.set("Grid or analysis changed. Check connectivity again.")
                 return
+            applied_assignment = False
             if filtered is not None:
-                count, values, first = filtered
-                for name, candidates in values.items():
-                    self.valid_values[name].set(format_candidates(candidates))
-                summary = f"{count} combinations pass connectivity within these bounds."
-                if first:
-                    summary += " Example: " + ", ".join(f"{name}={value}" for name, value in first.items()) + "."
-                self.search_message.set(summary)
+                self.analytical_assignments = filtered
+                applied_assignment = self.apply_single_assignment()
+                for name, label in self.valid_values.items():
+                    values = {assignment.get(name) for assignment in filtered}
+                    label.set("Unknown" if None in values else format_candidates(values))
+                self.search_message.set(f"{len(filtered)} analyzed assignments pass connectivity.")
+                self.save_state()
             try:
                 current = {name: Fraction(value.get().strip()) for name, value in self.variables.items()}
             except (ValueError, ZeroDivisionError):
                 current = None
-            if expressions != self.active_expressions() or current != variables:
+            if expressions != self.active_expressions() or (current != variables and not applied_assignment):
                 message = "Candidates or grid changed. Check connectivity again."
             self.connectivity_message.set(message)
         self.root.after(50, poll)
