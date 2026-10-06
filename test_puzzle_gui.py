@@ -123,7 +123,7 @@ class VariableSearchTests(unittest.TestCase):
         self.assertEqual(decode_overlay(restored['overlay_snapshot']),snapshot)
         self.assertEqual(decode_overlay(restored['overlay_history']),{'undo':[snapshot],'redo':[]})
 
-    def test_reset_keeps_equations_candidates_and_variable_analysis(self):
+    def test_reset_keeps_equations_and_structure_but_clears_variable_analysis(self):
         app=PuzzleApp.__new__(PuzzleApp)
         def value(initial):
             storage=[initial]
@@ -132,6 +132,9 @@ class VariableSearchTests(unittest.TestCase):
         app.variables={'a':value('1')}
         app.valid_values={'a':value('1, 2')}
         app.analytical_assignments=[{'a':Fraction(1)},{'a':Fraction(2)}]
+        app.analysis_steps=['Solved a']
+        app.search_revision=2
+        app.search_message=value('Analyzed')
         app.SIZE=2
         app.overlay_states=[{'cells':{0,1}}]
         app.overlay_undo=[{}]
@@ -146,9 +149,12 @@ class VariableSearchTests(unittest.TestCase):
         app.save_state=lambda:None
         app.reset_to_equations()
         self.assertEqual(app.expressions,[['a',''],['','']])
-        self.assertEqual(app.variables['a'].get(),'1')
-        self.assertEqual(app.valid_values['a'].get(),'1, 2')
-        self.assertEqual(len(app.analytical_assignments),2)
+        self.assertEqual(app.variables['a'].get(),'')
+        self.assertEqual(app.valid_values['a'].get(),'Not computed')
+        self.assertIsNone(app.analytical_assignments)
+        self.assertEqual(app.analysis_steps,[])
+        self.assertEqual(app.search_revision,3)
+        self.assertEqual(list(app.variables),['a'])
         self.assertEqual(app.SIZE,2)
         self.assertFalse(app.overlay_states)
         self.assertFalse(app.overlay_undo)

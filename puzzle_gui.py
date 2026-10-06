@@ -1971,7 +1971,17 @@ class PuzzleApp:
             return False
 
     def reset_to_equations(self):
+        if getattr(self,'region_cancel',None) is not None:
+            self.region_cancel.set()
         self.clear_regions()
+        self.invalidate_search()
+        self.updating_candidates = True
+        try:
+            for variable in self.variables.values():
+                variable.set('')
+        finally:
+            self.updating_candidates = False
+        self.search_message.set("Analyze included clues to find valid values.")
         self.overlay_target.set('Highest')
         self.overlay_index = 0
         self.overlay_highest = None
