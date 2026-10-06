@@ -379,7 +379,7 @@ def display_expression(expression):
                         lambda match: match[1].translate(str.maketrans(
                             "0123456789-", "⁰¹²³⁴⁵⁶⁷⁸⁹⁻")), expression)
     expression = re.sub(r"(?<=\d)\s*\*\s*(?=[a-z])", "", expression)
-    return expression.replace("sqrt(", "√(").replace("**", "^").replace("-", "−").replace("*", "·")
+    return expression.replace("sqrt(", "√(").replace("cbrt(", "∛(").replace("**", "^").replace("-", "−").replace("*", "·")
 
 
 def fraction_parts(expression):
@@ -430,8 +430,8 @@ def math_runs(text):
     """Separate radical arguments from surrounding text, including nested roots."""
     runs = []
     while text:
-        root_start, fraction_start, power_start, log_start = text.find("√("), text.find("⟦"), text.find("〖"), text.find("〔")
-        candidates = [start for start in (root_start, fraction_start, power_start, log_start) if start >= 0]
+        root_start, cube_start, fraction_start, power_start, log_start = text.find("√("), text.find("∛("), text.find("⟦"), text.find("〖"), text.find("〔")
+        candidates = [start for start in (root_start, cube_start, fraction_start, power_start, log_start) if start >= 0]
         start = min(candidates) if candidates else -1
         if start < 0:
             runs.append(("text", text))
@@ -456,7 +456,7 @@ def math_runs(text):
         if paired:
             runs.append(("fraction" if is_fraction else "power" if is_power else "log", (math_runs(text[start+1:separator]), math_runs(text[separator+1:end-1]))))
         else:
-            runs.append(("root", math_runs(text[start+2:end-1])))
+            runs.append(("cube_root" if start == cube_start else "root", math_runs(text[start+2:end-1])))
         text = text[end:]
     return runs
 
@@ -466,6 +466,7 @@ def math_width(runs, font):
                max(math_width(part, font) for part in value) + 6 if kind == "fraction" else
                math_width(value[0], font) + 0.85 * math_width(value[1], font) if kind == "power" else
                font.measure("log ") + 0.85 * math_width(value[0], font) + math_width(value[1], font) if kind == "log" else
+               font.measure("3")*0.55 + font.measure("√") + 4 + math_width(value, font) if kind == "cube_root" else
                font.measure("√") + 4 + math_width(value, font) for kind, value in runs)
 
 
@@ -500,6 +501,10 @@ def draw_math(canvas, center_x, center_y, text, font):
                 canvas.create_line(left, y, left+width, y, fill="#252525", width=1)
                 left += width
             else:
+                if kind == "cube_root":
+                    canvas.create_text(left, y-local_height*0.48, text="3", anchor="w",
+                                       font=("Times New Roman", max(6, round(font.cget("size")*scale*0.65))), fill="#252525")
+                    left += font.measure("3")*scale*0.55
                 root_width = font.measure("√")*scale
                 argument_width = math_width(value, font)*scale
                 # Draw the radical and vinculum as one continuous stroke.
@@ -610,6 +615,30 @@ def evaluate(expression, variables):
         if isinstance(node, ast.UnaryOp) and isinstance(node.op, (ast.UAdd, ast.USub)):
             value = visit(node.operand)
             return value if isinstance(node.op, ast.UAdd) else -value
+        if (isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+                and node.func.id == "cbrt" and len(node.args) == 1 and not node.keywords):
+            value = visit(node.args[0])
+            if isinstance(value, Fraction):
+                def integer_cube_root(number):
+                    low, high = 0, 1 << ((number.bit_length()+2)//3)
+                    while low < high:
+                        middle = (low+high+1)//2
+                        if middle**3 <= number:
+                            low = middle
+                        else:
+                            high = middle-1
+                    return low
+                numerator = integer_cube_root(abs(value.numerator))
+                denominator = integer_cube_root(value.denominator)
+                if numerator**3 == abs(value.numerator) and denominator**3 == value.denominator:
+                    return Fraction(numerator if value >= 0 else -numerator, denominator)
+            with localcontext() as context:
+                context.prec = 80
+                decimal = Decimal(value.numerator)/Decimal(value.denominator) if isinstance(value, Fraction) else value
+                if not decimal:
+                    return Fraction(0)
+                root = (abs(decimal).ln()/Decimal(3)).exp()
+                return root if decimal > 0 else -root
         if (isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
                 and re.fullmatch(r"log_([a-z]+|\d+)", node.func.id)
                 and len(node.args) == 1 and not node.keywords):
@@ -919,7 +948,7 @@ class PuzzleApp:
             for expression in expressions:
                 tree = ast.parse(expression.replace("^", "**"), mode="eval")
                 for node in ast.walk(tree):
-                    if isinstance(node, ast.Name) and node.id not in bounds and node.id != "sqrt":
+                    if isinstance(node, ast.Name) and node.id not in bounds and node.id not in ("sqrt", "cbrt"):
                         match = re.fullmatch(r"log_([a-z]+|\d+)", node.id)
                         if not match or (not match[1].isdigit() and match[1] not in bounds):
                             raise ValueError(f"Unknown variable: {node.id}")

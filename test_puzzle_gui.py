@@ -12,6 +12,16 @@ from puzzle_gui import (GridCanvas, PuzzleApp, format_candidates,
 
 
 class VariableSearchTests(unittest.TestCase):
+    def test_cube_root_evaluation_and_display(self):
+        self.assertEqual(evaluate('cbrt(43-a*c)/a', {'a':1, 'c':16}), 3)
+        self.assertEqual(evaluate('cbrt(-8)', {}), -2)
+        self.assertEqual(evaluate('cbrt(1/8)', {}), evaluate('1/2', {}))
+        self.assertEqual(evaluate('cbrt(0)', {}), 0)
+        self.assertNotEqual(evaluate('cbrt(2)', {}).denominator, 1)
+        self.assertEqual(fraction_parts('cbrt(43-a*c)/a'), ('∛(43 − a · c)', 'a'))
+        self.assertEqual(math_runs('∛(43 − a · c)')[0][0], 'cube_root')
+        self.assertEqual([assignment for assignment in valid_combinations(
+            ['cbrt(a)'], {'a':(1,8)}, 6) if assignment is not None], [{'a':1}, {'a':8}])
     def test_logarithm_with_variable_or_numeric_base(self):
         self.assertEqual(evaluate('log_c(a)', {'c':2, 'a':8}), 3)
         self.assertEqual(evaluate('log_2(16)+1', {}), 5)
