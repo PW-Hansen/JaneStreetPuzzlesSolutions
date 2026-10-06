@@ -199,5 +199,10 @@
   ],
   "x": "1",
   "y": "1",
-  "show_values": false
+  "show_values": false,
+  "variables": {
+    "a": "1",
+    "b": "1",
+    "c": "1"
+  }
 }

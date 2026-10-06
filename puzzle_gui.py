@@ -6,6 +6,9 @@ import json
 import operator
 import re
 import tkinter as tk
+import threading
+from collections import deque
+from queue import Queue, Empty
 from fractions import Fraction
 from itertools import product
 from math import isqrt
@@ -61,6 +64,97 @@ def format_candidates(values):
         parts.append(str(start) if start == previous else f"{start}–{previous}")
         start = previous = value
     return ", ".join(parts)
+
+
+def can_connect_region(size, labels, number, terminals):
+    """Exact bounded connected-set search; other fixed numbers are obstacles."""
+    terminals = frozenset(terminals)
+    if len(terminals) <= 1:
+        return True
+    allowed = {i for i in range(size * size) if i not in labels or labels[i] == number}
+    neighbors = {}
+    for cell in allowed:
+        row, column = divmod(cell, size)
+        neighbors[cell] = {r * size + c for r, c in
+                           ((row-1, column), (row+1, column), (row, column-1), (row, column+1))
+                           if 0 <= r < size and 0 <= c < size and r * size + c in allowed}
+    distances = {}
+    for terminal in terminals:
+        distance = {terminal: 0}
+        queue = deque([terminal])
+        while queue:
+            cell = queue.popleft()
+            for neighbor in neighbors[cell]:
+                if neighbor not in distance:
+                    distance[neighbor] = distance[cell] + 1
+                    queue.append(neighbor)
+        if not terminals <= distance.keys():
+            return False
+        distances[terminal] = distance
+    seen = set()
+    stack = [frozenset([min(terminals)])]
+    while stack:
+        region = stack.pop()
+        if region in seen:
+            continue
+        seen.add(region)
+        missing = terminals - region
+        if not missing:
+            return True
+        remaining = number - len(region)
+        if len(missing) > remaining or any(
+                min(distances[terminal].get(cell, size * size) for cell in region) > remaining
+                for terminal in missing):
+            continue
+        frontier = set().union(*(neighbors[cell] for cell in region)) - region
+        for cell in sorted(frontier, key=lambda c: min(distances[t].get(c, size*size) for t in missing), reverse=True):
+            stack.append(region | {cell})
+    return False
+
+
+def check_grid_connectivity(expressions, variables):
+    size = len(expressions)
+    limit = max_region_size(size)
+    labels, groups = {}, {}
+    for row, cells in enumerate(expressions):
+        for column, expression in enumerate(cells):
+            if not expression.strip():
+                continue
+            try:
+                value = evaluate(expression, variables)
+                if value.denominator != 1 or not 1 <= value <= limit:
+                    return False, f"Rejected: row {row+1}, column {column+1} must evaluate to an integer from 1 to {limit}."
+            except (ValueError, SyntaxError, ArithmeticError, RecursionError) as error:
+                return False, f"Rejected: row {row+1}, column {column+1}: {error}"
+            number = int(value)
+            cell = row * size + column
+            labels[cell] = number
+            groups.setdefault(number, []).append(cell)
+    # Count all fixed cells before attempting any connectivity search.
+    for number, terminals in sorted(groups.items()):
+        if len(terminals) > number:
+            return False, f"Rejected: {len(terminals)} cells evaluate to {number}; at most {number} are allowed."
+    for number, terminals in sorted(groups.items()):
+        if not can_connect_region(size, labels, number, terminals):
+            return False, f"Rejected: the {number} cells cannot be connected in a region of at most {number} cells."
+    return True, "Connectivity check passed. Each value can connect through blank cells within its region size."
+
+
+def connectivity_candidates(expressions, bounds):
+    """Project surviving joint assignments onto each variable's candidate list."""
+    flat = [cell for row in expressions for cell in row if cell.strip()]
+    values = {name: set() for name in bounds}
+    count = 0
+    first = None
+    for assignment in valid_combinations(flat, bounds, max_region_size(len(expressions))):
+        if assignment is None or not check_grid_connectivity(expressions, assignment)[0]:
+            continue
+        count += 1
+        if first is None:
+            first = assignment
+        for name, value in assignment.items():
+            values[name].add(value)
+    return count, values, first
 
 
 def grid_name(value):
@@ -271,7 +365,9 @@ class PuzzleApp:
         self.bounds = {}
         self.valid_values = {}
         self.search_job = None
+        self.search_revision = 0
         self.search_message = tk.StringVar(value="Set integer bounds, then compute valid values.")
+        self.connectivity_message = tk.StringVar()
         self.storage_error = tk.StringVar()
         self.load_state()
         style = ttk.Style(root)
@@ -349,6 +445,9 @@ class PuzzleApp:
         self.compute_button = ttk.Button(panel, text="Compute valid values", command=self.compute_valid_values)
         self.compute_button.grid(row=2, column=0, sticky="ew", padx=(0, 10), pady=(0, 8))
         ttk.Label(panel, textvariable=self.search_message, wraplength=230).grid(row=3, column=0, sticky="nw", padx=(0, 10))
+        self.connectivity_button = ttk.Button(panel, text="Check connectivity", command=self.check_connectivity)
+        self.connectivity_button.grid(row=4, column=0, sticky="ew", padx=(0, 10), pady=(12, 8))
+        ttk.Label(panel, textvariable=self.connectivity_message, wraplength=230).grid(row=5, column=0, sticky="nw", padx=(0, 10))
         footer = ttk.Frame(layout)
         footer.grid(row=2, column=0, sticky="ew")
         options = ttk.Frame(footer)
@@ -411,10 +510,12 @@ class PuzzleApp:
             self.storage_error.set(f"Could not save grid: {error}")
 
     def settings_changed(self, *_):
+        self.connectivity_message.set("")
         self.refresh()
         self.save_state()
 
     def invalidate_search(self):
+        self.search_revision += 1
         self.search_job = None
         self.compute_button.configure(text="Compute valid values")
         for value in self.valid_values.values():
@@ -426,6 +527,7 @@ class PuzzleApp:
         self.save_state()
 
     def compute_valid_values(self):
+        self.search_revision += 1
         if self.search_job is not None:
             self.invalidate_search()
             self.search_message.set("Search cancelled.")
@@ -494,9 +596,61 @@ class PuzzleApp:
         expression = self.formula.get().strip()
         x, y = self.selected
         self.expressions[y][x] = expression
+        self.connectivity_message.set("")
         self.invalidate_search()
         self.refresh()
         self.save_state()
+
+    def check_connectivity(self):
+        expressions = [row[:] for row in self.expressions]
+        try:
+            variables = {name: Fraction(value.get().strip()) for name, value in self.variables.items()}
+            bounds = {name: (int(fields["min"].get()), int(fields["max"].get()))
+                      for name, fields in self.bounds.items()}
+            if any(low > high for low, high in bounds.values()):
+                raise ValueError("Min exceeds Max")
+        except (ValueError, ZeroDivisionError):
+            self.connectivity_message.set("Enter numeric candidates and integer bounds with Min ≤ Max.")
+            return
+        if self.search_job is not None:
+            self.invalidate_search()
+        revision = self.search_revision
+        self.connectivity_button.configure(state="disabled")
+        self.connectivity_message.set("Checking connectivity…")
+        results = Queue()
+        def work():
+            try:
+                message = check_grid_connectivity(expressions, variables)[1]
+                results.put((message, connectivity_candidates(expressions, bounds)))
+            except Exception as error:
+                results.put((f"Could not finish connectivity check: {error}", None))
+        threading.Thread(target=work, daemon=True).start()
+        def poll():
+            try:
+                message, filtered = results.get_nowait()
+            except Empty:
+                self.root.after(50, poll)
+                return
+            self.connectivity_button.configure(state="normal")
+            if revision != self.search_revision or expressions != self.expressions:
+                self.connectivity_message.set("Grid, bounds, or search changed. Check connectivity again.")
+                return
+            if filtered is not None:
+                count, values, first = filtered
+                for name, candidates in values.items():
+                    self.valid_values[name].set(format_candidates(candidates))
+                summary = f"{count} combinations pass connectivity within these bounds."
+                if first:
+                    summary += " Example: " + ", ".join(f"{name}={value}" for name, value in first.items()) + "."
+                self.search_message.set(summary)
+            try:
+                current = {name: Fraction(value.get().strip()) for name, value in self.variables.items()}
+            except (ValueError, ZeroDivisionError):
+                current = None
+            if expressions != self.expressions or current != variables:
+                message = "Candidates or grid changed. Check connectivity again."
+            self.connectivity_message.set(message)
+        self.root.after(50, poll)
 
     def refresh(self):
         filled, errors = 0, 0
