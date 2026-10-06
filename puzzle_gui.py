@@ -8,6 +8,7 @@ import re
 import tkinter as tk
 import threading
 from collections import deque
+from heapq import heapify, heappop, heappush
 from decimal import Decimal, localcontext
 from queue import Queue, Empty
 from fractions import Fraction
@@ -249,50 +250,131 @@ def format_candidates(values):
     return ", ".join(parts)
 
 
-def can_connect_region(size, labels, number, terminals):
-    """Exact bounded connected-set search; other fixed numbers are obstacles."""
-    terminals = frozenset(terminals)
-    if len(terminals) <= 1:
-        return True
-    allowed = {i for i in range(size * size) if i not in labels or labels[i] == number}
-    neighbors = {}
-    for cell in allowed:
-        row, column = divmod(cell, size)
-        neighbors[cell] = {r * size + c for r, c in
-                           ((row-1, column), (row+1, column), (row, column-1), (row, column+1))
-                           if 0 <= r < size and 0 <= c < size and r * size + c in allowed}
-    distances = {}
+def minimum_region_size(size, labels, number, terminals):
+    """Exact graph Steiner-tree size using terminal-subset dynamic programming."""
+    terminals = sorted(set(terminals))
+    if not terminals:
+        return 0
+    if len(terminals) > number:
+        return None
+    allowed = {cell for cell in range(size*size) if cell not in labels or labels[cell] == number}
+    neighbors = {cell: [r*size+c for r,c in ((cell//size-1,cell%size),
+                  (cell//size+1,cell%size),(cell//size,cell%size-1),(cell//size,cell%size+1))
+                  if 0 <= r < size and 0 <= c < size and r*size+c in allowed] for cell in allowed}
+    distances = []
     for terminal in terminals:
-        distance = {terminal: 0}
+        if terminal not in allowed:
+            return None
+        distance = {terminal:0}
         queue = deque([terminal])
         while queue:
             cell = queue.popleft()
+            for other in neighbors[cell]:
+                if other not in distance:
+                    distance[other] = distance[cell]+1
+                    queue.append(other)
+        if any(distance.get(other, number) >= number for other in terminals):
+            return None
+        distances.append(distance)
+    # Half the terminal metric MST is a lower bound on a Steiner tree.
+    reached, mst = {0}, 0
+    while len(reached) < len(terminals):
+        distance, new = min((distances[i][terminals[j]],j) for i in reached
+                            for j in range(len(terminals)) if j not in reached)
+        mst += distance
+        reached.add(new)
+    if (mst+1)//2+1 > number:
+        return None
+    budget = number-1
+    count = 1 << len(terminals)
+    dp = [{} for _ in range(count)]
+    for mask in range(1,count):
+        if mask & (mask-1) == 0:
+            index = mask.bit_length()-1
+            dp[mask] = {cell:cost for cell,cost in distances[index].items() if cost <= budget}
+            continue
+        best = {}
+        sub = (mask-1)&mask
+        while sub:
+            other = mask^sub
+            if sub < other:
+                first, second = dp[sub],dp[other]
+                if len(first) > len(second): first,second = second,first
+                for cell,cost in first.items():
+                    combined = cost+second.get(cell,number)
+                    if combined <= budget and combined < best.get(cell,number):
+                        best[cell] = combined
+            sub = (sub-1)&mask
+        heap = [(cost,cell) for cell,cost in best.items()]
+        heapify(heap)
+        while heap:
+            cost,cell = heappop(heap)
+            if cost != best[cell] or cost >= budget: continue
             for neighbor in neighbors[cell]:
-                if neighbor not in distance:
-                    distance[neighbor] = distance[cell] + 1
-                    queue.append(neighbor)
-        if not terminals <= distance.keys():
-            return False
-        distances[terminal] = distance
-    seen = set()
-    stack = [frozenset([min(terminals)])]
-    while stack:
-        region = stack.pop()
-        if region in seen:
-            continue
-        seen.add(region)
-        missing = terminals - region
-        if not missing:
-            return True
-        remaining = number - len(region)
-        if len(missing) > remaining or any(
-                min(distances[terminal].get(cell, size * size) for cell in region) > remaining
-                for terminal in missing):
-            continue
-        frontier = set().union(*(neighbors[cell] for cell in region)) - region
-        for cell in sorted(frontier, key=lambda c: min(distances[t].get(c, size*size) for t in missing), reverse=True):
-            stack.append(region | {cell})
-    return False
+                if cost+1 < best.get(neighbor,number):
+                    best[neighbor] = cost+1
+                    heappush(heap,(cost+1,neighbor))
+        dp[mask] = best
+    return min(dp[-1].values())+1 if dp[-1] else None
+
+
+def can_connect_region(size, labels, number, terminals):
+    return minimum_region_size(size, labels, number, terminals) is not None
+
+
+def shape_orientations(cells, size):
+    points = [divmod(cell,size) for cell in cells]
+    unique = set()
+    orientations = []
+    for rotation in range(4):
+        for reflected in (False,True):
+            transformed = []
+            for row,column in points:
+                if reflected: column = -column
+                for _ in range(rotation): row,column = column,-row
+                transformed.append((row,column))
+            top,left = min(r for r,c in transformed),min(c for r,c in transformed)
+            shape = tuple(sorted((r-top,c-left) for r,c in transformed))
+            if shape not in unique:
+                unique.add(shape)
+                orientations.append((rotation,reflected,shape))
+    return orientations
+
+
+def find_region_overlays(expressions, variables, progress=None):
+    size = len(expressions)
+    labels = {r*size+c:int(evaluate(expression,variables))
+              for r,row in enumerate(expressions) for c,expression in enumerate(row) if expression.strip()}
+    limit = max_region_size(size)
+    for row in expressions:
+        for expression in row:
+            if expression.strip():
+                value = evaluate(expression,variables)
+                if value.denominator != 1 or not 1 <= value <= limit:
+                    raise ValueError("All included clues must evaluate to valid region sizes.")
+    if not labels: raise ValueError("No included clues to overlay.")
+    highest = max(labels.values())
+    source = [cell for cell,value in labels.items() if value == highest-1]
+    if highest == 1 or not source:
+        raise ValueError(f"No {highest-1} cells are available to overlay onto region {highest}.")
+    anchors = {cell for cell,value in labels.items() if value == highest}
+    tested, survivors = 0, []
+    for rotation,reflected,shape in shape_orientations(source,size):
+        height,width = max(r for r,c in shape)+1,max(c for r,c in shape)+1
+        for top in range(size-height+1):
+            for left in range(size-width+1):
+                tested += 1
+                cells = frozenset((r+top)*size+c+left for r,c in shape)
+                if any(cell in labels and labels[cell] != highest for cell in cells): continue
+                terminals = anchors | cells
+                minimum = minimum_region_size(size,labels,highest,terminals)
+                if minimum is not None:
+                    survivors.append({'cells':cells,'row':top,'column':left,'rotation':rotation,
+                                      'reflected':reflected,'minimum_size':minimum})
+                if progress: progress(tested,len(survivors))
+    return highest,labels,survivors,tested
+
+
 
 
 def check_grid_connectivity(expressions, variables):
@@ -897,6 +979,9 @@ class PuzzleApp:
         self.region_labels = {}
         self.region_palette = {}
         self.region_message = tk.StringVar()
+        self.overlay_message = tk.StringVar()
+        self.overlay_states = []
+        self.overlay_index = 0
         self.storage_error = tk.StringVar()
         self.load_state()
         style = ttk.Style(root)
@@ -980,6 +1065,13 @@ class PuzzleApp:
         self.region_button = ttk.Button(panel, text="Create regions", command=self.create_regions)
         self.region_button.grid(row=6, column=0, sticky="ew", padx=(0, 10), pady=(12, 8))
         ttk.Label(panel, textvariable=self.region_message, wraplength=230).grid(row=7, column=0, sticky="nw", padx=(0, 10))
+        self.overlay_button = ttk.Button(panel, text="Overlay regions", command=self.overlay_regions)
+        self.overlay_button.grid(row=8, column=0, sticky="ew", padx=(0, 10), pady=(12, 8))
+        ttk.Label(panel, textvariable=self.overlay_message, wraplength=230).grid(row=9, column=0, sticky="nw", padx=(0, 10))
+        overlay_navigation = ttk.Frame(panel)
+        overlay_navigation.grid(row=10, column=0, sticky="ew", padx=(0,10), pady=8)
+        ttk.Button(overlay_navigation, text="Previous", command=lambda:self.show_overlay(-1)).pack(side="left")
+        ttk.Button(overlay_navigation, text="Next", command=lambda:self.show_overlay(1)).pack(side="left", padx=8)
         footer = ttk.Frame(body)
         footer.grid(row=1, column=0, sticky="ew", padx=(0, 20))
         options = ttk.Frame(footer)
@@ -1020,7 +1112,7 @@ class PuzzleApp:
         panel.bind("<Configure>", schedule_fit, add="+")
         main.bind("<Configure>", schedule_fit, add="+")
         for message in (self.search_message, self.connectivity_message, self.region_message,
-                        self.detail, self.status, self.storage_error):
+                        self.overlay_message, self.detail, self.status, self.storage_error):
             message.trace_add("write", lambda *_: schedule_fit())
         self.select(0, 0)
         if self.analytical_assignments is not None:
@@ -1281,6 +1373,77 @@ class PuzzleApp:
         self.region_labels = {}
         self.region_palette = {}
         self.region_message.set("")
+        self.overlay_states = []
+        self.overlay_message.set("")
+
+    def overlay_regions(self):
+        expressions = self.active_expressions()
+        try:
+            variables = {name:Fraction(value.get().strip()) for name,value in self.variables.items()}
+        except (ValueError,ZeroDivisionError):
+            self.overlay_message.set("Enter numeric candidate values first.")
+            return
+        self.overlay_button.configure(state="disabled")
+        self.overlay_message.set("Testing translated, reflected, and rotated overlays…")
+        results = Queue()
+        def work():
+            try:
+                results.put(('result',find_region_overlays(expressions,variables,
+                    lambda tested,valid:results.put(('progress',(tested,valid))))))
+            except Exception as error:
+                results.put(('error',str(error)))
+        threading.Thread(target=work,daemon=True).start()
+        def poll():
+            final = None
+            try:
+                while True:
+                    kind,data = results.get_nowait()
+                    if kind == 'progress':
+                        self.overlay_message.set(f"Tested {data[0]} placements; {data[1]} valid so far.")
+                    else:
+                        final = (kind,data)
+                        break
+            except Empty:
+                pass
+            if final is None:
+                self.root.after(50,poll)
+                return
+            self.overlay_button.configure(state="normal")
+            try:
+                current = {name:Fraction(value.get().strip()) for name,value in self.variables.items()}
+            except (ValueError,ZeroDivisionError): current = None
+            if expressions != self.active_expressions() or current != variables:
+                self.overlay_message.set("Grid or candidates changed. Overlay regions again.")
+                return
+            self.clear_regions()
+            kind,data = final
+            if kind == 'error':
+                self.overlay_message.set(data)
+                self.refresh()
+                return
+            self.overlay_highest,self.overlay_base_labels,self.overlay_states,self.overlay_tested = data
+            self.overlay_index = 0
+            if not self.overlay_states:
+                self.overlay_message.set(f"No valid overlays among {self.overlay_tested} tested placements.")
+                self.refresh()
+                return
+            self.show_overlay(0)
+        self.root.after(50,poll)
+
+    def show_overlay(self, step):
+        if not self.overlay_states:
+            return
+        self.overlay_index = (self.overlay_index+step)%len(self.overlay_states)
+        state = self.overlay_states[self.overlay_index]
+        self.region_labels = dict(self.overlay_base_labels)
+        self.region_labels.update({cell:self.overlay_highest for cell in state['cells']})
+        self.region_palette = region_colors(self.SIZE,self.region_labels)
+        self.overlay_message.set(
+            f"Overlay {self.overlay_index+1}/{len(self.overlay_states)} for region {self.overlay_highest}. "
+            f"Row {state['row']+1}, column {state['column']+1}; rotation {state['rotation']*90}°"
+            f"{' reflected' if state['reflected'] else ''}. "
+            f"Minimum connected size: {state['minimum_size']}. {self.overlay_tested} placements tested.")
+        self.refresh()
 
     def create_regions(self):
         expressions = self.active_expressions()

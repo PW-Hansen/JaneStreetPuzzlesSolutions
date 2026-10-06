@@ -3,9 +3,48 @@ import unittest
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
-from puzzle_gui import GridCanvas, PuzzleApp, format_candidates, read_state, write_state, can_connect_region, check_grid_connectivity, grow_forced_regions, region_colors, canonical_shape, filter_containment, fraction_parts, evaluate, math_runs, draw_math, inline_math, analyze_clues, solve_rational_clue, inferred_integer_variables
+from puzzle_gui import GridCanvas, PuzzleApp, format_candidates, read_state, write_state, can_connect_region, check_grid_connectivity, grow_forced_regions, region_colors, canonical_shape, filter_containment, fraction_parts, evaluate, math_runs, draw_math, inline_math, analyze_clues, solve_rational_clue, inferred_integer_variables, minimum_region_size, find_region_overlays, shape_orientations
 
 class VariableSearchTests(unittest.TestCase):
+    def test_overlay_uses_highest_clue_and_preserves_originals(self):
+        grid = [['2','',''],['','3',''],['','','']]
+        highest, labels, states, tested = find_region_overlays(grid,{})
+        self.assertEqual(highest,3)
+        self.assertEqual(tested,9)
+        self.assertEqual(len(states),8)  # source 2 is an obstacle
+        self.assertTrue(all(0 not in state['cells'] for state in states))
+        self.assertEqual(grid[0][0],'2')
+        self.assertEqual(labels,{0:2,4:3})
+
+    def test_overlay_rotations_and_reflections_are_unique(self):
+        orientations = shape_orientations([0,5,10,11],5)
+        self.assertEqual(len(orientations),8)
+        self.assertEqual(len({shape for _,_,shape in orientations}),8)
+        self.assertEqual(orientations[0][2],((0,0),(1,0),(2,0),(2,1)))
+
+    def test_minimum_connection_matches_exhaustive_small_graphs(self):
+        from itertools import combinations
+        cases = [({0:3,8:3},[0,8]), ({0:3,2:3},[0,2]),
+                 ({0:3,1:1,2:3},[0,2]), ({1:4,3:4,5:4},[1,3,5])]
+        for labels,terminals in cases:
+            number=labels[terminals[0]]
+            allowed=[cell for cell in range(9) if cell not in labels or labels[cell]==number]
+            expected=None
+            for count in range(len(terminals),number+1):
+                for cells in combinations(allowed,count):
+                    cells=set(cells)
+                    if not set(terminals)<=cells: continue
+                    reached={terminals[0]}
+                    while True:
+                        extended=reached|{cell for cell in cells if any(
+                            abs(cell//3-other//3)+abs(cell%3-other%3)==1 for other in reached)}
+                        if extended==reached: break
+                        reached=extended
+                    if reached==cells:
+                        expected=count
+                        break
+                if expected is not None: break
+            self.assertEqual(minimum_region_size(3,labels,number,terminals),expected)
     def test_single_assignment_fills_known_variables_only(self):
         from fractions import Fraction
         def variable(initial):
