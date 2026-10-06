@@ -7,6 +7,7 @@ import operator
 import re
 import tkinter as tk
 import threading
+from copy import deepcopy
 from collections import deque
 from heapq import heapify, heappop, heappush
 from decimal import Decimal, localcontext
@@ -450,8 +451,8 @@ def bordering_regions_reachable(size, labels, target, cells):
     return True
 
 
-def force_bordering_growth(size, labels, target, cells, candidate_limit=10):
-    """Propagate unavoidable growth, skipping regions with a wide frontier."""
+def force_bordering_growth(size, labels, target, cells, candidate_limit=10, max_depth=3):
+    """Propagate growth with bounded rounds per region and bounded frontiers."""
     combined = dict(labels)
     combined.update({cell:target for cell in cells})
     added = {}
@@ -482,10 +483,16 @@ def force_bordering_growth(size, labels, target, cells, candidate_limit=10):
                             for other in neighbors(cell)
                             if other in combined and combined[other] != target}))
     queued = set(pending)
+    rounds = {}
     while pending:
         number = pending.popleft()
         queued.remove(number)
         required = {cell for cell,value in combined.items() if value == number}
+        if len(required) < number:
+            if max_depth is not None and rounds.get(number,0) >= max_depth:
+                limited = True
+                continue
+            rounds[number] = rounds.get(number,0)+1
         frontier = {other for cell in required for other in neighbors(cell)
                     if other not in combined}
         # An incomplete connected piece must have an exit even when the
@@ -1342,6 +1349,8 @@ class PuzzleApp:
         self.overlay_target = tk.StringVar(value="Highest")
         self.overlay_states = []
         self.overlay_index = 0
+        self.overlay_undo = []
+        self.overlay_redo = []
         self.storage_error = tk.StringVar()
         self.load_state()
         style = ttk.Style(root)
@@ -1446,6 +1455,12 @@ class PuzzleApp:
         overlay_navigation.grid(row=3, column=0, sticky="ew", padx=(0,10), pady=8)
         ttk.Button(overlay_navigation, text="Previous", command=lambda:self.show_overlay(-1)).pack(side="left")
         ttk.Button(overlay_navigation, text="Next", command=lambda:self.show_overlay(1)).pack(side="left", padx=8)
+        history_navigation = ttk.Frame(overlay_panel)
+        history_navigation.grid(row=4,column=0,sticky="ew",pady=(0,8))
+        self.overlay_undo_button = ttk.Button(history_navigation,text="Undo",command=self.undo_overlay,state="disabled")
+        self.overlay_undo_button.pack(side="left")
+        self.overlay_redo_button = ttk.Button(history_navigation,text="Redo",command=self.redo_overlay,state="disabled")
+        self.overlay_redo_button.pack(side="left",padx=8)
         footer = ttk.Frame(body)
         footer.grid(row=1, column=0, sticky="ew", padx=(0, 20))
         options = ttk.Frame(footer)
@@ -1746,11 +1761,14 @@ class PuzzleApp:
             self.connectivity_message.set(message)
         self.root.after(50, poll)
 
-    def clear_regions(self):
+    def clear_regions(self, reset_history=True):
         self.region_labels = {}
         self.region_palette = {}
         self.overlay_states = []
         self.overlay_message.set("")
+        if reset_history:
+            self.overlay_undo.clear()
+            self.overlay_redo.clear()
         if hasattr(self,"overlay_buttons"):
             self.update_overlay_buttons()
 
@@ -1765,6 +1783,47 @@ class PuzzleApp:
     def set_overlay_buttons_enabled(self, enabled):
         self.overlay_busy = not enabled
         self.update_overlay_buttons()
+
+    def overlay_snapshot(self):
+        return deepcopy({
+            'states':self.overlay_states,'index':self.overlay_index,
+            'highest':getattr(self,'overlay_highest',None),
+            'base':getattr(self,'overlay_base_labels',{}),
+            'tested':getattr(self,'overlay_tested',0),
+            'target':str(self.overlay_highest) if self.overlay_states else self.overlay_target.get(),
+            'message':self.overlay_message.get(),
+            'labels':self.region_labels,'palette':self.region_palette})
+
+    def record_overlay(self, previous):
+        self.overlay_undo.append(previous)
+        self.overlay_redo.clear()
+
+    def restore_overlay(self, snapshot):
+        snapshot = deepcopy(snapshot)
+        self.overlay_states = snapshot['states']
+        self.overlay_index = snapshot['index']
+        self.overlay_highest = snapshot['highest']
+        self.overlay_base_labels = snapshot['base']
+        self.overlay_tested = snapshot['tested']
+        self.overlay_target.set(snapshot['target'])
+        self.region_labels = snapshot['labels']
+        self.region_palette = snapshot['palette']
+        self.overlay_message.set(snapshot['message'])
+        self.update_overlay_buttons()
+        self.refresh()
+        self.save_state()
+
+    def undo_overlay(self):
+        if getattr(self,'overlay_busy',False) or not self.overlay_undo:
+            return
+        self.overlay_redo.append(self.overlay_snapshot())
+        self.restore_overlay(self.overlay_undo.pop())
+
+    def redo_overlay(self):
+        if getattr(self,'overlay_busy',False) or not self.overlay_redo:
+            return
+        self.overlay_undo.append(self.overlay_snapshot())
+        self.restore_overlay(self.overlay_redo.pop())
 
     def update_overlay_buttons(self):
         completed = set()
@@ -1783,6 +1842,10 @@ class PuzzleApp:
         for number,button in enumerate(self.overlay_buttons,start=1):
             disabled = getattr(self,"overlay_busy",False) or number in completed
             button.configure(state="disabled" if disabled else "normal")
+        if hasattr(self,'overlay_undo_button'):
+            busy = getattr(self,'overlay_busy',False)
+            self.overlay_undo_button.configure(state="normal" if self.overlay_undo and not busy else "disabled")
+            self.overlay_redo_button.configure(state="normal" if self.overlay_redo and not busy else "disabled")
 
     def overlay_regions(self):
         expressions = self.active_expressions()
@@ -1793,6 +1856,7 @@ class PuzzleApp:
         except (ValueError,ZeroDivisionError):
             self.overlay_message.set("Enter numeric candidate values first.")
             return
+        previous = self.overlay_snapshot()
         self.set_overlay_buttons_enabled(False)
         self.overlay_message.set("Testing translated, reflected, and rotated overlays…")
         results = Queue()
@@ -1825,12 +1889,13 @@ class PuzzleApp:
             if expressions != self.active_expressions() or current != variables or self.overlay_target.get() != selected:
                 self.overlay_message.set("Grid or candidates changed. Overlay regions again.")
                 return
-            self.clear_regions()
             kind,data = final
             if kind == 'error':
                 self.overlay_message.set(data)
                 self.refresh()
                 return
+            self.record_overlay(previous)
+            self.clear_regions(reset_history=False)
             self.overlay_highest,self.overlay_base_labels,self.overlay_states,self.overlay_tested = data
             self.overlay_index = 0
             if not self.overlay_states:
@@ -1861,7 +1926,7 @@ class PuzzleApp:
         if state.get('neighbor_growth'):
             self.overlay_message.set(self.overlay_message.get()+f" {len(state['neighbor_growth'])} cells forced by bordering-region growth.")
         if state.get('growth_limited'):
-            self.overlay_message.set(self.overlay_message.get()+" Some regions skipped: more than 10 candidate growth cells.")
+            self.overlay_message.set(self.overlay_message.get()+" Growth limited: 3 rounds per region or more than 10 candidate cells.")
         if 'parent_index' in state:
             self.overlay_message.set(self.overlay_message.get()+f" From preceding overlay {state['parent_index']+1}.")
         if state.get('reverse_containment'):
@@ -1878,6 +1943,7 @@ class PuzzleApp:
         if target > max_region_size(self.SIZE):
             self.overlay_message.set("The next region exceeds max region size.")
             return
+        previous = self.overlay_snapshot()
         self.set_overlay_buttons_enabled(False)
         self.overlay_message.set(f"Testing all {len(states)} preceding overlays for region {target}…")
         results = Queue()
@@ -1915,6 +1981,7 @@ class PuzzleApp:
             if not children:
                 self.overlay_message.set(f"No valid region {target} continuations. Previous overlays retained.")
                 return
+            self.record_overlay(previous)
             self.overlay_highest=target
             self.overlay_states=children
             self.overlay_tested=tested

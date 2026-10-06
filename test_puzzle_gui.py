@@ -13,6 +13,43 @@ from puzzle_gui import reverse_overlay_orientations
 from puzzle_gui import GridCanvas, PuzzleApp, format_candidates, read_state, write_state, can_connect_region, check_grid_connectivity, grow_forced_regions, region_colors, canonical_shape, filter_containment, fraction_parts, evaluate, math_runs, draw_math, inline_math, analyze_clues, solve_rational_clue, inferred_integer_variables, minimum_region_size, find_region_overlays, shape_orientations
 
 class VariableSearchTests(unittest.TestCase):
+    def test_overlay_undo_redo_restores_candidates_deductions_and_preview(self):
+        def value(initial):
+            storage=[initial]
+            return SimpleNamespace(get=lambda:storage[0],set=lambda new:storage.__setitem__(0,new))
+        app=PuzzleApp.__new__(PuzzleApp)
+        app.overlay_states=[]
+        app.overlay_index=0
+        app.overlay_target=value('12')
+        app.overlay_message=value('')
+        app.region_labels={}
+        app.region_palette={}
+        app.overlay_undo=[]
+        app.overlay_redo=[]
+        app.overlay_buttons=[]
+        app.refresh=lambda:None
+        app.save_state=lambda:None
+        initial=app.overlay_snapshot()
+        app.record_overlay(initial)
+        app.overlay_highest=12
+        app.overlay_base_labels={0:11}
+        app.overlay_tested=100
+        app.overlay_states=[{'cells':{1,2},'assumptions':{0:11,3:2}},
+                            {'cells':{1,4},'assumptions':{0:11,3:2}}]
+        app.overlay_index=1
+        app.region_labels={0:11,1:12,4:12,3:2}
+        app.region_palette={12:'green'}
+        app.overlay_message.set('Overlay 2/2')
+        expected=app.overlay_snapshot()
+        app.undo_overlay()
+        self.assertEqual(app.overlay_states,[])
+        self.assertEqual(app.region_labels,{})
+        app.redo_overlay()
+        self.assertEqual(app.overlay_snapshot(),expected)
+        app.undo_overlay()
+        app.record_overlay(app.overlay_snapshot())
+        self.assertEqual(app.overlay_redo,[])
+
     def test_reverse_containment_uses_completed_higher_region_without_lower_clues(self):
         grid=[['4','4','',''],['4','4','',''],['','','',''],['3','3','','']]
         _,_,states,_=find_region_overlays(grid,{},region=3)
@@ -97,12 +134,20 @@ class VariableSearchTests(unittest.TestCase):
     def test_bordering_growth_cascades_back_to_previously_checked_region(self):
         labels={14:5,13:5,5:5,10:5,6:5,11:7,4:2}
         original=dict(labels)
-        board,added,limited=force_bordering_growth(4,labels,5,{14,13,5,10,6})
+        board,added,limited=force_bordering_growth(4,labels,5,{14,13,5,10,6},max_depth=None)
         self.assertFalse(limited)
         self.assertEqual(added,{7:7,3:7,2:7,1:7,0:7,8:2,15:7})
         self.assertEqual(sum(value==7 for value in board.values()),7)
         self.assertEqual(sum(value==2 for value in board.values()),2)
         self.assertEqual(labels,original)
+
+    def test_bordering_growth_caps_each_region_at_three_rounds(self):
+        labels={14:5,13:5,5:5,10:5,6:5,11:7,4:2}
+        board,added,limited=force_bordering_growth(4,labels,5,{14,13,5,10,6})
+        self.assertTrue(limited)
+        self.assertEqual({cell for cell,value in added.items() if value==7},{7,3,2})
+        self.assertNotIn(1,added)
+        self.assertEqual(labels[11],board[11])
 
     def test_bordering_growth_rejects_single_clue_without_room_to_grow(self):
         walls={1,2,3,5,6,7,8}
