@@ -12,6 +12,26 @@ from puzzle_gui import force_bordering_growth
 from puzzle_gui import GridCanvas, PuzzleApp, format_candidates, read_state, write_state, can_connect_region, check_grid_connectivity, grow_forced_regions, region_colors, canonical_shape, filter_containment, fraction_parts, evaluate, math_runs, draw_math, inline_math, analyze_clues, solve_rational_clue, inferred_integer_variables, minimum_region_size, find_region_overlays, shape_orientations
 
 class VariableSearchTests(unittest.TestCase):
+    def test_region_buttons_disable_only_identical_complete_regions(self):
+        buttons=[SimpleNamespace(configure=lambda **kwargs:None) for _ in range(4)]
+        status={}
+        for number,button in enumerate(buttons,start=1):
+            button.configure=lambda number=number,**kwargs:status.update({number:kwargs['state']})
+        app=SimpleNamespace(overlay_buttons=buttons,overlay_highest=4,
+                            overlay_base_labels={0:1,1:2,2:2,5:3},
+                            overlay_states=[{'cells':{8,9,10,11}},{'cells':{8,9,10,12}}])
+        PuzzleApp.update_overlay_buttons(app)
+        self.assertEqual(status,{1:'disabled',2:'disabled',3:'normal',4:'normal'})
+        app.overlay_states[1]['cells']={8,9,10,11}
+        PuzzleApp.update_overlay_buttons(app)
+        self.assertEqual(status[4],'disabled')
+        app.overlay_states=[]
+        PuzzleApp.update_overlay_buttons(app)
+        self.assertTrue(all(value=='normal' for value in status.values()))
+        app.overlay_busy=True
+        PuzzleApp.update_overlay_buttons(app)
+        self.assertTrue(all(value=='disabled' for value in status.values()))
+
     def test_region_buttons_use_prior_candidates_for_the_next_region(self):
         calls=[]
         app=SimpleNamespace(overlay_target=SimpleNamespace(set=lambda value:calls.append(value)),

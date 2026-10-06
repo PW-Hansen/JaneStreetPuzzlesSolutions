@@ -1727,6 +1727,8 @@ class PuzzleApp:
         self.region_palette = {}
         self.overlay_states = []
         self.overlay_message.set("")
+        if hasattr(self,"overlay_buttons"):
+            self.update_overlay_buttons()
 
     def select_overlay_region(self, number):
         self.overlay_target.set(str(number))
@@ -1737,8 +1739,26 @@ class PuzzleApp:
             self.overlay_regions()
 
     def set_overlay_buttons_enabled(self, enabled):
-        for button in self.overlay_buttons:
-            button.configure(state="normal" if enabled else "disabled")
+        self.overlay_busy = not enabled
+        self.update_overlay_buttons()
+
+    def update_overlay_buttons(self):
+        completed = set()
+        if self.overlay_states:
+            boards = []
+            for state in self.overlay_states:
+                board = dict(state.get('assumptions',self.overlay_base_labels))
+                board.update({cell:self.overlay_highest for cell in state['cells']})
+                boards.append(board)
+            for number in range(1,len(self.overlay_buttons)+1):
+                cells = frozenset(cell for cell,value in boards[0].items() if value == number)
+                if len(cells) == number and all(
+                        frozenset(cell for cell,value in board.items() if value == number) == cells
+                        for board in boards[1:]):
+                    completed.add(number)
+        for number,button in enumerate(self.overlay_buttons,start=1):
+            disabled = getattr(self,"overlay_busy",False) or number in completed
+            button.configure(state="disabled" if disabled else "normal")
 
     def overlay_regions(self):
         expressions = self.active_expressions()
@@ -1799,6 +1819,7 @@ class PuzzleApp:
     def show_overlay(self, step):
         if not self.overlay_states:
             return
+        self.update_overlay_buttons()
         self.overlay_index = (self.overlay_index+step)%len(self.overlay_states)
         state = self.overlay_states[self.overlay_index]
         self.region_labels = dict(state.get('assumptions',self.overlay_base_labels))
