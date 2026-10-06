@@ -280,6 +280,8 @@ def minimum_region_size(size, labels, number, terminals):
         components.append(component)
     if len(components) == 1:
         return len(terminals)
+    if len(terminals) == number:
+        return None  # No spare cells remain to connect disconnected pieces.
     if len(components) == 2:
         # All mandatory cells already belong to two connected pieces. Only
         # the minimum number of blank bridge cells remains to be determined.
@@ -709,6 +711,98 @@ def find_region_overlays(expressions, variables, progress=None, region=None):
                                           'reflected':reflected,'minimum_size':completed_minimum})
                 if progress: progress(tested,len(survivors))
     return highest,labels,survivors,tested
+
+
+def compare_incomplete_regions(size, base_labels, current, states, progress=None):
+    """Intersect reverse-containment placements separately in each branch."""
+    survivors,seen = [],set()
+    for index,state in enumerate(states):
+        board = dict(state.get('assumptions',base_labels))
+        board.update({cell:current for cell in state['cells']})
+        added = {}
+        try:
+            changed = True
+            while changed:
+                changed = False
+                largest = max(board.values())
+                for number in range(largest-1,0,-1):
+                    required = {cell for cell,value in board.items() if value == number}
+                    higher = {cell for cell,value in board.items() if value == number+1}
+                    if not required or not higher:
+                        continue
+                    if len(required) > number or len(higher) > number+1:
+                        raise InvalidOverlay("A region exceeds its required size.")
+                    if minimum_region_size(size,board,number+1,higher) is None:
+                        raise InvalidOverlay(f"Region {number+1} cannot connect within its size.")
+                    complete = len(higher) == number+1
+                    if complete:
+                        orientations = reverse_overlay_orientations(higher,size)
+                    elif len(higher) == number:
+                        # With just one unknown higher-region cell, check its
+                        # actual possible positions too. Otherwise a lower
+                        # placement might imply a higher cell on another clue.
+                        frontier = set()
+                        for cell in higher:
+                            row,column = divmod(cell,size)
+                            for r,c in ((row-1,column),(row+1,column),(row,column-1),(row,column+1)):
+                                if 0 <= r < size and 0 <= c < size and r*size+c not in board:
+                                    frontier.add(r*size+c)
+                        orientations = []
+                        for extra in frontier:
+                            completion = higher | {extra}
+                            if minimum_region_size(size,board,number+1,completion) is None: continue
+                            orientations.extend(reverse_overlay_orientations(completion,size))
+                        complete = True  # Each tested shape now has exactly K cells.
+                    else:
+                        # The omitted cell might be unknown, so also retain
+                        # every known cell. Incomplete remnants need not be
+                        # connected yet: unknown cells may connect them later.
+                        orientations = shape_orientations(higher,size)
+                        for omitted in higher:
+                            remainder = higher-{omitted}
+                            if remainder:
+                                orientations.extend(shape_orientations(remainder,size))
+                            else:
+                                orientations.append((0,False,()))
+                    placements = set()
+                    checked_shapes = set()
+                    for _,_,shape in orientations:
+                        if shape in checked_shapes: continue
+                        checked_shapes.add(shape)
+                        if not shape:
+                            placements.add(frozenset(required))
+                            continue
+                        height,width = max(r for r,c in shape)+1,max(c for r,c in shape)+1
+                        for top in range(size-height+1):
+                            for left in range(size-width+1):
+                                cells = frozenset((r+top)*size+c+left for r,c in shape)
+                                if complete and not required <= cells: continue
+                                if any(cell in board and board[cell] != number for cell in cells): continue
+                                cells = cells | required
+                                if minimum_region_size(size,board,number,cells) is None: continue
+                                if not bordering_regions_reachable(size,board,number,cells): continue
+                                placements.add(cells)
+                    if not placements:
+                        raise InvalidOverlay(f"No containment placement for region {number}.")
+                    forced = set.intersection(*(set(cells) for cells in placements))-required
+                    if forced:
+                        board.update({cell:number for cell in forced})
+                        added.update({cell:number for cell in forced})
+                        changed = True
+                        break  # New knowledge restarts from the largest incomplete region.
+        except InvalidOverlay:
+            if progress: progress(index+1,len(states),len(survivors))
+            continue
+        key = (tuple(sorted(board.items())),tuple(state.get('ancestor_regions',[])))
+        if key not in seen:
+            seen.add(key)
+            result = deepcopy(state)
+            result['assumptions'] = board
+            result['cells'] = frozenset(cell for cell,value in board.items() if value == current)
+            result['comparison_growth'] = added
+            survivors.append(result)
+        if progress: progress(index+1,len(states),len(survivors))
+    return survivors
 
 
 def continue_region_overlays(size, base_labels, current, states, progress=None, region=None):
@@ -1458,7 +1552,9 @@ class PuzzleApp:
         ttk.Button(overlay_navigation, text="Previous", command=lambda:self.show_overlay(-1)).pack(side="left")
         ttk.Button(overlay_navigation, text="Next", command=lambda:self.show_overlay(1)).pack(side="left", padx=8)
         history_navigation = ttk.Frame(overlay_panel)
-        history_navigation.grid(row=4,column=0,sticky="ew",pady=(0,8))
+        history_navigation.grid(row=5,column=0,sticky="ew",pady=(0,8))
+        self.compare_button = ttk.Button(overlay_panel,text="Compare incomplete regions",command=self.compare_regions,state="disabled")
+        self.compare_button.grid(row=4,column=0,sticky="ew",padx=(0,10),pady=(0,8))
         self.overlay_undo_button = ttk.Button(history_navigation,text="Undo",command=self.undo_overlay,state="disabled")
         self.overlay_undo_button.pack(side="left")
         self.overlay_redo_button = ttk.Button(history_navigation,text="Redo",command=self.redo_overlay,state="disabled")
@@ -1848,6 +1944,8 @@ class PuzzleApp:
             busy = getattr(self,'overlay_busy',False)
             self.overlay_undo_button.configure(state="normal" if self.overlay_undo and not busy else "disabled")
             self.overlay_redo_button.configure(state="normal" if self.overlay_redo and not busy else "disabled")
+        if hasattr(self,'compare_button'):
+            self.compare_button.configure(state="normal" if self.overlay_states and not getattr(self,'overlay_busy',False) else "disabled")
 
     def overlay_regions(self):
         expressions = self.active_expressions()
@@ -1933,6 +2031,8 @@ class PuzzleApp:
             self.overlay_message.set(self.overlay_message.get()+f" From preceding overlay {state['parent_index']+1}.")
         if state.get('reverse_containment'):
             self.overlay_message.set(self.overlay_message.get()+f" Shape derived by removing one cell from region {self.overlay_highest+1}.")
+        if 'comparison_growth' in state:
+            self.overlay_message.set(self.overlay_message.get()+f" {len(state['comparison_growth'])} cells forced by comparing incomplete regions.")
         self.refresh()
 
     def continue_overlay(self, region=None):
@@ -1989,6 +2089,55 @@ class PuzzleApp:
             self.overlay_tested=tested
             self.overlay_target.set(str(target))
             self.overlay_index=0
+            self.show_overlay(0)
+            self.save_state()
+        self.root.after(50,poll)
+
+    def compare_regions(self):
+        if not self.overlay_states or getattr(self,'overlay_busy',False):
+            return
+        states = self.overlay_states
+        current,base = self.overlay_highest,self.overlay_base_labels
+        previous = self.overlay_snapshot()
+        self.set_overlay_buttons_enabled(False)
+        self.overlay_message.set("Comparing incomplete regions from largest to smallest…")
+        results = Queue()
+        def work():
+            try:
+                children = compare_incomplete_regions(self.SIZE,base,current,states,
+                    lambda done,total,valid:results.put(('progress',(done,total,valid))))
+                results.put(('result',children))
+            except Exception as error:
+                results.put(('error',str(error)))
+        threading.Thread(target=work,daemon=True).start()
+        def poll():
+            final = None
+            try:
+                while True:
+                    kind,data = results.get_nowait()
+                    if kind == 'progress':
+                        self.overlay_message.set(f"Compared {data[0]}/{data[1]} overlays; {data[2]} surviving.")
+                    else:
+                        final = (kind,data)
+                        break
+            except Empty: pass
+            if final is None:
+                self.root.after(50,poll)
+                return
+            self.set_overlay_buttons_enabled(True)
+            if self.overlay_states is not states:
+                self.overlay_message.set("Grid or overlays changed. Compare again.")
+                return
+            kind,data = final
+            if kind == 'error':
+                self.overlay_message.set(data)
+                return
+            if not data:
+                self.overlay_message.set("No overlays survive incomplete-region comparison. Previous overlays retained.")
+                return
+            self.record_overlay(previous)
+            self.overlay_states = data
+            self.overlay_index = 0
             self.show_overlay(0)
             self.save_state()
         self.root.after(50,poll)

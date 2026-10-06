@@ -10,9 +10,63 @@ from puzzle_gui import low_slack_connections
 from puzzle_gui import InvalidOverlay
 from puzzle_gui import force_bordering_growth
 from puzzle_gui import reverse_overlay_orientations
+from puzzle_gui import compare_incomplete_regions
 from puzzle_gui import GridCanvas, PuzzleApp, format_candidates, read_state, write_state, can_connect_region, check_grid_connectivity, grow_forced_regions, region_colors, canonical_shape, filter_containment, fraction_parts, evaluate, math_runs, draw_math, inline_math, analyze_clues, solve_rational_clue, inferred_integer_variables, minimum_region_size, find_region_overlays, shape_orientations
 
 class VariableSearchTests(unittest.TestCase):
+    def test_partial_higher_region_comparison_matches_screenshot_deduction(self):
+        rows=[
+            [0,5,5,5,15,15,0,11,0,0,0,0,0],
+            [0,0,0,5,0,15,0,11,0,0,11,11,11],
+            [15,15,15,5,0,15,15,11,11,11,11,0,11],
+            [15,0,15,15,15,15,8,8,8,12,12,12,11],
+            [15,16,0,0,8,8,8,0,8,12,6,6,6],
+            [0,16,0,16,16,16,16,0,8,12,12,0,6],
+            [0,16,16,16,3,0,16,16,1,4,12,6,6],
+            [13,13,13,13,0,0,16,4,4,4,12,10,10],
+            [7,7,7,13,14,16,16,12,12,12,12,10,0],
+            [7,2,2,13,14,16,14,14,14,14,0,10,0],
+            [7,7,13,13,14,14,14,0,9,14,0,10,10],
+            [0,7,13,9,9,9,9,0,9,14,0,0,10],
+            [0,0,13,13,13,0,9,9,9,14,10,10,10]]
+        board={r*13+c:value for r,row in enumerate(rows) for c,value in enumerate(row) if value}
+        state={'cells':frozenset(cell for cell,value in board.items() if value==16)}
+        result=compare_incomplete_regions(13,board,16,[state])
+        self.assertEqual(len(result),1)
+        self.assertEqual(result[0]['comparison_growth'][10*13+10],14)
+        first=dict(board)
+        first.update({6*13+5:3,7*13+4:14,7*13+5:3})
+        del first[9*13+6]
+        result=compare_incomplete_regions(13,first,16,[state])
+        self.assertEqual(len(result),1)
+        self.assertEqual(result[0]['comparison_growth'][9*13+6],14)
+        self.assertEqual(result[0]['comparison_growth'][10*13+10],14)
+
+    def test_comparison_forces_only_cells_common_to_all_reverse_placements(self):
+        cells=frozenset({0,1,4,5})
+        base={12:3,13:3}
+        result=compare_incomplete_regions(4,base,4,[{'cells':cells}])
+        self.assertEqual(result[0]['comparison_growth'],{})
+        result=compare_incomplete_regions(4,{**base,8:1},4,[{'cells':cells}])
+        self.assertEqual(result[0]['comparison_growth'],{9:3})
+        self.assertEqual(result[0]['assumptions'][9],3)
+
+    def test_comparison_preserves_each_parent_and_does_not_modify_inputs(self):
+        cells=frozenset({0,1,4,5})
+        states=[{'cells':cells,'assumptions':{12:3,13:3,8:1}},
+                {'cells':cells,'assumptions':{12:3,13:3,9:1}}]
+        result=compare_incomplete_regions(4,{},4,states)
+        self.assertEqual(len(result),2)
+        self.assertEqual(result[0]['comparison_growth'],{9:3})
+        self.assertEqual(result[1]['comparison_growth'],{8:3})
+        self.assertNotIn(9,states[0]['assumptions'])
+        self.assertNotIn(8,states[1]['assumptions'])
+
+    def test_comparison_rejects_branch_without_a_containment_placement(self):
+        result=compare_incomplete_regions(4,{12:3,13:3,8:1,9:2},4,
+                                           [{'cells':frozenset({0,1,4,5})}])
+        self.assertEqual(result,[])
+
     def test_reverse_overlays_keep_different_parent_boards_with_identical_target_shapes(self):
         cells=frozenset({0,1,4,5})
         parents=[{'cells':cells,'assumptions':{12:3,13:3,14:1}},
