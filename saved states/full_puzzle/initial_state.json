@@ -1,0 +1,331 @@
+{
+  "size": 13,
+  "expressions": [
+    [
+      "",
+      "",
+      "",
+      "",
+      "6*c-4*b",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      ""
+    ],
+    [
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "8-b",
+      "",
+      "",
+      "",
+      "",
+      ""
+    ],
+    [
+      "",
+      "(a^b-4)/(6*c+1)",
+      "",
+      "(b+c)/(c-1)",
+      "",
+      "",
+      "b^2-b/c",
+      "",
+      "sqrt(30+a)/c",
+      "",
+      "(a+b)/(c-3*a)",
+      "",
+      ""
+    ],
+    [
+      "",
+      "",
+      "",
+      "",
+      "(b-3*a)/(a-c)",
+      "",
+      "",
+      "8*a-2*b",
+      "",
+      "b/(a-c)",
+      "",
+      "(b+9)/sqrt(c-a)",
+      ""
+    ],
+    [
+      "",
+      "18/(a*c+1)",
+      "",
+      "",
+      "",
+      "c^b",
+      "",
+      "",
+      "",
+      "",
+      "(3+b^2)/sqrt(3+2*c)",
+      "",
+      ""
+    ],
+    [
+      "",
+      "",
+      "",
+      "b/(a^2-c^2)",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "sqrt(a+2)/a"
+    ],
+    [
+      "",
+      "",
+      "a^b-12/a",
+      "",
+      "2*c+c/a",
+      "",
+      "4*a-5*b",
+      "",
+      "c+2*a",
+      "",
+      "b/(9*a-5*c)",
+      "",
+      ""
+    ],
+    [
+      "(b^3+2*c)/(b+2*c)",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "b/(a-1)",
+      "",
+      "",
+      ""
+    ],
+    [
+      "",
+      "",
+      "(c-b)/(2*a)",
+      "",
+      "",
+      "",
+      "",
+      "b/(a-c)",
+      "",
+      "",
+      "",
+      "(b+c)/(a-c)",
+      ""
+    ],
+    [
+      "",
+      "log_c(a)",
+      "",
+      "(c^2-b)/a",
+      "",
+      "(b-1)^2",
+      "",
+      "",
+      "cbrt(43-a*c)/a",
+      "",
+      "",
+      "",
+      ""
+    ],
+    [
+      "",
+      "",
+      "(b-a)/(a-c)",
+      "",
+      "(11-b)",
+      "",
+      "(b-2*a)/(a-c)",
+      "",
+      "",
+      "(c+3)/a",
+      "",
+      "8*c-b/c",
+      ""
+    ],
+    [
+      "",
+      "",
+      "",
+      "",
+      "",
+      "b^2",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      ""
+    ],
+    [
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "(2^b+1)/(a*c)",
+      "",
+      "",
+      "",
+      ""
+    ]
+  ],
+  "disabled_cells": [],
+  "variables": {
+    "a": "1/4",
+    "b": "-3",
+    "c": "1/2"
+  },
+  "overlay_region": "Highest",
+  "show_values": false,
+  "forced_growth": true,
+  "analysis": {
+    "assignments": [
+      {
+        "a": "1/4",
+        "b": "-3",
+        "c": "1/2"
+      }
+    ],
+    "steps": [
+      "8-b: 17 partial assignments (solved analytically); integer rule: b",
+      "sqrt(a+2)/a: 34 partial assignments (solved analytically)",
+      "(b-1)^2: 16 partial assignments (solved analytically)",
+      "(11-b): 16 partial assignments (solved analytically); integer rule: b",
+      "b^2: 12 partial assignments (solved analytically)",
+      "6*c-4*b: 204 partial assignments (solved analytically)",
+      "(b+c)/(c-1): 66 partial assignments (solved analytically)",
+      "b^2-b/c: 18 partial assignments (solved analytically)",
+      "sqrt(30+a)/c: 3 partial assignments (solved analytically)",
+      "8*a-2*b: 3 partial assignments (solved analytically)",
+      "18/(a*c+1): 3 partial assignments (solved analytically)",
+      "c^b: 3 partial assignments (solved analytically)",
+      "(3+b^2)/sqrt(3+2*c): 2 partial assignments (solved analytically)",
+      "a^b-12/a: 1 partial assignments (solved analytically)",
+      "2*c+c/a: 1 partial assignments (solved analytically)",
+      "4*a-5*b: 1 partial assignments (solved analytically)",
+      "c+2*a: 1 partial assignments (solved analytically)",
+      "(b^3+2*c)/(b+2*c): 1 partial assignments (solved analytically)",
+      "b/(a-1): 1 partial assignments (solved analytically)",
+      "log_c(a): 1 partial assignments (solved analytically)",
+      "cbrt(43-a*c)/a: 1 partial assignments (solved analytically)",
+      "(c+3)/a: 1 partial assignments (solved analytically)",
+      "8*c-b/c: 1 partial assignments (solved analytically)",
+      "(a^b-4)/(6*c+1): 1 partial assignments (solved analytically)",
+      "(a+b)/(c-3*a): 1 partial assignments (solved analytically)",
+      "(b-3*a)/(a-c): 1 partial assignments (solved analytically)",
+      "b/(a-c): 1 partial assignments (solved analytically)",
+      "(b+9)/sqrt(c-a): 1 partial assignments (solved analytically)",
+      "b/(a^2-c^2): 1 partial assignments (solved analytically)",
+      "b/(9*a-5*c): 1 partial assignments (solved analytically)",
+      "(c-b)/(2*a): 1 partial assignments (solved analytically)",
+      "b/(a-c): 1 partial assignments (solved analytically)",
+      "(b+c)/(a-c): 1 partial assignments (solved analytically)",
+      "(c^2-b)/a: 1 partial assignments (solved analytically)",
+      "(b-a)/(a-c): 1 partial assignments (solved analytically)",
+      "(b-2*a)/(a-c): 1 partial assignments (solved analytically)",
+      "(2^b+1)/(a*c): 1 partial assignments (solved analytically)"
+    ]
+  },
+  "overlay_snapshot": {
+    "type": "dict",
+    "items": [
+      [
+        "states",
+        []
+      ],
+      [
+        "index",
+        0
+      ],
+      [
+        "highest",
+        null
+      ],
+      [
+        "base",
+        {
+          "type": "dict",
+          "items": []
+        }
+      ],
+      [
+        "tested",
+        0
+      ],
+      [
+        "target",
+        "Highest"
+      ],
+      [
+        "message",
+        ""
+      ],
+      [
+        "labels",
+        {
+          "type": "dict",
+          "items": []
+        }
+      ],
+      [
+        "palette",
+        {
+          "type": "dict",
+          "items": []
+        }
+      ]
+    ]
+  },
+  "overlay_history": {
+    "type": "dict",
+    "items": [
+      [
+        "undo",
+        []
+      ],
+      [
+        "redo",
+        []
+      ]
+    ]
+  },
+  "selected": [
+    0,
+    0
+  ],
+  "valid_values": {
+    "a": "1/4",
+    "b": "-3",
+    "c": "1/2"
+  },
+  "search_message": "Restored 1 analyzed partial assignments.",
+  "connectivity_message": ""
+}

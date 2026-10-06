@@ -635,7 +635,7 @@ def reverse_overlay_orientations(cells, size):
     return orientations
 
 
-def find_region_overlays(expressions, variables, progress=None, region=None):
+def find_region_overlays(expressions, variables, progress=None, region=None, forced_growth=True):
     size = len(expressions)
     labels = {r*size+c:int(evaluate(expression,variables))
               for r,row in enumerate(expressions) for c,expression in enumerate(row) if expression.strip()}
@@ -691,8 +691,13 @@ def find_region_overlays(expressions, variables, progress=None, region=None):
                             continue
                         if not bordering_regions_reachable(size,labels,highest,successor): continue
                         try:
-                            combined,neighbor_growth,growth_limited = force_bordering_growth(
-                                size,labels,highest,successor)
+                            if forced_growth:
+                                combined,neighbor_growth,growth_limited = force_bordering_growth(
+                                    size,labels,highest,successor)
+                            else:
+                                combined = dict(labels)
+                                combined.update({cell:highest for cell in successor})
+                                neighbor_growth,growth_limited = {},False
                         except InvalidOverlay:
                             continue
                         successor = frozenset(set(successor) | {cell for cell,value in neighbor_growth.items()
@@ -880,7 +885,7 @@ def attempt_region_completions(size, base_labels, current, states, progress=None
     return survivors
 
 
-def continue_region_overlays(size, base_labels, current, states, progress=None, region=None):
+def continue_region_overlays(size, base_labels, current, states, progress=None, region=None, forced_growth=True):
     target = current+1 if region is None else region
     if target > max_region_size(size):
         raise ValueError("The next region exceeds max region size.")
@@ -891,7 +896,7 @@ def continue_region_overlays(size, base_labels, current, states, progress=None, 
         assumed.update({cell:current for cell in parent['cells']})
         expressions = [[str(assumed[r*size+c]) if r*size+c in assumed else ''
                         for c in range(size)] for r in range(size)]
-        _,_,children,count = find_region_overlays(expressions,{},region=target)
+        _,_,children,count = find_region_overlays(expressions,{},region=target,forced_growth=forced_growth)
         tested += count
         for child in children:
             combined = dict(child.get('assumptions',assumed))
@@ -1538,6 +1543,7 @@ class PuzzleApp:
         self.region_palette = {}
         self.overlay_message = tk.StringVar()
         self.overlay_target = tk.StringVar(value="Highest")
+        self.forced_growth = tk.BooleanVar(value=True)
         self.overlay_states = []
         self.overlay_index = 0
         self.overlay_undo = []
@@ -1657,12 +1663,9 @@ class PuzzleApp:
         self.overlay_undo_button.pack(side="left")
         self.overlay_redo_button = ttk.Button(history_navigation,text="Redo",command=self.redo_overlay,state="disabled")
         self.overlay_redo_button.pack(side="left",padx=8)
-        saved_controls = ttk.Frame(overlay_panel)
-        saved_controls.grid(row=7,column=0,sticky="ew",pady=(8,0))
-        ttk.Button(saved_controls,text="Save state",command=self.save_named_state).pack(side="left")
-        ttk.Button(saved_controls,text="Load state",command=self.choose_saved_state).pack(side="left",padx=8)
-        ttk.Button(overlay_panel,text="Reset to equations",command=self.reset_to_equations).grid(
-            row=8,column=0,sticky="ew",padx=(0,10),pady=(8,0))
+        self.forced_growth_toggle = ttk.Checkbutton(overlay_panel,text="Grow bordering regions",
+                                                   variable=self.forced_growth,command=self.save_state)
+        self.forced_growth_toggle.grid(row=7,column=0,sticky="w",pady=(8,0))
         footer = ttk.Frame(body)
         footer.grid(row=1, column=0, sticky="ew", padx=(0, 20))
         options = ttk.Frame(footer)
@@ -1672,6 +1675,11 @@ class PuzzleApp:
         self.update_display_button()
         ttk.Button(options, text="Exclude all", command=lambda: self.set_all_included(False)).pack(side="left", padx=(8, 0))
         ttk.Button(options, text="Include all", command=lambda: self.set_all_included(True)).pack(side="left", padx=(8, 0))
+        saved_controls = ttk.Frame(footer)
+        saved_controls.pack(fill="x",pady=(8,0))
+        ttk.Button(saved_controls,text="Save state",command=self.save_named_state).pack(side="left")
+        ttk.Button(saved_controls,text="Load state",command=self.choose_saved_state).pack(side="left",padx=8)
+        ttk.Button(saved_controls,text="Reset to equations",command=self.reset_to_equations).pack(side="left")
         detail_label = ttk.Label(footer, textvariable=self.detail)
         detail_label.pack(anchor="w", fill="x", pady=(12, 4))
         status_label = ttk.Label(footer, textvariable=self.status)
@@ -1734,6 +1742,7 @@ class PuzzleApp:
             self.disabled_cells = set(state.get("disabled_cells", []))
             self.variables = {name: tk.StringVar(value=value) for name, value in state["variables"].items()}
             self.show_values.set(show_values)
+            self.forced_growth.set(state.get('forced_growth',True))
             self.overlay_target.set(str(state.get("overlay_region", "Highest")))
             analysis = state.get("analysis")
             if analysis:
@@ -1750,6 +1759,7 @@ class PuzzleApp:
                  "variables": {name: value.get() for name, value in self.variables.items()},
                  "overlay_region": self.overlay_target.get(),
                  "show_values": self.show_values.get()}
+        state['forced_growth'] = self.forced_growth.get()
         if self.analytical_assignments is not None:
             state["analysis"] = {
                 "assignments": [{name: None if value is None else str(value) for name,value in assignment.items()}
@@ -1836,6 +1846,7 @@ class PuzzleApp:
                 self.disabled_cells = set(state.get('disabled_cells',[]))
                 for name,value in state['variables'].items(): self.variables[name].set(value)
                 self.show_values.set(state.get('show_values',False))
+                self.forced_growth.set(state.get('forced_growth',True))
                 self.analytical_assignments = assignments
                 self.analysis_steps = [] if analysis is None else analysis.get('steps',[])
                 for name,label in self.valid_values.items(): label.set(state.get('valid_values',{}).get(name,'Not analyzed'))
@@ -2158,9 +2169,12 @@ class PuzzleApp:
             self.compare_button.configure(state="normal" if self.overlay_states and not getattr(self,'overlay_busy',False) else "disabled")
         if hasattr(self,'completion_button'):
             self.completion_button.configure(state="normal" if self.overlay_states and not getattr(self,'overlay_busy',False) else "disabled")
+        if hasattr(self,'forced_growth_toggle'):
+            self.forced_growth_toggle.configure(state="disabled" if getattr(self,'overlay_busy',False) else "normal")
 
     def overlay_regions(self):
         expressions = self.active_expressions()
+        forced_growth = self.forced_growth.get()
         selected = self.overlay_target.get()
         try:
             variables = {name:Fraction(value.get().strip()) for name,value in self.variables.items()}
@@ -2175,7 +2189,8 @@ class PuzzleApp:
         def work():
             try:
                 results.put(('result',find_region_overlays(expressions,variables,
-                    lambda tested,valid:results.put(('progress',(tested,valid))), region=target)))
+                    lambda tested,valid:results.put(('progress',(tested,valid))), region=target,
+                    forced_growth=forced_growth)))
             except Exception as error:
                 results.put(('error',str(error)))
         threading.Thread(target=work,daemon=True).start()
@@ -2255,6 +2270,7 @@ class PuzzleApp:
             return
         states = self.overlay_states
         current = self.overlay_highest
+        forced_growth = self.forced_growth.get()
         target = current+1 if region is None else region
         if target > max_region_size(self.SIZE):
             self.overlay_message.set("The next region exceeds max region size.")
@@ -2266,7 +2282,8 @@ class PuzzleApp:
         def work():
             try:
                 result=continue_region_overlays(self.SIZE,self.overlay_base_labels,current,states,
-                    lambda done,total,valid:results.put(('progress',(done,total,valid))),region=target)
+                    lambda done,total,valid:results.put(('progress',(done,total,valid))),region=target,
+                    forced_growth=forced_growth)
                 results.put(('result',result))
             except Exception as error:
                 results.put(('error',str(error)))
