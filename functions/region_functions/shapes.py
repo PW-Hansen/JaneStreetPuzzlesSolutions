@@ -1,6 +1,6 @@
 """Polyomino transformations, connected completions, and containment."""
 
-from equations_functions import evaluate
+from functions.equations_functions import evaluate
 from .connectivity import minimum_region_size, check_grid_connectivity
 
 

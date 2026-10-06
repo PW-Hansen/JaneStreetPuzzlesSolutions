@@ -6,7 +6,8 @@ import re
 from fractions import Fraction
 from pathlib import Path
 
-DATA_DIRECTORY = Path(__file__).resolve().parent / "grids"
+PROJECT_DIRECTORY = Path(__file__).resolve().parent.parent
+DATA_DIRECTORY = PROJECT_DIRECTORY / "grids"
 
 def grid_name(value):
     if (not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]{0,63}", value)
@@ -107,7 +108,7 @@ def load_snapshot(path, size, variable_names):
 
 def migrate_example():
     """Preserve the previous single grid as the named example grid."""
-    old_path = Path(__file__).resolve().with_name("grid_state.json")
+    old_path = PROJECT_DIRECTORY / "grid_state.json"
     new_path = DATA_DIRECTORY / "example.json"
     if old_path.exists() and not new_path.exists():
         write_state(new_path, read_state(old_path))

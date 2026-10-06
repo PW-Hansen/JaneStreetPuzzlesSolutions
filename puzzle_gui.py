@@ -12,19 +12,19 @@ from pathlib import Path
 from tkinter import font as tkfont, messagebox, simpledialog, ttk
 
 
-from persistence import (
+from functions.persistence_functions import (
     grid_name, read_state, write_state, migrate_example,
     make_grid_state, make_saved_state, load_snapshot
 )
 
-from equations_functions import (
+from functions.equations_functions import (
     variable_name,
     clue_variables,
     analyze_clues,
     evaluate
 )
 
-from display_functions import (
+from functions.display_functions import (
     format_candidates,
     region_colors,
     grid_picture,
@@ -35,7 +35,7 @@ from display_functions import (
     draw_math
 )
 
-from region_functions import (
+from functions.region_functions import (
     _region_work,
     RegionOperationAborted,
     max_region_size,

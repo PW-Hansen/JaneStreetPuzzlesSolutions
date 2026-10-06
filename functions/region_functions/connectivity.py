@@ -3,7 +3,7 @@
 from collections import deque
 from heapq import heapify, heappop, heappush
 from math import isqrt
-from equations_functions import evaluate
+from functions.equations_functions import evaluate
 from .cancellation import check_region_abort
 
 

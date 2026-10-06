@@ -3,7 +3,7 @@
 from collections import deque
 from copy import deepcopy
 from heapq import heapify, heappop, heappush
-from equations_functions import evaluate
+from functions.equations_functions import evaluate
 from .cancellation import check_region_abort
 from .connectivity import max_region_size, minimum_region_size, can_connect_region
 from .shapes import shape_orientations, reverse_overlay_orientations

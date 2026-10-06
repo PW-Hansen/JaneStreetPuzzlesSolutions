@@ -2,13 +2,14 @@ import tempfile
 import unittest
 import threading
 import puzzle_gui
-from persistence import encode_overlay, decode_overlay, read_state, write_state
-from persistence import make_grid_state, make_saved_state, load_snapshot
+from functions import persistence_functions
+from functions.persistence_functions import encode_overlay, decode_overlay, read_state, write_state
+from functions.persistence_functions import make_grid_state, make_saved_state, load_snapshot
 from fractions import Fraction
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
-from region_functions import (
+from functions.region_functions import (
     continue_region_overlays,
     force_overlay_neighbors,
     bordering_regions_reachable,
@@ -31,7 +32,7 @@ from puzzle_gui import (
     GridCanvas,
     PuzzleApp,
 )
-from display_functions import (
+from functions.display_functions import (
     rgb_png,
     format_candidates,
     region_colors,
@@ -40,7 +41,7 @@ from display_functions import (
     draw_math,
     inline_math
 )
-from equations_functions import (
+from functions.equations_functions import (
     evaluate,
     analyze_clues,
     solve_rational_clue,
@@ -48,6 +49,11 @@ from equations_functions import (
 )
 
 class VariableSearchTests(unittest.TestCase):
+    def test_persistence_paths_stay_in_project_root_after_module_move(self):
+        root=Path(puzzle_gui.__file__).resolve().parent
+        self.assertEqual(persistence_functions.PROJECT_DIRECTORY,root)
+        self.assertEqual(persistence_functions.DATA_DIRECTORY,root/'grids')
+
     def test_persistence_restores_fractional_analysis_and_full_snapshot(self):
         snapshot={'states':[],'index':0,'highest':None,'base':{},'tested':0,
                   'target':'Highest','message':'','labels':{},'palette':{}}
@@ -111,8 +117,8 @@ class VariableSearchTests(unittest.TestCase):
         gdi.GetDIBits=pixels
         canvas=SimpleNamespace(update=lambda:calls.append('paint'),winfo_width=lambda:3,
                                winfo_height=lambda:3,winfo_id=lambda:10,bounds=(0,0,2))
-        with patch('display_functions.sys.platform','win32'), \
-             patch('display_functions.ctypes.WinDLL',side_effect=lambda name,**kwargs:user if name=='user32' else gdi,create=True):
+        with patch('functions.display_functions.sys.platform','win32'), \
+             patch('functions.display_functions.ctypes.WinDLL',side_effect=lambda name,**kwargs:user if name=='user32' else gdi,create=True):
             png=puzzle_gui.grid_picture(canvas)
         self.assertEqual(calls,['paint','copy'])
         self.assertEqual(png,rgb_png(3,3,b'\xff\x00\x00'*9))
@@ -486,7 +492,7 @@ class VariableSearchTests(unittest.TestCase):
 
     def test_bordering_growth_stops_before_testing_more_than_ten_candidates(self):
         labels={0:1,1:9,9:9,17:9,25:9}
-        with patch('region_functions.overlays.can_connect_region',side_effect=AssertionError('cutoff failed')):
+        with patch('functions.region_functions.overlays.can_connect_region',side_effect=AssertionError('cutoff failed')):
             board,added,limited=force_bordering_growth(6,labels,1,{0})
         self.assertTrue(limited)
         self.assertEqual(board,labels)
@@ -523,7 +529,7 @@ class VariableSearchTests(unittest.TestCase):
             if calls[0]==2:
                 raise InvalidOverlay('Forced cells exceed region size')
             return original(size,labels,number,cells)
-        with patch('region_functions.overlays.force_overlay_neighbors',side_effect=reject_one):
+        with patch('functions.region_functions.overlays.force_overlay_neighbors',side_effect=reject_one):
             _,_,states,tested=find_region_overlays([['2','',''],['','3',''],['','','']],{})
         self.assertTrue(states)
         self.assertEqual(tested,9)
@@ -870,7 +876,7 @@ class VariableSearchTests(unittest.TestCase):
         self.assertEqual(colors[6], '#a9d8af')
 
     def test_connectivity_counts_reject_before_search(self):
-        with patch('region_functions.connectivity.can_connect_region') as search:
+        with patch('functions.region_functions.connectivity.can_connect_region') as search:
             passed, message = check_grid_connectivity([['1', '1'], ['', '']], {})
             self.assertFalse(passed)
             self.assertIn('at most 1', message)
