@@ -325,6 +325,9 @@ def read_state(path):
             or type(state.get("show_values", False)) is not bool):
         raise ValueError("Invalid saved settings")
     state["size"] = size
+    disabled = state.get("disabled_cells", [])
+    if (not isinstance(disabled, list) or any(type(cell) is not int or not 0 <= cell < size*size for cell in disabled)):
+        raise ValueError("Invalid disabled cells")
     bounds = state.get("bounds", {})
     if (not isinstance(bounds, dict)
             or any(not isinstance(value, dict)
@@ -718,6 +721,7 @@ class PuzzleApp:
         root.minsize(620, 620)
         root.configure(bg="#f4f6fa")
         self.expressions = [["" for _ in range(self.SIZE)] for _ in range(self.SIZE)]
+        self.disabled_cells = set()
         self.selected = (0, 0)
         self.show_values = tk.BooleanVar(value=False)
         self.formula = tk.StringVar()
@@ -775,6 +779,7 @@ class PuzzleApp:
         self.board = GridCanvas(body, self.select, self.SIZE)
         self.board.grid(row=0, column=0, sticky="nsew", padx=(0, 20))
         self.board.bind("<Double-Button-1>", lambda event: self.entry.focus_set())
+        self.board.bind("<Button-3>", self.toggle_cell)
         sidebar = ttk.Frame(body)
         sidebar.grid(row=0, column=1, rowspan=2, sticky="nsew")
         sidebar.columnconfigure(0, weight=1)
@@ -825,6 +830,8 @@ class PuzzleApp:
         self.display_button = ttk.Button(options, command=self.toggle_display)
         self.display_button.pack(side="left")
         self.update_display_button()
+        ttk.Button(options, text="Exclude all", command=lambda: self.set_all_included(False)).pack(side="left", padx=(8, 0))
+        ttk.Button(options, text="Include all", command=lambda: self.set_all_included(True)).pack(side="left", padx=(8, 0))
         detail_label = ttk.Label(footer, textvariable=self.detail)
         detail_label.pack(anchor="w", fill="x", pady=(12, 4))
         status_label = ttk.Label(footer, textvariable=self.status)
@@ -881,6 +888,7 @@ class PuzzleApp:
             expressions = state["expressions"]
             show_values = state.get("show_values", False)
             self.expressions = expressions
+            self.disabled_cells = set(state.get("disabled_cells", []))
             self.variables = {name: tk.StringVar(value=value) for name, value in state["variables"].items()}
             default_max = str(max_region_size(self.SIZE))
             self.bounds = {
@@ -893,6 +901,7 @@ class PuzzleApp:
 
     def save_state(self):
         state = {"size": self.SIZE, "expressions": self.expressions,
+                 "disabled_cells": sorted(self.disabled_cells),
                  "variables": {name: value.get() for name, value in self.variables.items()},
                  "bounds": {name: {key: value.get() for key, value in bound.items()}
                             for name, bound in self.bounds.items()},
@@ -947,7 +956,7 @@ class PuzzleApp:
                     raise ValueError(f"{name}: Min must not exceed Max.")
                 bounds[name] = (low, high)
                 total *= high - low + 1
-            expressions = [cell for row in self.expressions for cell in row if cell.strip()]
+            expressions = [cell for row in self.active_expressions() for cell in row if cell.strip()]
             # Reject syntax mistakes and unknown names before enumerating candidates.
             for expression in expressions:
                 tree = ast.parse(expression.replace("^", "**"), mode="eval")
@@ -1000,6 +1009,40 @@ class PuzzleApp:
         self.selection_label.configure(text=f"Selected cell: row {y + 1}, column {x + 1}")
         self.refresh()
 
+    def active_expressions(self):
+        disabled = getattr(self, "disabled_cells", set())
+        return [["" if row*self.SIZE+column in disabled else expression
+                 for column, expression in enumerate(cells)]
+                for row, cells in enumerate(self.expressions)]
+
+    def toggle_cell(self, event):
+        left, top, side = self.board.bounds
+        if not side or not (left <= event.x < left+side and top <= event.y < top+side):
+            return
+        column = int((event.x-left)*self.SIZE/side)
+        row = int((event.y-top)*self.SIZE/side)
+        cell = row*self.SIZE+column
+        if cell in self.disabled_cells:
+            self.disabled_cells.remove(cell)
+        else:
+            self.disabled_cells.add(cell)
+        self.clear_regions()
+        self.connectivity_message.set("")
+        self.invalidate_search()
+        self.select(column, row)
+        self.save_state()
+
+    def set_all_included(self, included):
+        self.disabled_cells = set() if included else {
+            row*self.SIZE+column for row, cells in enumerate(self.expressions)
+            for column, expression in enumerate(cells) if expression.strip()
+        }
+        self.clear_regions()
+        self.connectivity_message.set("")
+        self.invalidate_search()
+        self.refresh()
+        self.save_state()
+
     def apply(self):
         self.clear_regions()
         expression = self.formula.get().strip()
@@ -1011,7 +1054,7 @@ class PuzzleApp:
         self.save_state()
 
     def check_connectivity(self):
-        expressions = [row[:] for row in self.expressions]
+        expressions = self.active_expressions()
         try:
             variables = {name: Fraction(value.get().strip()) for name, value in self.variables.items()}
             bounds = {name: (int(fields["min"].get()), int(fields["max"].get()))
@@ -1041,7 +1084,7 @@ class PuzzleApp:
                 self.root.after(50, poll)
                 return
             self.connectivity_button.configure(state="normal")
-            if revision != self.search_revision or expressions != self.expressions:
+            if revision != self.search_revision or expressions != self.active_expressions():
                 self.connectivity_message.set("Grid, bounds, or search changed. Check connectivity again.")
                 return
             if filtered is not None:
@@ -1056,7 +1099,7 @@ class PuzzleApp:
                 current = {name: Fraction(value.get().strip()) for name, value in self.variables.items()}
             except (ValueError, ZeroDivisionError):
                 current = None
-            if expressions != self.expressions or current != variables:
+            if expressions != self.active_expressions() or current != variables:
                 message = "Candidates or grid changed. Check connectivity again."
             self.connectivity_message.set(message)
         self.root.after(50, poll)
@@ -1067,7 +1110,7 @@ class PuzzleApp:
         self.region_message.set("")
 
     def create_regions(self):
-        expressions = [row[:] for row in self.expressions]
+        expressions = self.active_expressions()
         try:
             variables = {name: Fraction(value.get().strip()) for name, value in self.variables.items()}
         except (ValueError, ZeroDivisionError):
@@ -1093,7 +1136,7 @@ class PuzzleApp:
                 current = {name: Fraction(value.get().strip()) for name, value in self.variables.items()}
             except (ValueError, ZeroDivisionError):
                 current = None
-            if expressions != self.expressions or variables != current:
+            if expressions != self.active_expressions() or variables != current:
                 self.region_message.set("Grid or candidates changed. Create regions again.")
                 return
             self.clear_regions()
@@ -1116,7 +1159,7 @@ class PuzzleApp:
         except (ValueError, ZeroDivisionError):
             variable_error = "Enter numeric values for all variables (for example 3 or 1/2)."
         selected_detail = "Empty cell. Enter an expression or a positive integer."
-        for y, row in enumerate(self.expressions):
+        for y, row in enumerate(self.active_expressions()):
             for x, expression in enumerate(row):
                 text, color = expression, "#ffffff"
                 detail = "Empty cell. Enter an expression or a positive integer."
@@ -1146,6 +1189,10 @@ class PuzzleApp:
                     text = str(region) if self.show_values.get() or not expression else expression
                     if not expression:
                         detail = f"Forced cell in region {region}."
+                if y*self.SIZE+x in getattr(self, "disabled_cells", set()):
+                    color = "#e5e5e5"
+                    text = self.expressions[y][x] or text
+                    detail = "Equation disabled. Right-click to enable it again."
                 cells.append((x, y, text, color))
                 if selected:
                     selected_detail = detail

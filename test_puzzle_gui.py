@@ -12,6 +12,15 @@ from puzzle_gui import (GridCanvas, PuzzleApp, format_candidates,
 
 
 class VariableSearchTests(unittest.TestCase):
+    def test_disabled_equations_are_preserved_but_excluded(self):
+        app = PuzzleApp.__new__(PuzzleApp)
+        app.SIZE = 2
+        app.expressions = [['a', 'b'], ['3', '4']]
+        app.disabled_cells = {1, 2}
+        self.assertEqual(app.active_expressions(), [['a', ''], ['', '4']])
+        self.assertEqual(app.expressions, [['a', 'b'], ['3', '4']])
+        app.disabled_cells.clear()
+        self.assertEqual(app.active_expressions(), app.expressions)
     def test_power_preserves_compound_base_parentheses(self):
         self.assertEqual(math_runs(inline_math('(b-1)^2')),
                          [('power', ([('text', '(b − 1)')], [('text', '2')]))])
