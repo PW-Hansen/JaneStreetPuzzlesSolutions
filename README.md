@@ -1,4 +1,4 @@
-# Subtiles 2 — Python solver
+# Jane Street Puzzle February 2026 puzzle: Subtiles 2 — Python solver
 
 A programmatic solution to [Subtiles 2](https://www.janestreet.com/puzzles/subtiles-2-index/), Jane Street's February 2026 monthly puzzle, with an interactive Tkinter interface and an automated solver.
 
