@@ -13,6 +13,17 @@ from puzzle_gui import reverse_overlay_orientations
 from puzzle_gui import GridCanvas, PuzzleApp, format_candidates, read_state, write_state, can_connect_region, check_grid_connectivity, grow_forced_regions, region_colors, canonical_shape, filter_containment, fraction_parts, evaluate, math_runs, draw_math, inline_math, analyze_clues, solve_rational_clue, inferred_integer_variables, minimum_region_size, find_region_overlays, shape_orientations
 
 class VariableSearchTests(unittest.TestCase):
+    def test_reverse_overlays_keep_different_parent_boards_with_identical_target_shapes(self):
+        cells=frozenset({0,1,4,5})
+        parents=[{'cells':cells,'assumptions':{12:3,13:3,14:1}},
+                 {'cells':cells,'assumptions':{12:3,13:3,15:1}},
+                 {'cells':cells,'assumptions':{12:3,13:3,14:1}}]
+        _,children,_=continue_region_overlays(4,{12:3,13:3},4,parents,region=3)
+        self.assertEqual(len(children),4)
+        self.assertEqual({child['parent_index'] for child in children},{0,1})
+        self.assertEqual(len({child['cells'] for child in children}),2)
+        self.assertEqual(len({tuple(sorted(child['assumptions'].items())) for child in children}),4)
+
     def test_overlay_undo_redo_restores_candidates_deductions_and_preview(self):
         def value(initial):
             storage=[initial]
@@ -252,9 +263,10 @@ class VariableSearchTests(unittest.TestCase):
         target,children,tested=continue_region_overlays(3,base,current,parents,
             lambda done,total,count:progress.append(done))
         self.assertEqual(target,3)
-        self.assertEqual(len(children),5)
+        self.assertEqual(len(children),15)
         self.assertEqual(progress,list(range(1,len(parents)+1)))
-        self.assertEqual(len({frozenset(set(child['cells'])|{8}) for child in children}),len(children))
+        self.assertEqual(len({tuple(sorted(child['assumptions'].items())) for child in children}),len(children))
+        self.assertLess(len({frozenset(set(child['cells'])|{8}) for child in children}),len(children))
         self.assertGreater(tested,0)
         for child in children:
             parent=parents[child['parent_index']]

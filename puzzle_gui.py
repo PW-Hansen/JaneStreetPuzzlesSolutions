@@ -732,9 +732,11 @@ def continue_region_overlays(size, base_labels, current, states, progress=None, 
             if any(not can_connect_region(size,combined,number,
                     [cell for cell,value in combined.items() if value==number]) for number in ancestors):
                 continue
-            occupied = frozenset(cell for cell,value in combined.items() if value == target)
-            if occupied in occupied_sets: continue
-            occupied_sets.add(occupied)
+            # Equal target shapes can inherit different earlier regions.
+            # Dropping one loses a branch that may be needed by a later step.
+            branch = (tuple(sorted(combined.items())),tuple(sorted(ancestors)))
+            if branch in occupied_sets: continue
+            occupied_sets.add(branch)
             child.update(assumptions=combined, parent_index=parent_index,
                          ancestor_regions=sorted(ancestors))
             survivors.append(child)
