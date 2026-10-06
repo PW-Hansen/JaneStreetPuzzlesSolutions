@@ -17,22 +17,6 @@ from puzzle_gui import encode_overlay, decode_overlay
 from puzzle_gui import GridCanvas, PuzzleApp, format_candidates, read_state, write_state, can_connect_region, check_grid_connectivity, grow_forced_regions, region_colors, canonical_shape, filter_containment, fraction_parts, evaluate, math_runs, draw_math, inline_math, analyze_clues, solve_rational_clue, inferred_integer_variables, minimum_region_size, find_region_overlays, shape_orientations
 
 class VariableSearchTests(unittest.TestCase):
-    def test_growth_toggle_skips_bordering_growth_but_keeps_target_growth(self):
-        original=force_overlay_neighbors
-        with patch('puzzle_gui.force_bordering_growth',side_effect=AssertionError('bordering growth ran')), \
-             patch('puzzle_gui.force_overlay_neighbors',wraps=original) as target_growth:
-            _,_,states,_=find_region_overlays([['2','',''],['','3',''],['','','']],{},forced_growth=False)
-        self.assertTrue(states)
-        self.assertTrue(target_growth.called)
-        self.assertTrue(all(not state['neighbor_growth'] for state in states))
-
-    def test_growth_toggle_is_carried_into_continuation(self):
-        grid=[['1','',''],['','2',''],['','','3']]
-        current,base,parents,_=find_region_overlays(grid,{},region=2,forced_growth=False)
-        with patch('puzzle_gui.force_bordering_growth',side_effect=AssertionError('bordering growth ran')):
-            _,children,_=continue_region_overlays(3,base,current,parents,forced_growth=False)
-        self.assertTrue(children)
-
     def test_saved_state_round_trip_retains_overlay_branch_types_and_history(self):
         snapshot={'states':[{'cells':frozenset({2,3}),'assumptions':{0:1,2:2,3:2}}],
                   'index':0,'highest':2,'base':{0:1},'tested':12,'target':'2',
@@ -186,6 +170,7 @@ class VariableSearchTests(unittest.TestCase):
         app.overlay_index=0
         app.overlay_target=value('12')
         app.overlay_message=value('')
+        app.region_elapsed=value('')
         app.region_labels={}
         app.region_palette={}
         app.overlay_undo=[]
@@ -204,12 +189,15 @@ class VariableSearchTests(unittest.TestCase):
         app.region_labels={0:11,1:12,4:12,3:2}
         app.region_palette={12:'green'}
         app.overlay_message.set('Overlay 2/2')
+        app.region_elapsed.set('Time: 1.23 seconds')
         expected=app.overlay_snapshot()
         app.undo_overlay()
         self.assertEqual(app.overlay_states,[])
         self.assertEqual(app.region_labels,{})
+        self.assertEqual(app.region_elapsed.get(),'')
         app.redo_overlay()
         self.assertEqual(app.overlay_snapshot(),expected)
+        self.assertEqual(app.region_elapsed.get(),'Time: 1.23 seconds')
         app.undo_overlay()
         app.record_overlay(app.overlay_snapshot())
         self.assertEqual(app.overlay_redo,[])

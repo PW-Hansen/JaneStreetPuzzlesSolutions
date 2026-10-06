@@ -9,6 +9,7 @@ import tkinter as tk
 import threading
 from copy import deepcopy
 from datetime import datetime
+from time import perf_counter
 from collections import deque
 from heapq import heapify, heappop, heappush
 from decimal import Decimal, localcontext
@@ -635,7 +636,7 @@ def reverse_overlay_orientations(cells, size):
     return orientations
 
 
-def find_region_overlays(expressions, variables, progress=None, region=None, forced_growth=True):
+def find_region_overlays(expressions, variables, progress=None, region=None):
     size = len(expressions)
     labels = {r*size+c:int(evaluate(expression,variables))
               for r,row in enumerate(expressions) for c,expression in enumerate(row) if expression.strip()}
@@ -691,13 +692,8 @@ def find_region_overlays(expressions, variables, progress=None, region=None, for
                             continue
                         if not bordering_regions_reachable(size,labels,highest,successor): continue
                         try:
-                            if forced_growth:
-                                combined,neighbor_growth,growth_limited = force_bordering_growth(
-                                    size,labels,highest,successor)
-                            else:
-                                combined = dict(labels)
-                                combined.update({cell:highest for cell in successor})
-                                neighbor_growth,growth_limited = {},False
+                            combined,neighbor_growth,growth_limited = force_bordering_growth(
+                                size,labels,highest,successor)
                         except InvalidOverlay:
                             continue
                         successor = frozenset(set(successor) | {cell for cell,value in neighbor_growth.items()
@@ -885,7 +881,7 @@ def attempt_region_completions(size, base_labels, current, states, progress=None
     return survivors
 
 
-def continue_region_overlays(size, base_labels, current, states, progress=None, region=None, forced_growth=True):
+def continue_region_overlays(size, base_labels, current, states, progress=None, region=None):
     target = current+1 if region is None else region
     if target > max_region_size(size):
         raise ValueError("The next region exceeds max region size.")
@@ -896,7 +892,7 @@ def continue_region_overlays(size, base_labels, current, states, progress=None, 
         assumed.update({cell:current for cell in parent['cells']})
         expressions = [[str(assumed[r*size+c]) if r*size+c in assumed else ''
                         for c in range(size)] for r in range(size)]
-        _,_,children,count = find_region_overlays(expressions,{},region=target,forced_growth=forced_growth)
+        _,_,children,count = find_region_overlays(expressions,{},region=target)
         tested += count
         for child in children:
             combined = dict(child.get('assumptions',assumed))
@@ -1543,7 +1539,7 @@ class PuzzleApp:
         self.region_palette = {}
         self.overlay_message = tk.StringVar()
         self.overlay_target = tk.StringVar(value="Highest")
-        self.forced_growth = tk.BooleanVar(value=True)
+        self.region_elapsed = tk.StringVar()
         self.overlay_states = []
         self.overlay_index = 0
         self.overlay_undo = []
@@ -1647,7 +1643,8 @@ class PuzzleApp:
             self.overlay_buttons.append(button)
         for column in range(5):
             overlay_selection.columnconfigure(column,weight=1)
-        ttk.Label(overlay_panel, textvariable=self.overlay_message, wraplength=230).grid(row=2, column=0, sticky="nw", padx=(0, 10))
+        ttk.Label(overlay_panel, textvariable=self.overlay_message, wraplength=230).grid(row=7, column=0, sticky="nw", padx=(0, 10),pady=(8,0))
+        ttk.Label(overlay_panel, textvariable=self.region_elapsed, wraplength=230).grid(row=8,column=0,sticky="w",pady=(4,0))
         overlay_navigation = ttk.Frame(overlay_panel)
         overlay_navigation.grid(row=3, column=0, sticky="ew", padx=(0,10), pady=8)
         ttk.Button(overlay_navigation, text="Previous", command=lambda:self.show_overlay(-1)).pack(side="left")
@@ -1663,9 +1660,6 @@ class PuzzleApp:
         self.overlay_undo_button.pack(side="left")
         self.overlay_redo_button = ttk.Button(history_navigation,text="Redo",command=self.redo_overlay,state="disabled")
         self.overlay_redo_button.pack(side="left",padx=8)
-        self.forced_growth_toggle = ttk.Checkbutton(overlay_panel,text="Grow bordering regions",
-                                                   variable=self.forced_growth,command=self.save_state)
-        self.forced_growth_toggle.grid(row=7,column=0,sticky="w",pady=(8,0))
         footer = ttk.Frame(body)
         footer.grid(row=1, column=0, sticky="ew", padx=(0, 20))
         options = ttk.Frame(footer)
@@ -1742,7 +1736,6 @@ class PuzzleApp:
             self.disabled_cells = set(state.get("disabled_cells", []))
             self.variables = {name: tk.StringVar(value=value) for name, value in state["variables"].items()}
             self.show_values.set(show_values)
-            self.forced_growth.set(state.get('forced_growth',True))
             self.overlay_target.set(str(state.get("overlay_region", "Highest")))
             analysis = state.get("analysis")
             if analysis:
@@ -1759,7 +1752,6 @@ class PuzzleApp:
                  "variables": {name: value.get() for name, value in self.variables.items()},
                  "overlay_region": self.overlay_target.get(),
                  "show_values": self.show_values.get()}
-        state['forced_growth'] = self.forced_growth.get()
         if self.analytical_assignments is not None:
             state["analysis"] = {
                 "assignments": [{name: None if value is None else str(value) for name,value in assignment.items()}
@@ -1846,7 +1838,6 @@ class PuzzleApp:
                 self.disabled_cells = set(state.get('disabled_cells',[]))
                 for name,value in state['variables'].items(): self.variables[name].set(value)
                 self.show_values.set(state.get('show_values',False))
-                self.forced_growth.set(state.get('forced_growth',True))
                 self.analytical_assignments = assignments
                 self.analysis_steps = [] if analysis is None else analysis.get('steps',[])
                 for name,label in self.valid_values.items(): label.set(state.get('valid_values',{}).get(name,'Not analyzed'))
@@ -2085,6 +2076,8 @@ class PuzzleApp:
         self.region_palette = {}
         self.overlay_states = []
         self.overlay_message.set("")
+        if hasattr(self,'region_elapsed'):
+            self.region_elapsed.set("")
         if reset_history:
             self.overlay_undo.clear()
             self.overlay_redo.clear()
@@ -2111,7 +2104,8 @@ class PuzzleApp:
             'tested':getattr(self,'overlay_tested',0),
             'target':str(self.overlay_highest) if self.overlay_states else self.overlay_target.get(),
             'message':self.overlay_message.get(),
-            'labels':self.region_labels,'palette':self.region_palette})
+            'labels':self.region_labels,'palette':self.region_palette,
+            'elapsed':self.region_elapsed.get() if hasattr(self,'region_elapsed') else ''})
 
     def record_overlay(self, previous):
         self.overlay_undo.append(previous)
@@ -2128,6 +2122,8 @@ class PuzzleApp:
         self.region_labels = snapshot['labels']
         self.region_palette = snapshot['palette']
         self.overlay_message.set(snapshot['message'])
+        if hasattr(self,'region_elapsed'):
+            self.region_elapsed.set(snapshot.get('elapsed',''))
         self.update_overlay_buttons()
         self.refresh()
         self.save_state()
@@ -2169,12 +2165,9 @@ class PuzzleApp:
             self.compare_button.configure(state="normal" if self.overlay_states and not getattr(self,'overlay_busy',False) else "disabled")
         if hasattr(self,'completion_button'):
             self.completion_button.configure(state="normal" if self.overlay_states and not getattr(self,'overlay_busy',False) else "disabled")
-        if hasattr(self,'forced_growth_toggle'):
-            self.forced_growth_toggle.configure(state="disabled" if getattr(self,'overlay_busy',False) else "normal")
 
     def overlay_regions(self):
         expressions = self.active_expressions()
-        forced_growth = self.forced_growth.get()
         selected = self.overlay_target.get()
         try:
             variables = {name:Fraction(value.get().strip()) for name,value in self.variables.items()}
@@ -2183,18 +2176,19 @@ class PuzzleApp:
             self.overlay_message.set("Enter numeric candidate values first.")
             return
         previous = self.overlay_snapshot()
+        started = perf_counter()
         self.set_overlay_buttons_enabled(False)
         self.overlay_message.set("Testing translated, reflected, and rotated overlays…")
         results = Queue()
         def work():
             try:
                 results.put(('result',find_region_overlays(expressions,variables,
-                    lambda tested,valid:results.put(('progress',(tested,valid))), region=target,
-                    forced_growth=forced_growth)))
+                    lambda tested,valid:results.put(('progress',(tested,valid))), region=target)))
             except Exception as error:
                 results.put(('error',str(error)))
         threading.Thread(target=work,daemon=True).start()
         def poll():
+            self.region_elapsed.set(f"Time: {perf_counter()-started:.2f} seconds")
             final = None
             try:
                 while True:
@@ -2223,6 +2217,7 @@ class PuzzleApp:
                 return
             self.record_overlay(previous)
             self.clear_regions(reset_history=False)
+            self.region_elapsed.set(f"Time: {perf_counter()-started:.2f} seconds")
             self.overlay_highest,self.overlay_base_labels,self.overlay_states,self.overlay_tested = data
             self.overlay_index = 0
             if not self.overlay_states:
@@ -2270,25 +2265,25 @@ class PuzzleApp:
             return
         states = self.overlay_states
         current = self.overlay_highest
-        forced_growth = self.forced_growth.get()
         target = current+1 if region is None else region
         if target > max_region_size(self.SIZE):
             self.overlay_message.set("The next region exceeds max region size.")
             return
         previous = self.overlay_snapshot()
+        started = perf_counter()
         self.set_overlay_buttons_enabled(False)
         self.overlay_message.set(f"Testing all {len(states)} preceding overlays for region {target}…")
         results = Queue()
         def work():
             try:
                 result=continue_region_overlays(self.SIZE,self.overlay_base_labels,current,states,
-                    lambda done,total,valid:results.put(('progress',(done,total,valid))),region=target,
-                    forced_growth=forced_growth)
+                    lambda done,total,valid:results.put(('progress',(done,total,valid))),region=target)
                 results.put(('result',result))
             except Exception as error:
                 results.put(('error',str(error)))
         threading.Thread(target=work,daemon=True).start()
         def poll():
+            self.region_elapsed.set(f"Time: {perf_counter()-started:.2f} seconds")
             final=None
             try:
                 while True:
@@ -2333,6 +2328,7 @@ class PuzzleApp:
         states = self.overlay_states
         current,base = self.overlay_highest,self.overlay_base_labels
         previous = self.overlay_snapshot()
+        started = perf_counter()
         self.set_overlay_buttons_enabled(False)
         self.overlay_message.set("Attempting region completions from smallest to largest…" if completion
                                  else "Comparing incomplete regions from largest to smallest…")
@@ -2347,6 +2343,7 @@ class PuzzleApp:
                 results.put(('error',str(error)))
         threading.Thread(target=work,daemon=True).start()
         def poll():
+            self.region_elapsed.set(f"Time: {perf_counter()-started:.2f} seconds")
             final = None
             try:
                 while True:
