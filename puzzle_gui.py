@@ -20,7 +20,7 @@ from tkinter import font as tkfont, messagebox, simpledialog, ttk
 
 
 DATA_DIRECTORY = Path(__file__).resolve().parent / "grids"
-MIN_CELL_SIZE = 50
+MIN_CELL_SIZE = 40
 
 
 def max_region_size(grid_size):
