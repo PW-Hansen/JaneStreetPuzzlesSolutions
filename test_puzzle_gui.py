@@ -16,9 +16,76 @@ from puzzle_gui import reverse_overlay_orientations
 from puzzle_gui import compare_incomplete_regions
 from puzzle_gui import attempt_region_completions
 from puzzle_gui import encode_overlay, decode_overlay
+from puzzle_gui import rgb_png
 from puzzle_gui import GridCanvas, PuzzleApp, format_candidates, read_state, write_state, can_connect_region, check_grid_connectivity, grow_forced_regions, region_colors, canonical_shape, filter_containment, fraction_parts, evaluate, math_runs, draw_math, inline_math, analyze_clues, solve_rational_clue, inferred_integer_variables, minimum_region_size, find_region_overlays, shape_orientations
 
 class VariableSearchTests(unittest.TestCase):
+    def test_grid_picture_copies_rendered_pixels_without_printwindow(self):
+        import ctypes
+        calls=[]
+        def function(result):
+            def call(*args): return result
+            return call
+        user=SimpleNamespace(GetDC=function(1),ReleaseDC=function(1))
+        gdi=SimpleNamespace(CreateCompatibleDC=function(2),CreateCompatibleBitmap=function(3),
+                            SelectObject=function(4),DeleteObject=function(1),DeleteDC=function(1))
+        def copy(*args):
+            calls.append('copy')
+            return 1
+        def pixels(dc,bitmap,start,height,buffer,info,usage):
+            ctypes.memmove(buffer,b'\x00\x00\xff\x00'*9,36)
+            return height
+        gdi.BitBlt=copy
+        gdi.GetDIBits=pixels
+        canvas=SimpleNamespace(update=lambda:calls.append('paint'),winfo_width=lambda:3,
+                               winfo_height=lambda:3,winfo_id=lambda:10,bounds=(0,0,2))
+        with patch('puzzle_gui.sys.platform','win32'), \
+             patch('puzzle_gui.ctypes.WinDLL',side_effect=lambda name,**kwargs:user if name=='user32' else gdi,create=True):
+            png=puzzle_gui.grid_picture(canvas)
+        self.assertEqual(calls,['paint','copy'])
+        self.assertEqual(png,rgb_png(3,3,b'\xff\x00\x00'*9))
+
+    def test_print_state_uses_one_name_for_picture_and_loadable_snapshot(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory)
+            app=PuzzleApp.__new__(PuzzleApp)
+            app.root=SimpleNamespace(update_idletasks=lambda:None)
+            app.STATE_PATH=root/'grids'/'example.json'
+            app.state_data=lambda:{'size':1,'expressions':[['a']],'variables':{'a':'1'}}
+            app.overlay_snapshot=lambda:{'states':[]}
+            app.overlay_undo=[]
+            app.overlay_redo=[]
+            app.selected=(0,0)
+            app.valid_values={'a':SimpleNamespace(get=lambda:'1')}
+            app.search_message=SimpleNamespace(get=lambda:'Analyzed')
+            app.connectivity_message=SimpleNamespace(get=lambda:'')
+            app.storage_error=SimpleNamespace(set=lambda value:None)
+            app.refresh=lambda:None
+            app.board=object()
+            png=rgb_png(1,1,b'\xff\x00\x00')
+            with patch('puzzle_gui.__file__',str(root/'puzzle_gui.py')), \
+                 patch('puzzle_gui.simpledialog.askstring',return_value='my-state') as prompt, \
+                 patch('puzzle_gui.grid_picture',return_value=png):
+                app.print_state()
+            self.assertEqual(prompt.call_count,1)
+            self.assertEqual((root/'my-state.png').read_bytes(),png)
+            state=read_state(root/'saved states'/'example'/'my-state.json')
+            self.assertEqual(state['valid_values'],{'a':'1'})
+            self.assertEqual(decode_overlay(state['overlay_snapshot']),{'states':[]})
+
+    def test_png_encoder_retains_rgb_pixels(self):
+        import struct
+        import zlib
+        pixels=b'\xff\x00\x00\x00\xff\x00'
+        png=rgb_png(2,1,pixels)
+        self.assertEqual(png[:8],b'\x89PNG\r\n\x1a\n')
+        self.assertEqual(struct.unpack('>II',png[16:24]),(2,1))
+        offset=8
+        while png[offset+4:offset+8]!=b'IDAT':
+            offset+=12+struct.unpack('>I',png[offset:offset+4])[0]
+        length=struct.unpack('>I',png[offset:offset+4])[0]
+        self.assertEqual(zlib.decompress(png[offset+8:offset+8+length]),b'\x00'+pixels)
+
     def test_abort_interrupts_expensive_connectivity_work(self):
         cancel=threading.Event()
         cancel.set()

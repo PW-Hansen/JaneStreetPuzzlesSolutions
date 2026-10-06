@@ -7,6 +7,10 @@ import operator
 import re
 import tkinter as tk
 import threading
+import ctypes
+import struct
+import zlib
+import sys
 from copy import deepcopy
 from datetime import datetime
 from time import perf_counter
@@ -1140,6 +1144,79 @@ def read_state(path):
     return state
 
 
+def rgb_png(width, height, pixels):
+    """Encode RGB pixels without an extra imaging dependency."""
+    if len(pixels) != width*height*3:
+        raise ValueError("Invalid image dimensions.")
+    def chunk(kind, data):
+        return struct.pack('>I',len(data))+kind+data+struct.pack('>I',zlib.crc32(kind+data)&0xffffffff)
+    rows = b''.join(b'\x00'+pixels[row*width*3:(row+1)*width*3] for row in range(height))
+    return (b'\x89PNG\r\n\x1a\n'+chunk(b'IHDR',struct.pack('>IIBBBBB',width,height,8,2,0,0,0))
+            +chunk(b'IDAT',zlib.compress(rows))+chunk(b'IEND',b''))
+
+
+def grid_picture(canvas):
+    """Capture the rendered Windows canvas, cropped to its grid borders."""
+    if sys.platform != 'win32':
+        raise OSError("Grid picture export requires Windows.")
+    from ctypes import wintypes
+    user = ctypes.WinDLL('user32',use_last_error=True)
+    gdi = ctypes.WinDLL('gdi32',use_last_error=True)
+    signatures = [
+        (user,'GetDC',[wintypes.HWND],wintypes.HDC),
+        (user,'ReleaseDC',[wintypes.HWND,wintypes.HDC],ctypes.c_int),
+        (gdi,'CreateCompatibleDC',[wintypes.HDC],wintypes.HDC),
+        (gdi,'CreateCompatibleBitmap',[wintypes.HDC,ctypes.c_int,ctypes.c_int],wintypes.HBITMAP),
+        (gdi,'SelectObject',[wintypes.HDC,wintypes.HANDLE],wintypes.HANDLE),
+        (gdi,'DeleteObject',[wintypes.HANDLE],wintypes.BOOL),
+        (gdi,'DeleteDC',[wintypes.HDC],wintypes.BOOL),
+        (gdi,'BitBlt',[wintypes.HDC,ctypes.c_int,ctypes.c_int,ctypes.c_int,ctypes.c_int,
+                       wintypes.HDC,ctypes.c_int,ctypes.c_int,wintypes.DWORD],wintypes.BOOL),
+        (gdi,'GetDIBits',[wintypes.HDC,wintypes.HBITMAP,wintypes.UINT,wintypes.UINT,
+                          ctypes.c_void_p,ctypes.c_void_p,wintypes.UINT],ctypes.c_int)]
+    for library,name,args,result in signatures:
+        function = getattr(library,name)
+        function.argtypes,function.restype = args,result
+    # Tk draws the canvas itself; PrintWindow can return success while
+    # leaving a black bitmap. Finish painting, then copy its actual pixels.
+    canvas.update()
+    width,height = canvas.winfo_width(),canvas.winfo_height()
+    hwnd = canvas.winfo_id()
+    dc = user.GetDC(hwnd)
+    memory = bitmap = previous = None
+    try:
+        memory = gdi.CreateCompatibleDC(dc)
+        bitmap = gdi.CreateCompatibleBitmap(dc,width,height)
+        if not dc or not memory or not bitmap: raise OSError("Could not capture grid image.")
+        previous = gdi.SelectObject(memory,bitmap)
+        if not gdi.BitBlt(memory,0,0,width,height,dc,0,0,0x00CC0020):
+            raise OSError("Could not render grid image.")
+        gdi.SelectObject(memory,previous)
+        previous = None
+        # BITMAPINFOHEADER with a negative height requests top-down BGRX rows.
+        info = ctypes.create_string_buffer(struct.pack('<IiiHHIIiiII',40,width,-height,1,32,0,0,0,0,0,0))
+        pixels = ctypes.create_string_buffer(width*height*4)
+        if gdi.GetDIBits(memory,bitmap,0,height,pixels,info,0) != height:
+            raise OSError("Could not read grid image pixels.")
+        left,top,side = canvas.bounds
+        x0,y0 = max(0,int(left)-1),max(0,int(top)-1)
+        x1,y1 = min(width,int(left+side)+2),min(height,int(top+side)+2)
+        raw = pixels.raw
+        rgb = bytearray()
+        for y in range(y0,y1):
+            for x in range(x0,x1):
+                offset = (y*width+x)*4
+                rgb.extend((raw[offset+2],raw[offset+1],raw[offset]))
+        if not any(rgb):
+            raise OSError("Grid capture was blank. Keep the grid visible and try Print state again.")
+        return rgb_png(x1-x0,y1-y0,bytes(rgb))
+    finally:
+        if previous: gdi.SelectObject(memory,previous)
+        if bitmap: gdi.DeleteObject(bitmap)
+        if memory: gdi.DeleteDC(memory)
+        if dc: user.ReleaseDC(hwnd,dc)
+
+
 def encode_overlay(value):
     """JSON-safe representation retaining cell keys, sets, and tuples."""
     if isinstance(value,dict):
@@ -1699,6 +1776,7 @@ class PuzzleApp:
         ttk.Button(saved_controls,text="Save state",command=self.save_named_state).pack(side="left")
         ttk.Button(saved_controls,text="Load state",command=self.choose_saved_state).pack(side="left",padx=8)
         ttk.Button(saved_controls,text="Reset to equations",command=self.reset_to_equations).pack(side="left")
+        ttk.Button(saved_controls,text="Print state",command=self.print_state).pack(side="left",padx=(8,0))
         detail_label = ttk.Label(footer, textvariable=self.detail)
         detail_label.pack(anchor="w", fill="x", pady=(12, 4))
         status_label = ttk.Label(footer, textvariable=self.status)
@@ -1792,18 +1870,23 @@ class PuzzleApp:
         except OSError as error:
             self.storage_error.set(f"Could not save grid: {error}")
 
-    def save_named_state(self):
+    def print_state(self):
+        self.save_named_state(picture=True)
+
+    def save_named_state(self, picture=False):
         if getattr(self,'overlay_busy',False):
             self.storage_error.set("Wait for the overlay analysis to finish before saving.")
             return
-        name = simpledialog.askstring("Save state","Name for this saved state:",parent=self.root,
+        title = "Print state" if picture else "Save state"
+        name = simpledialog.askstring(title,"Name for this picture and state:" if picture else "Name for this saved state:",parent=self.root,
                                      initialvalue=datetime.now().strftime('%Y-%m-%d_%H-%M-%S'))
         if name is None: return
         try:
             name = grid_name(name.strip())
             folder = Path(__file__).resolve().parent / 'saved states' / self.STATE_PATH.stem
             path = folder / f'{name}.json'
-            if path.exists() and not messagebox.askyesno("Save state",f"Replace saved state '{name}'?",parent=self.root):
+            picture_path = Path(__file__).resolve().parent / f'{name}.png'
+            if (path.exists() or (picture and picture_path.exists())) and not messagebox.askyesno(title,f"Replace existing files named '{name}'?",parent=self.root):
                 return
             state = self.state_data()
             state['overlay_snapshot'] = encode_overlay(self.overlay_snapshot())
@@ -1812,6 +1895,13 @@ class PuzzleApp:
             state['valid_values'] = {key:value.get() for key,value in self.valid_values.items()}
             state['search_message'] = self.search_message.get()
             state['connectivity_message'] = self.connectivity_message.get()
+            if picture:
+                self.refresh()
+                self.root.update_idletasks()
+                image_data = grid_picture(self.board)
+                temporary = picture_path.with_suffix('.png.tmp')
+                temporary.write_bytes(image_data)
+                temporary.replace(picture_path)
             write_state(path,state)
             self.storage_error.set("")
         except (OSError,ValueError,argparse.ArgumentTypeError) as error:
