@@ -14,7 +14,7 @@ from puzzle_gui import (GridCanvas, PuzzleApp, format_candidates,
 class VariableSearchTests(unittest.TestCase):
     def test_fraction_inside_subtraction_is_stacked(self):
         runs = math_runs(inline_math('a^b-12/a'))
-        self.assertEqual(runs, [('text', 'a ^ b − '),
+        self.assertEqual(runs, [('power', ([('text','a')], [('text','b')])), ('text', ' − '),
                                 ('fraction', ([('text', '12')], [('text', 'a')]))])
         texts, lines = [], []
         font = SimpleNamespace(measure=lambda value:len(value)*8,
@@ -22,7 +22,7 @@ class VariableSearchTests(unittest.TestCase):
         canvas = SimpleNamespace(create_text=lambda *args, **kw:texts.append((args, kw['text'])),
                                  create_line=lambda *args, **kw:lines.append(args))
         draw_math(canvas, 50, 30, inline_math('a^b-12/a'), font)
-        self.assertLess(texts[1][0][1], texts[2][0][1])
+        self.assertLess(texts[3][0][1], texts[4][0][1])
         self.assertEqual(len(lines), 1)
 
     def test_radical_draws_bar_and_removes_outer_parentheses(self):
@@ -51,8 +51,8 @@ class VariableSearchTests(unittest.TestCase):
                          [{'a':1}, None, None, {'a':4}])
     def test_compound_fraction_notation_preserves_denominator(self):
         self.assertEqual(fraction_parts('(x-y)/(y-c)'), ('x − y', 'y − c'))
-        self.assertEqual(fraction_parts('(a^b-b)/(6*c+1)'), ('a ^ b − b', '6c + 1'))
-        self.assertEqual(fraction_parts('(a^2-b)/(6*c+1)'), ('a² − b', '6c + 1'))
+        self.assertEqual(fraction_parts('(a^b-b)/(6*c+1)'), ('〖a¦b〗 − b', '6c + 1'))
+        self.assertEqual(fraction_parts('(a^2-b)/(6*c+1)'), ('〖a¦2〗 − b', '6c + 1'))
         self.assertEqual(fraction_parts('b/a'), ('b', 'a'))
         self.assertIsNone(fraction_parts('a/b + 1'))
         self.assertIsNone(fraction_parts('a//b'))

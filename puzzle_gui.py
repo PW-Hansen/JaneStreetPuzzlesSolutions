@@ -407,6 +407,10 @@ def inline_math(expression):
                 name = f"__fraction_{len(replacements)}__"
                 replacements[name] = "⟦" + ast.unparse(node.left) + "¦" + ast.unparse(node.right) + "⟧"
                 return ast.copy_location(ast.Name(id=name, ctx=ast.Load()), node)
+            if isinstance(node.op, ast.Pow):
+                name = f"__fraction_{len(replacements)}__"
+                replacements[name] = "〖" + ast.unparse(node.left) + "¦" + ast.unparse(node.right) + "〗"
+                return ast.copy_location(ast.Name(id=name, ctx=ast.Load()), node)
             return node
     text = ast.unparse(Fractions().visit(tree))
     for name, replacement in reversed(list(replacements.items())):
@@ -418,27 +422,30 @@ def math_runs(text):
     """Separate radical arguments from surrounding text, including nested roots."""
     runs = []
     while text:
-        root_start, fraction_start = text.find("√("), text.find("⟦")
-        candidates = [start for start in (root_start, fraction_start) if start >= 0]
+        root_start, fraction_start, power_start = text.find("√("), text.find("⟦"), text.find("〖")
+        candidates = [start for start in (root_start, fraction_start, power_start) if start >= 0]
         start = min(candidates) if candidates else -1
         if start < 0:
             runs.append(("text", text))
             break
         is_fraction = start == fraction_start
-        depth, end = 1, start + (1 if is_fraction else 2)
+        is_power = start == power_start
+        paired = is_fraction or is_power
+        opening, closing = ("⟦", "⟧") if is_fraction else ("〖", "〗") if is_power else ("(", ")")
+        depth, end = 1, start + (1 if paired else 2)
         separator = None
         while end < len(text) and depth:
-            if is_fraction and text[end] == "¦" and depth == 1:
+            if paired and text[end] == "¦" and depth == 1:
                 separator = end
-            depth += (text[end] == ("⟦" if is_fraction else "(")) - (text[end] == ("⟧" if is_fraction else ")"))
+            depth += (text[end] == opening) - (text[end] == closing)
             end += 1
         if depth:
             runs.append(("text", text))
             break
         if start:
             runs.append(("text", text[:start]))
-        if is_fraction:
-            runs.append(("fraction", (math_runs(text[start+1:separator]), math_runs(text[separator+1:end-1]))))
+        if paired:
+            runs.append(("fraction" if is_fraction else "power", (math_runs(text[start+1:separator]), math_runs(text[separator+1:end-1]))))
         else:
             runs.append(("root", math_runs(text[start+2:end-1])))
         text = text[end:]
@@ -448,6 +455,7 @@ def math_runs(text):
 def math_width(runs, font):
     return sum(font.measure(value) if kind == "text" else
                max(math_width(part, font) for part in value) + 6 if kind == "fraction" else
+               math_width(value[0], font) + 0.85 * math_width(value[1], font) if kind == "power" else
                font.measure("√") + 4 + math_width(value, font) for kind, value in runs)
 
 
@@ -455,28 +463,35 @@ def draw_math(canvas, center_x, center_y, text, font):
     runs = math_runs(text)
     font_spec = ("Times New Roman", font.cget("size"), "italic")
     height = font.metrics("linespace")
-    def draw(parts, left, y):
+    def draw(parts, left, y, scale=1):
+        font_spec = ("Times New Roman", max(6, round(font.cget("size")*scale)), "italic")
+        local_height = height * scale
         for kind, value in parts:
             if kind == "text":
                 canvas.create_text(left, y, text=value, anchor="w", font=font_spec, fill="#252525")
-                left += font.measure(value)
+                left += font.measure(value) * scale
+            elif kind == "power":
+                base_width = math_width(value[0], font) * scale
+                draw(value[0], left, y, scale)
+                draw(value[1], left+base_width, y-local_height*0.42, scale*0.85)
+                left += base_width + math_width(value[1], font)*scale*0.85
             elif kind == "fraction":
-                width = max(math_width(part, font) for part in value) + 6
-                for part, offset in ((value[0], -height*0.58), (value[1], height*0.58)):
-                    draw(part, left+(width-math_width(part, font))/2, y+offset)
+                width = (max(math_width(part, font) for part in value) + 6)*scale
+                for part, offset in ((value[0], -local_height*0.8), (value[1], local_height*0.8)):
+                    draw(part, left+(width-math_width(part, font)*scale)/2, y+offset, scale)
                 canvas.create_line(left, y, left+width, y, fill="#252525", width=1)
                 left += width
             else:
-                root_width = font.measure("√")
-                argument_width = math_width(value, font)
+                root_width = font.measure("√")*scale
+                argument_width = math_width(value, font)*scale
                 # Draw the radical and vinculum as one continuous stroke.
-                bar_y = y - height * 0.46
-                canvas.create_line(left, y, left+root_width*0.28, y-height*0.08,
-                                   left+root_width*0.52, y+height*0.35,
+                bar_y = y - local_height * 0.46
+                canvas.create_line(left, y, left+root_width*0.28, y-local_height*0.08,
+                                   left+root_width*0.52, y+local_height*0.35,
                                    left+root_width, bar_y,
                                    left+root_width+argument_width+4, bar_y,
                                    fill="#252525", width=1)
-                draw(value, left+root_width+2, y)
+                draw(value, left+root_width+2, y, scale)
                 left += root_width+argument_width+4
         return left
     draw(runs, center_x - math_width(runs, font)/2, center_y)
@@ -514,7 +529,7 @@ class GridCanvas(tk.Canvas):
         self.bounds = (left, top, side)
         cell = side / self.size
         self.create_rectangle(left, top, left + side, top + side, fill="white", outline="")
-        font_size = max(10, min(22, int(cell * 0.22)))
+        font_size = max(12, min(24, int(cell * 0.27)))
         for x, y, text, color in self.cells:
             x0, y0 = left + x * cell, top + y * cell
             if color != "#ffffff":
@@ -525,7 +540,7 @@ class GridCanvas(tk.Canvas):
                 fraction_font = tkfont.Font(family="Times New Roman", size=font_size, slant="italic")
                 while max(math_width(math_runs(part), fraction_font) for part in fraction) > cell - 16 and fraction_font.cget("size") > 8:
                     fraction_font.configure(size=fraction_font.cget("size") - 1)
-                offset_size = fraction_font.metrics("linespace") * 0.55
+                offset_size = fraction_font.metrics("linespace") * 0.8
                 for part, offset in ((fraction[0], -offset_size),
                                      (fraction[1], offset_size)):
                     draw_math(self, cx, cy + offset, part, fraction_font)
