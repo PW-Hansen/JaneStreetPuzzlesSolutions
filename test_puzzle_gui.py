@@ -13,13 +13,24 @@ from puzzle_gui import (GridCanvas, PuzzleApp, format_candidates,
 
 
 class VariableSearchTests(unittest.TestCase):
-    def test_analysis_ignores_bounds_for_derived_integers_only(self):
+    def test_analysis_ignores_bounds_for_all_derived_values(self):
         result, _ = analyze_clues(['8-b'], {'b': (1,2)}, 17)
         self.assertEqual({assignment['b'] for assignment in result}, set(range(-9,8)))
         result, _ = analyze_clues(['2*c'], {'c': (1,1)}, 6, {'c': (False,10)})
-        self.assertEqual({assignment['c'] for assignment in result}, {1,2,3})
+        from fractions import Fraction
+        self.assertEqual({assignment['c'] for assignment in result},
+                         {Fraction(n,2) for n in range(1,7)})
         brute = [value for value in valid_combinations(['8-b'], {'b':(1,2)}, 17) if value]
         self.assertEqual(brute, [{'b':1}, {'b':2}])
+
+    def test_gui_example_bounds_do_not_filter_analytical_pairs(self):
+        clues = ['8-b', '(b-1)^2', '(11-b)', 'b^2', '6*c-4*b', 'b^2-b/c']
+        result, steps = analyze_clues(clues,
+            {'a':(0,1), 'b':(-10,10), 'c':(1,17)}, 17,
+            {'a':(True,10), 'b':(True,8), 'c':(False,6)})
+        self.assertIn('102 partial assignments', steps[4])
+        self.assertEqual(len(result),18)
+        self.assertTrue(all(assignment['a'] is None for assignment in result))
     def test_analytical_example_keeps_correlated_partial_assignments(self):
         clues = ['6*c-4*b', '8-b', 'b^2', 'b^2-b/c', '(b-1)^2', '11-b']
         bounds = {name: (-20,20) for name in ('a','b','c')}

@@ -176,10 +176,8 @@ def analyze_clues(expressions, bounds, limit, options=None):
                 for candidate in sorted(candidates) if unknown is not None else candidates:
                     updated = dict(seed)
                     if unknown is not None:
-                        low, high = map(Fraction, bounds[unknown])
                         is_integer = Fraction(candidate).denominator == 1
-                        if (not is_integer and not low <= candidate <= high) or (
-                                options.get(unknown, (True, 10))[0] and not is_integer):
+                        if options.get(unknown, (True, 10))[0] and not is_integer:
                             continue
                         updated[unknown] = Fraction(candidate)
                     try:
