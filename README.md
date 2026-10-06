@@ -10,7 +10,7 @@ Run `python puzzle_gui.py` to open the launcher. Enter a grid name and square si
 
 Run `python solve_full_puzzle.py` to solve the supplied full puzzle. It analyzes variables, overlays regions 12–16, then 11 down to 1, skipping regions complete in every candidate. It finishes with incomplete-region comparison and region completion, then independently validates clue values, region sizes, connectivity, and shape containment.
 
-The result is saved to `saved states/full_puzzle/solved-full-puzzle.json`, ready to load in the GUI. The input grid is preserved. Use `--input` and `--output` to select other paths.
+The full solve takes approximately 30 seconds on the author's PC; runtime varies by machine. The result is saved to `saved states/full_puzzle/solved-full-puzzle.json`, ready to load in the GUI. The input grid is preserved. Use `--input` and `--output` to select other paths.
 
 For each validated solution, the solver prints the row sums and the puzzle answer: the minimum row sum multiplied by the maximum. In the GUI, **Calculate answer** below the grid displays the same calculation for the current completed candidate. Blank cells contribute zero; incomplete or invalid grids report an error.
 
