@@ -450,6 +450,102 @@ def bordering_regions_reachable(size, labels, target, cells):
     return True
 
 
+def force_bordering_growth(size, labels, target, cells, candidate_limit=10):
+    """Propagate unavoidable growth, skipping regions with a wide frontier."""
+    combined = dict(labels)
+    combined.update({cell:target for cell in cells})
+    added = {}
+    limited = False
+
+    def neighbors(cell):
+        row,column = divmod(cell,size)
+        return [r*size+c for r,c in ((row-1,column),(row+1,column),
+                                    (row,column-1),(row,column+1))
+                if 0 <= r < size and 0 <= c < size]
+
+    def can_complete(number, required, blocked=None):
+        # Connectivity alone does not catch a single clue trapped in an area
+        # too small to fill its region. Count its entire reachable area too.
+        board = combined if blocked is None else {**combined,blocked:-1}
+        reached = {min(required)}
+        queue = list(reached)
+        while queue:
+            for other in neighbors(queue.pop()):
+                if other not in reached and board.get(other,number) == number:
+                    reached.add(other)
+                    queue.append(other)
+        return (required <= reached and len(reached) >= number
+                and can_connect_region(size,board,number,required))
+
+    pending = deque(sorted({combined[other]
+                            for cell,value in combined.items() if value == target
+                            for other in neighbors(cell)
+                            if other in combined and combined[other] != target}))
+    queued = set(pending)
+    while pending:
+        number = pending.popleft()
+        queued.remove(number)
+        required = {cell for cell,value in combined.items() if value == number}
+        frontier = {other for cell in required for other in neighbors(cell)
+                    if other not in combined}
+        # An incomplete connected piece must have an exit even when the
+        # entire region has too many candidates for the expensive check.
+        remaining = set(required)
+        forced_exit = None
+        while remaining:
+            piece = {remaining.pop()}
+            stack = list(piece)
+            while stack:
+                for other in neighbors(stack.pop()):
+                    if other in remaining:
+                        remaining.remove(other)
+                        piece.add(other)
+                        stack.append(other)
+            if len(piece) >= number:
+                continue
+            exits = {other for cell in piece for other in neighbors(cell)
+                     if other not in combined}
+            if not exits:
+                raise InvalidOverlay(f"Region {number} has an isolated incomplete piece.")
+            if len(exits) == 1:
+                forced_exit = next(iter(exits))
+                break
+        if len(required) > number:
+            raise InvalidOverlay(f"Region {number} exceeds its required size.")
+        if forced_exit is not None:
+            combined[forced_exit] = number
+            added[forced_exit] = number
+            affected = {number} | {combined[other] for other in neighbors(forced_exit)
+                                   if other in combined}
+            for value in sorted(affected):
+                if value not in queued:
+                    pending.append(value)
+                    queued.add(value)
+            continue
+        if len(required) < number and len(frontier) > candidate_limit:
+            limited = True
+            continue
+        if not can_complete(number,required):
+            raise InvalidOverlay(f"Region {number} cannot grow to its required size.")
+        if len(required) == number:
+            continue
+        for cell in sorted(frontier):
+            if can_complete(number,required,blocked=cell):
+                continue
+            combined[cell] = number
+            added[cell] = number
+            # Revisit this region and regions touching its new cell. This
+            # includes regions checked earlier whose available space changed.
+            affected = {number} | {combined[other] for other in neighbors(cell)
+                                   if other in combined}
+            for value in sorted(affected):
+                if value not in queued:
+                    pending.append(value)
+                    queued.add(value)
+            break
+    return combined,added,limited
+
+
 def low_slack_connections(size, labels, target, cells):
     """Check all isolated pieces and branch recursively on tight connections."""
     terminals = {cell for cell,value in labels.items() if value == target} | set(cells)
@@ -560,7 +656,14 @@ def find_region_overlays(expressions, variables, progress=None, region=None):
                         except InvalidOverlay:
                             continue
                         if not bordering_regions_reachable(size,labels,highest,successor): continue
-                        completed_minimum = minimum_region_size(size,labels,highest,anchors|set(successor))
+                        try:
+                            combined,neighbor_growth,growth_limited = force_bordering_growth(
+                                size,labels,highest,successor)
+                        except InvalidOverlay:
+                            continue
+                        successor = frozenset(set(successor) | {cell for cell,value in neighbor_growth.items()
+                                                               if value == highest})
+                        completed_minimum = minimum_region_size(size,combined,highest,anchors|set(successor))
                         if completed_minimum is None: continue
                         occupied = frozenset(anchors|set(successor))
                         if occupied in occupied_sets: continue
@@ -568,6 +671,8 @@ def find_region_overlays(expressions, variables, progress=None, region=None):
                         survivors.append({'cells':successor,'overlay_cells':cells,
                                           'forced_cells':forced|post_connection_forced,
                                           'connection_cells':connection_cells,
+                                          'assumptions':combined,'neighbor_growth':neighbor_growth,
+                                          'growth_limited':growth_limited,
                                           'row':top,'column':left,'rotation':rotation,
                                           'reflected':reflected,'minimum_size':completed_minimum})
                 if progress: progress(tested,len(survivors))
@@ -588,7 +693,7 @@ def continue_region_overlays(size, base_labels, current, states, progress=None):
         _,_,children,count = find_region_overlays(expressions,{},region=target)
         tested += count
         for child in children:
-            combined = dict(assumed)
+            combined = dict(child.get('assumptions',assumed))
             combined.update({cell:target for cell in child['cells']})
             # New cells also become obstacles for the assumed ancestor regions.
             ancestors = set(parent.get('ancestor_regions', [])) | {current}
@@ -598,7 +703,7 @@ def continue_region_overlays(size, base_labels, current, states, progress=None):
             occupied = frozenset(cell for cell,value in combined.items() if value == target)
             if occupied in occupied_sets: continue
             occupied_sets.add(occupied)
-            child.update(assumptions=assumed, parent_index=parent_index,
+            child.update(assumptions=combined, parent_index=parent_index,
                          ancestor_regions=sorted(ancestors))
             survivors.append(child)
         if progress: progress(parent_index+1,len(states),len(survivors))
@@ -1696,6 +1801,10 @@ class PuzzleApp:
             self.overlay_message.set(self.overlay_message.get()+f" {len(state['forced_cells'])} forced adjacent cells added.")
         if state.get('connection_cells'):
             self.overlay_message.set(self.overlay_message.get()+f" {len(state['connection_cells'])} low-slack connection cells added.")
+        if state.get('neighbor_growth'):
+            self.overlay_message.set(self.overlay_message.get()+f" {len(state['neighbor_growth'])} cells forced by bordering-region growth.")
+        if state.get('growth_limited'):
+            self.overlay_message.set(self.overlay_message.get()+" Some regions skipped: more than 10 candidate growth cells.")
         if 'parent_index' in state:
             self.overlay_message.set(self.overlay_message.get()+f" From preceding overlay {state['parent_index']+1}.")
         self.refresh()

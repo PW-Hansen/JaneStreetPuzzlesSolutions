@@ -8,9 +8,59 @@ from puzzle_gui import force_overlay_neighbors
 from puzzle_gui import bordering_regions_reachable
 from puzzle_gui import low_slack_connections
 from puzzle_gui import InvalidOverlay
+from puzzle_gui import force_bordering_growth
 from puzzle_gui import GridCanvas, PuzzleApp, format_candidates, read_state, write_state, can_connect_region, check_grid_connectivity, grow_forced_regions, region_colors, canonical_shape, filter_containment, fraction_parts, evaluate, math_runs, draw_math, inline_math, analyze_clues, solve_rational_clue, inferred_integer_variables, minimum_region_size, find_region_overlays, shape_orientations
 
 class VariableSearchTests(unittest.TestCase):
+    def test_single_exit_is_forced_even_with_more_than_ten_region_candidates(self):
+        walls={23,25,31}
+        labels={cell:14 for cell in walls}
+        labels.update({cell:16 for cell in (0,6,10,24,42,48)})
+        board,added,limited=force_bordering_growth(7,labels,14,walls)
+        self.assertEqual(board[17],16)
+        self.assertEqual(added[17],16)
+        self.assertTrue(limited)
+
+    def test_wide_frontier_does_not_interrupt_other_regions_growth(self):
+        walls=set(range(6,12))
+        labels={cell:6 for cell in walls}
+        labels.update({0:3,12:9,16:9,25:9,28:9})
+        board,added,limited=force_bordering_growth(6,labels,6,walls)
+        self.assertTrue(limited)
+        self.assertEqual(added,{1:3,2:3})
+        self.assertEqual({cell for cell,value in board.items() if value==3},{0,1,2})
+
+    def test_bordering_growth_cascades_back_to_previously_checked_region(self):
+        labels={14:5,13:5,5:5,10:5,6:5,11:7,4:2}
+        original=dict(labels)
+        board,added,limited=force_bordering_growth(4,labels,5,{14,13,5,10,6})
+        self.assertFalse(limited)
+        self.assertEqual(added,{7:7,3:7,2:7,1:7,0:7,8:2,15:7})
+        self.assertEqual(sum(value==7 for value in board.values()),7)
+        self.assertEqual(sum(value==2 for value in board.values()),2)
+        self.assertEqual(labels,original)
+
+    def test_bordering_growth_rejects_single_clue_without_room_to_grow(self):
+        walls={1,2,3,5,6,7,8}
+        labels={cell:7 for cell in walls}
+        labels[4]=2
+        with self.assertRaises(InvalidOverlay):
+            force_bordering_growth(3,labels,7,walls)
+
+    def test_bordering_growth_preserves_optional_cells(self):
+        board,added,limited=force_bordering_growth(3,{0:1,1:3},1,{0})
+        self.assertEqual(board,{0:1,1:3})
+        self.assertEqual(added,{})
+        self.assertFalse(limited)
+
+    def test_bordering_growth_stops_before_testing_more_than_ten_candidates(self):
+        labels={0:1,1:9,9:9,17:9,25:9}
+        with patch('puzzle_gui.can_connect_region',side_effect=AssertionError('cutoff failed')):
+            board,added,limited=force_bordering_growth(6,labels,1,{0})
+        self.assertTrue(limited)
+        self.assertEqual(board,labels)
+        self.assertEqual(added,{})
+
     def test_all_isolated_pieces_are_checked_for_impossible_connections(self):
         cells={0,2,24}
         self.assertEqual(low_slack_connections(5,{cell:5 for cell in cells},5,cells),[])
