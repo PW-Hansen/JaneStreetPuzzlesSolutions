@@ -5,9 +5,19 @@ from types import SimpleNamespace
 from unittest.mock import patch
 from puzzle_gui import continue_region_overlays
 from puzzle_gui import force_overlay_neighbors
+from puzzle_gui import bordering_regions_reachable
 from puzzle_gui import GridCanvas, PuzzleApp, format_candidates, read_state, write_state, can_connect_region, check_grid_connectivity, grow_forced_regions, region_colors, canonical_shape, filter_containment, fraction_parts, evaluate, math_runs, draw_math, inline_math, analyze_clues, solve_rational_clue, inferred_integer_variables, minimum_region_size, find_region_overlays, shape_orientations
 
 class VariableSearchTests(unittest.TestCase):
+    def test_bordering_region_rejects_disconnected_clues(self):
+        self.assertFalse(bordering_regions_reachable(5,{11:6,13:6},7,{2,7,12,17,22}))
+
+    def test_bordering_region_checks_shortest_path_size_budget(self):
+        self.assertFalse(bordering_regions_reachable(5,{11:4,13:4},6,{12}))
+        self.assertTrue(bordering_regions_reachable(5,{11:5,13:5},6,{12}))
+
+    def test_single_neighbor_clue_does_not_require_connection(self):
+        self.assertTrue(bordering_regions_reachable(3,{0:1},3,{1,3}))
     def test_overlay_forces_unavoidable_bridge_only_in_target_region(self):
         labels={0:3,2:3,6:2,8:2}
         expanded,forced=force_overlay_neighbors(3,labels,3,{0,2})

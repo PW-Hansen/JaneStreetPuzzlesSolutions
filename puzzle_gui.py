@@ -404,6 +404,46 @@ def force_overlay_neighbors(size, labels, number, cells):
             raise ValueError(f"Forced cells exceed region {number}'s size.")
 
 
+def bordering_regions_reachable(size, labels, target, cells):
+    """Cheap necessary check for neighboring regions, without simulating growth."""
+    combined = dict(labels)
+    combined.update({cell:target for cell in cells})
+    target_cells = {cell for cell,value in combined.items() if value == target}
+    bordering = set()
+    def neighbors(cell):
+        row,column = divmod(cell,size)
+        return [r*size+c for r,c in ((row-1,column),(row+1,column),(row,column-1),(row,column+1))
+                if 0 <= r < size and 0 <= c < size]
+    for cell in target_cells:
+        for other in neighbors(cell):
+            value = combined.get(other)
+            if value is not None and value != target:
+                bordering.add(value)
+    for number in bordering:
+        required = {cell for cell,value in combined.items() if value == number}
+        if len(required) < 2:
+            continue
+        # Root each shortest-path search at a required clue. A path exceeding
+        # N-1 edges cannot fit into any connected N-cell region.
+        for start in required:
+            distances = {start:0}
+            heap = [(0,start)]
+            while heap:
+                distance,cell = heappop(heap)
+                if distance != distances[cell] or distance >= number-1:
+                    continue
+                for other in neighbors(cell):
+                    if other in combined and combined[other] != number:
+                        continue
+                    candidate = distance+1
+                    if candidate < distances.get(other,number):
+                        distances[other] = candidate
+                        heappush(heap,(candidate,other))
+            if not required <= distances.keys():
+                return False
+    return True
+
+
 def find_region_overlays(expressions, variables, progress=None, region=None):
     size = len(expressions)
     labels = {r*size+c:int(evaluate(expression,variables))
@@ -435,6 +475,9 @@ def find_region_overlays(expressions, variables, progress=None, region=None):
                 minimum = minimum_region_size(size,labels,highest,terminals)
                 if minimum is not None:
                     expanded,forced = force_overlay_neighbors(size,labels,highest,cells)
+                    if not bordering_regions_reachable(size,labels,highest,expanded):
+                        if progress: progress(tested,len(survivors))
+                        continue
                     survivors.append({'cells':expanded,'overlay_cells':cells,'forced_cells':forced,
                                       'row':top,'column':left,'rotation':rotation,
                                       'reflected':reflected,'minimum_size':minimum})
