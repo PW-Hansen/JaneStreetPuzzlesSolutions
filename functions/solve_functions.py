@@ -24,8 +24,12 @@ def completed_regions(states, base, current, identical=False):
     if not states:
         return set()
     boards = [overlay_board(state, base, current) for state in states]
-    regions = [{number: frozenset(cell for cell,value in board.items() if value == number)
-                for number in set(board.values())} for board in boards]
+    regions = []
+    for board in boards:
+        grouped = {}
+        for cell, number in board.items():
+            grouped.setdefault(number, set()).add(cell)
+        regions.append(grouped)
     return {number for number,cells in regions[0].items()
             if len(cells) == number and all(len(other.get(number,())) == number
                 and (not identical or other[number] == cells) for other in regions[1:])}
@@ -101,6 +105,10 @@ class BackgroundRegionOperation:
 def is_solution(size, board, clues):
     """Validate clue preservation, exact sizes, connectivity, and containment."""
     if not board or any(board.get(cell) != value for cell, value in clues.items()):
+        return False
+    if any(type(cell) is not int or not 0 <= cell < size*size
+           or type(value) is not int or not 1 <= value <= max_region_size(size)
+           for cell, value in board.items()):
         return False
     largest = max(board.values())
     for number in range(1, largest + 1):

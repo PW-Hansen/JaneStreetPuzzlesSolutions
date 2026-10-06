@@ -48,6 +48,12 @@ class FullPuzzleRunnerTests(unittest.TestCase):
         self.assertFalse(is_solution(3, {0: 1, 3: 2}, {0: 1}))
         self.assertFalse(is_solution(3, {0: 1, 3: 2, 4: 2}, {0: 2}))
 
+    def test_solution_check_rejects_invalid_values_and_cell_positions(self):
+        for board in ({0: 0}, {0: -1}, {0: True}, {0: 1.0},
+                      {0: 1, 1: 0}, {-1: 1}, {9: 1}, {'0': 1}):
+            with self.subTest(board=board):
+                self.assertFalse(is_solution(3, board, {}))
+
 
 if __name__ == '__main__':
     unittest.main()

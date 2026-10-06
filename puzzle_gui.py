@@ -724,8 +724,8 @@ class PuzzleApp:
                 survivors = None
                 if partials is not None:
                     survivors = []
+                    used = set().union(*(clue_variables(cell, self.variables) for row in expressions for cell in row if cell.strip()))
                     for assignment in partials:
-                        used = set().union(*(clue_variables(cell, self.variables) for row in expressions for cell in row if cell.strip()))
                         if any(assignment.get(name) is None for name in used):
                             raise ValueError("Analyze the included clues before filtering connectivity.")
                         known = {name:value for name,value in assignment.items() if value is not None}
