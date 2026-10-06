@@ -6,6 +6,10 @@ from unittest.mock import patch
 from puzzle_gui import GridCanvas, PuzzleApp, format_candidates, read_state, write_state, can_connect_region, check_grid_connectivity, grow_forced_regions, region_colors, canonical_shape, filter_containment, fraction_parts, evaluate, math_runs, draw_math, inline_math, analyze_clues, solve_rational_clue, inferred_integer_variables, minimum_region_size, find_region_overlays, shape_orientations
 
 class VariableSearchTests(unittest.TestCase):
+    def test_larger_region_keeps_preferred_color(self):
+        colors = region_colors(2, {0:16, 1:7})
+        self.assertEqual(colors[16], '#e7afd4')
+        self.assertNotEqual(colors[7], colors[16])
     def test_overlay_uses_highest_clue_and_preserves_originals(self):
         grid = [['2','',''],['','3',''],['','','']]
         highest, labels, states, tested = find_region_overlays(grid,{})
@@ -267,7 +271,8 @@ class VariableSearchTests(unittest.TestCase):
         colors = region_colors(2, labels)
         for first, second in ((4, 13), (4, 22), (13, 6), (22, 6)):
             self.assertNotEqual(colors[first], colors[second])
-        self.assertEqual(colors[4], '#efa5a5')
+        self.assertEqual(colors[22], '#efa5a5')
+        self.assertNotEqual(colors[4], colors[22])
         self.assertEqual(colors[6], '#a9d8af')
 
     def test_connectivity_counts_reject_before_search(self):

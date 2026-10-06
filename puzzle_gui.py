@@ -532,7 +532,7 @@ def region_colors(size, labels):
                 adjacency[number].add(labels[neighbor])
                 adjacency[labels[neighbor]].add(number)
     colors = {}
-    for number in sorted(adjacency):
+    for number in sorted(adjacency, reverse=True):
         used = {colors[neighbor] for neighbor in adjacency[number] if neighbor in colors}
         preferred = palette[(number-1) % len(palette)]
         choices = [preferred] + palette
