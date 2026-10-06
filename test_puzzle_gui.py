@@ -20,6 +20,32 @@ from puzzle_gui import rgb_png
 from puzzle_gui import GridCanvas, PuzzleApp, format_candidates, read_state, write_state, can_connect_region, check_grid_connectivity, grow_forced_regions, region_colors, canonical_shape, filter_containment, fraction_parts, evaluate, math_runs, draw_math, inline_math, analyze_clues, solve_rational_clue, inferred_integer_variables, minimum_region_size, find_region_overlays, shape_orientations
 
 class VariableSearchTests(unittest.TestCase):
+    def test_launcher_lists_grids_and_named_saved_states(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory)
+            (root/'grids').mkdir()
+            (root/'grids'/'example.json').write_text('{}')
+            saved=root/'saved states'/'full_puzzle'/'checkpoint.json'
+            saved.parent.mkdir(parents=True)
+            saved.write_text('{}')
+            with patch('puzzle_gui.DATA_DIRECTORY',root/'grids'), \
+                 patch('puzzle_gui.__file__',str(root/'puzzle_gui.py')):
+                choices=puzzle_gui.launcher_states()
+            self.assertEqual(choices,[('example (grid)','example',root/'grids'/'example.json',False),
+                                      ('full_puzzle / checkpoint','full_puzzle',saved,True)])
+
+    def test_launcher_grid_size_does_not_prompt_for_size_again(self):
+        with tempfile.TemporaryDirectory() as directory:
+            with patch('puzzle_gui.DATA_DIRECTORY',Path(directory)), \
+                 patch('puzzle_gui.migrate_example'), \
+                 patch('puzzle_gui.simpledialog.askinteger',return_value=2) as prompt:
+                path=puzzle_gui.prepare_grid(None,'new_grid',size=7)
+                state=read_state(path)
+            self.assertEqual(state['size'],7)
+            self.assertEqual(list(state['variables']),['a','b'])
+            self.assertEqual(prompt.call_count,1)
+            self.assertEqual(prompt.call_args.args[0],'Grid variables')
+
     def test_grid_picture_copies_rendered_pixels_without_printwindow(self):
         import ctypes
         calls=[]

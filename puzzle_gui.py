@@ -1252,12 +1252,13 @@ def migrate_example():
         write_state(new_path, read_state(old_path))
 
 
-def prepare_grid(root, name):
+def prepare_grid(root, name, size=None):
     migrate_example()
     path = DATA_DIRECTORY / f"{name}.json"
     if not path.exists():
-        size = simpledialog.askinteger("New grid", f"Size for '{name}' (number of rows and columns):",
-                                       parent=root, minvalue=1)
+        if size is None:
+            size = simpledialog.askinteger("New grid", f"Size for '{name}' (number of rows and columns):",
+                                           parent=root, minvalue=1)
         if size is None:
             return None
         state = {"size": size, "expressions": [[""] * size for _ in range(size)],
@@ -1274,6 +1275,71 @@ def prepare_grid(root, name):
     # Validate before opening an editable grid so a damaged save isn't overwritten.
     read_state(path)
     return path
+
+
+def launcher_states():
+    """List autosaved grids and named snapshots without changing their files."""
+    result = [(f'{path.stem} (grid)',path.stem,path,False)
+              for path in sorted(DATA_DIRECTORY.glob('*.json'))]
+    folder = Path(__file__).resolve().parent / 'saved states'
+    result.extend((f'{path.parent.name} / {path.stem}',path.parent.name,path,True)
+                  for path in sorted(folder.glob('*/*.json')))
+    return result
+
+
+def choose_grid(root):
+    migrate_example()
+    dialog = tk.Toplevel(root)
+    dialog.title("Open puzzle grid")
+    dialog.resizable(False,False)
+    result = []
+    create = ttk.LabelFrame(dialog,text="Enter a grid name and size",padding=16)
+    create.pack(fill="x",padx=16,pady=(16,8))
+    ttk.Label(create,text="Name").grid(row=0,column=0,sticky="w",padx=(0,12))
+    name_entry = ttk.Entry(create,width=32)
+    name_entry.grid(row=0,column=1,pady=4)
+    ttk.Label(create,text="Grid size").grid(row=1,column=0,sticky="w",padx=(0,12))
+    size_entry = ttk.Entry(create,width=32)
+    size_entry.insert(0,'5')
+    size_entry.grid(row=1,column=1,pady=4)
+    def open_name():
+        try:
+            name = grid_name(name_entry.get().strip())
+            size = int(size_entry.get().strip())
+            if size < 1: raise ValueError("Grid size must be a positive integer.")
+            path = DATA_DIRECTORY / f'{name}.json'
+            if path.exists() and read_state(path)['size'] != size:
+                raise ValueError("That name already has a different grid size. Choose another name or load it below.")
+            path = prepare_grid(dialog,name,size=size)
+            if path is None: return
+            result.append((name,path,None))
+            dialog.destroy()
+        except (OSError,ValueError,argparse.ArgumentTypeError) as error:
+            messagebox.showerror("Could not open grid",str(error),parent=dialog)
+    ttk.Button(create,text="Open grid",command=open_name).grid(row=2,column=0,columnspan=2,sticky="ew",pady=(8,0))
+    saved = ttk.LabelFrame(dialog,text="Load a saved state",padding=16)
+    saved.pack(fill="x",padx=16,pady=(8,16))
+    choices = launcher_states()
+    selection = ttk.Combobox(saved,state="readonly",values=[item[0] for item in choices],width=44)
+    selection.pack(fill="x")
+    if choices: selection.current(0)
+    def open_saved():
+        try:
+            _,name,path,snapshot = choices[selection.current()]
+            read_state(path)
+            if snapshot:
+                result.append((name,DATA_DIRECTORY / f'{name}.json',path))
+            else:
+                prepared = prepare_grid(dialog,name)
+                if prepared is None: return
+                result.append((name,prepared,None))
+            dialog.destroy()
+        except (OSError,ValueError,IndexError) as error:
+            messagebox.showerror("Could not load state",str(error),parent=dialog)
+    ttk.Button(saved,text="Load state",command=open_saved,state="normal" if choices else "disabled").pack(fill="x",pady=(8,0))
+    name_entry.focus_set()
+    root.wait_window(dialog)
+    return result[0] if result else None
 
 
 def display_expression(expression):
@@ -1612,10 +1678,10 @@ def evaluate(expression, variables):
 
 
 class PuzzleApp:
-    def __init__(self, root, name, state_path):
+    def __init__(self, root, name, state_path, initial_state=None):
         self.root = root
         self.STATE_PATH = state_path
-        self.SIZE = read_state(state_path)["size"]
+        self.SIZE = (read_state(state_path) if initial_state is None else initial_state)["size"]
         root.title(f"Jane Street Puzzle — {name}")
         root.geometry("760x720")
         root.minsize(620, 620)
@@ -1645,7 +1711,7 @@ class PuzzleApp:
         self.overlay_redo = []
         self.region_cancel = None
         self.storage_error = tk.StringVar()
-        self.load_state()
+        self.load_state(initial_state)
         style = ttk.Style(root)
         style.theme_use("clam")
         style.configure("TFrame", background="#f4f6fa")
@@ -1828,11 +1894,11 @@ class PuzzleApp:
         root.minsize(minimum_width, minimum_height)
         root.geometry(f"{max(940, minimum_width + 60)}x{max(760, minimum_height)}")
 
-    def load_state(self):
-        if not self.STATE_PATH.exists():
+    def load_state(self, state=None):
+        if state is None and not self.STATE_PATH.exists():
             return
         try:
-            state = read_state(self.STATE_PATH)
+            state = read_state(self.STATE_PATH) if state is None else state
             expressions = state["expressions"]
             show_values = state.get("show_values", False)
             self.expressions = expressions
@@ -2583,15 +2649,23 @@ class PuzzleApp:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Open a named expression grid.")
-    parser.add_argument("name", nargs="?", default="example", type=grid_name,
-                        help="Grid name (default: example). New names prompt for a size.")
+    parser.add_argument("name", nargs="?", type=grid_name,
+                        help="Grid name. Omit to choose a grid or saved state in the launcher.")
     args = parser.parse_args()
     window = tk.Tk()
     window.withdraw()
     try:
-        state_path = prepare_grid(window, args.name)
-        if state_path is not None:
-            PuzzleApp(window, args.name, state_path)
+        if args.name is None:
+            choice = choose_grid(window)
+        else:
+            state_path = prepare_grid(window,args.name)
+            choice = None if state_path is None else (args.name,state_path,None)
+        if choice is not None:
+            name,state_path,snapshot = choice
+            initial = None if snapshot is None else read_state(snapshot)
+            app = PuzzleApp(window,name,state_path,initial_state=initial)
+            if snapshot is not None:
+                app.load_named_state(snapshot)
             window.deiconify()
             window.mainloop()
         else:
