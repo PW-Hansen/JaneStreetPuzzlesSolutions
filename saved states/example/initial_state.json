@@ -1,0 +1,124 @@
+{
+  "size": 5,
+  "expressions": [
+    [
+      "",
+      "3*a",
+      "",
+      "b/a",
+      ""
+    ],
+    [
+      "",
+      "",
+      "2*a+1",
+      "",
+      ""
+    ],
+    [
+      "a^2",
+      "",
+      "",
+      "",
+      "b-1"
+    ],
+    [
+      "",
+      "a-1",
+      "",
+      "b",
+      ""
+    ],
+    [
+      "b-a",
+      "",
+      "",
+      "",
+      "a^3-b"
+    ]
+  ],
+  "disabled_cells": [],
+  "variables": {
+    "a": "",
+    "b": ""
+  },
+  "overlay_region": "Highest",
+  "show_values": false,
+  "overlay_snapshot": {
+    "type": "dict",
+    "items": [
+      [
+        "states",
+        []
+      ],
+      [
+        "index",
+        0
+      ],
+      [
+        "highest",
+        null
+      ],
+      [
+        "base",
+        {
+          "type": "dict",
+          "items": []
+        }
+      ],
+      [
+        "tested",
+        0
+      ],
+      [
+        "target",
+        "Highest"
+      ],
+      [
+        "message",
+        ""
+      ],
+      [
+        "labels",
+        {
+          "type": "dict",
+          "items": []
+        }
+      ],
+      [
+        "palette",
+        {
+          "type": "dict",
+          "items": []
+        }
+      ],
+      [
+        "elapsed",
+        ""
+      ]
+    ]
+  },
+  "overlay_history": {
+    "type": "dict",
+    "items": [
+      [
+        "undo",
+        []
+      ],
+      [
+        "redo",
+        []
+      ]
+    ]
+  },
+  "selected": [
+    0,
+    0
+  ],
+  "valid_values": {
+    "a": "Not analyzed",
+    "b": "Not analyzed"
+  },
+  "search_message": "Analyze included clues to find valid values.",
+  "connectivity_message": ""
+}
