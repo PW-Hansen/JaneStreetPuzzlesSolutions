@@ -8,6 +8,7 @@ import re
 import tkinter as tk
 import threading
 from copy import deepcopy
+from datetime import datetime
 from collections import deque
 from heapq import heapify, heappop, heappush
 from decimal import Decimal, localcontext
@@ -1116,6 +1117,26 @@ def read_state(path):
     return state
 
 
+def encode_overlay(value):
+    """JSON-safe representation retaining cell keys, sets, and tuples."""
+    if isinstance(value,dict):
+        return {'type':'dict','items':[[encode_overlay(key),encode_overlay(item)] for key,item in value.items()]}
+    if isinstance(value,(set,frozenset,tuple)):
+        return {'type':type(value).__name__,'items':[encode_overlay(item) for item in value]}
+    if isinstance(value,list): return [encode_overlay(item) for item in value]
+    return value
+
+
+def decode_overlay(value):
+    if isinstance(value,list): return [decode_overlay(item) for item in value]
+    if isinstance(value,dict):
+        kind,items = value['type'],value['items']
+        if kind == 'dict': return {decode_overlay(key):decode_overlay(item) for key,item in items}
+        constructors = {'set':set,'frozenset':frozenset,'tuple':tuple}
+        return constructors[kind](decode_overlay(item) for item in items)
+    return value
+
+
 def write_state(path, state):
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_suffix(".json.tmp")
@@ -1636,6 +1657,12 @@ class PuzzleApp:
         self.overlay_undo_button.pack(side="left")
         self.overlay_redo_button = ttk.Button(history_navigation,text="Redo",command=self.redo_overlay,state="disabled")
         self.overlay_redo_button.pack(side="left",padx=8)
+        saved_controls = ttk.Frame(overlay_panel)
+        saved_controls.grid(row=7,column=0,sticky="ew",pady=(8,0))
+        ttk.Button(saved_controls,text="Save state",command=self.save_named_state).pack(side="left")
+        ttk.Button(saved_controls,text="Load state",command=self.choose_saved_state).pack(side="left",padx=8)
+        ttk.Button(overlay_panel,text="Reset to equations",command=self.reset_to_equations).grid(
+            row=8,column=0,sticky="ew",padx=(0,10),pady=(8,0))
         footer = ttk.Frame(body)
         footer.grid(row=1, column=0, sticky="ew", padx=(0, 20))
         options = ttk.Frame(footer)
@@ -1717,7 +1744,7 @@ class PuzzleApp:
         except (OSError, ValueError, KeyError, TypeError) as error:
             self.storage_error.set(f"Could not load saved grid: {error}")
 
-    def save_state(self):
+    def state_data(self):
         state = {"size": self.SIZE, "expressions": self.expressions,
                  "disabled_cells": sorted(self.disabled_cells),
                  "variables": {name: value.get() for name, value in self.variables.items()},
@@ -1728,11 +1755,117 @@ class PuzzleApp:
                 "assignments": [{name: None if value is None else str(value) for name,value in assignment.items()}
                                 for assignment in self.analytical_assignments],
                 "steps": self.analysis_steps}
+        return state
+
+    def save_state(self):
+        state = self.state_data()
         try:
             write_state(self.STATE_PATH, state)
             self.storage_error.set("")
         except OSError as error:
             self.storage_error.set(f"Could not save grid: {error}")
+
+    def save_named_state(self):
+        if getattr(self,'overlay_busy',False):
+            self.storage_error.set("Wait for the overlay analysis to finish before saving.")
+            return
+        name = simpledialog.askstring("Save state","Name for this saved state:",parent=self.root,
+                                     initialvalue=datetime.now().strftime('%Y-%m-%d_%H-%M-%S'))
+        if name is None: return
+        try:
+            name = grid_name(name.strip())
+            folder = Path(__file__).resolve().parent / 'saved states' / self.STATE_PATH.stem
+            path = folder / f'{name}.json'
+            if path.exists() and not messagebox.askyesno("Save state",f"Replace saved state '{name}'?",parent=self.root):
+                return
+            state = self.state_data()
+            state['overlay_snapshot'] = encode_overlay(self.overlay_snapshot())
+            state['overlay_history'] = encode_overlay({'undo':self.overlay_undo,'redo':self.overlay_redo})
+            state['selected'] = list(self.selected)
+            state['valid_values'] = {key:value.get() for key,value in self.valid_values.items()}
+            state['search_message'] = self.search_message.get()
+            state['connectivity_message'] = self.connectivity_message.get()
+            write_state(path,state)
+            self.storage_error.set("")
+        except (OSError,ValueError,argparse.ArgumentTypeError) as error:
+            self.storage_error.set(f"Could not save state: {error}")
+
+    def choose_saved_state(self):
+        if getattr(self,'overlay_busy',False):
+            self.storage_error.set("Wait for the overlay analysis to finish before loading.")
+            return
+        folder = Path(__file__).resolve().parent / 'saved states' / self.STATE_PATH.stem
+        paths = sorted(folder.glob('*.json'))
+        if not paths:
+            self.storage_error.set("No saved states for this grid yet.")
+            return
+        dialog = tk.Toplevel(self.root)
+        dialog.title("Load state")
+        dialog.transient(self.root)
+        dialog.grab_set()
+        ttk.Label(dialog,text="Saved state:").pack(anchor="w",padx=16,pady=(16,4))
+        selection = ttk.Combobox(dialog,state="readonly",values=[path.stem for path in paths],width=40)
+        selection.pack(padx=16,pady=4)
+        selection.current(0)
+        def load():
+            if self.load_named_state(paths[selection.current()]):
+                dialog.destroy()
+        ttk.Button(dialog,text="Load",command=load).pack(padx=16,pady=16)
+
+    def load_named_state(self, path):
+        try:
+            state = read_state(path)
+            if state['size'] != self.SIZE or set(state['variables']) != set(self.variables):
+                raise ValueError("Saved state has a different grid size or variable configuration.")
+            snapshot = decode_overlay(state['overlay_snapshot'])
+            required_snapshot = {'states','index','highest','base','tested','target','message','labels','palette'}
+            if not isinstance(snapshot,dict) or not required_snapshot <= snapshot.keys():
+                raise ValueError("Invalid saved overlay snapshot.")
+            history = decode_overlay(state.get('overlay_history',encode_overlay({'undo':[],'redo':[]})))
+            selected = state.get('selected',[0,0])
+            if (not isinstance(selected,list) or len(selected) != 2
+                    or any(type(value) is not int or not 0 <= value < self.SIZE for value in selected)):
+                raise ValueError("Invalid selected cell.")
+            analysis = state.get('analysis')
+            assignments = None if analysis is None else [
+                {name:None if value is None else Fraction(value) for name,value in item.items()}
+                for item in analysis['assignments']]
+            self.updating_candidates = True
+            try:
+                self.expressions = state['expressions']
+                self.disabled_cells = set(state.get('disabled_cells',[]))
+                for name,value in state['variables'].items(): self.variables[name].set(value)
+                self.show_values.set(state.get('show_values',False))
+                self.analytical_assignments = assignments
+                self.analysis_steps = [] if analysis is None else analysis.get('steps',[])
+                for name,label in self.valid_values.items(): label.set(state.get('valid_values',{}).get(name,'Not analyzed'))
+                self.search_message.set(state.get('search_message',''))
+                self.connectivity_message.set(state.get('connectivity_message',''))
+                self.overlay_undo,self.overlay_redo = history['undo'],history['redo']
+                self.update_display_button()
+                self.select(*selected)
+                self.restore_overlay(snapshot)
+                self.storage_error.set("")
+            finally:
+                self.updating_candidates = False
+            return True
+        except (OSError,ValueError,KeyError,TypeError,IndexError) as error:
+            self.storage_error.set(f"Could not load state: {error}")
+            return False
+
+    def reset_to_equations(self):
+        self.clear_regions()
+        self.overlay_target.set('Highest')
+        self.overlay_index = 0
+        self.overlay_highest = None
+        self.overlay_base_labels = {}
+        self.overlay_tested = 0
+        self.disabled_cells.clear()
+        self.connectivity_message.set("")
+        self.show_values.set(False)
+        self.update_display_button()
+        self.refresh()
+        self.save_state()
 
     def settings_changed(self, *_):
         if getattr(self, "updating_candidates", False):

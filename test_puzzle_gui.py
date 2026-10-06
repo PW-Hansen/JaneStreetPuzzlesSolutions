@@ -1,5 +1,6 @@
 import tempfile
 import unittest
+from fractions import Fraction
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -12,9 +13,56 @@ from puzzle_gui import force_bordering_growth
 from puzzle_gui import reverse_overlay_orientations
 from puzzle_gui import compare_incomplete_regions
 from puzzle_gui import attempt_region_completions
+from puzzle_gui import encode_overlay, decode_overlay
 from puzzle_gui import GridCanvas, PuzzleApp, format_candidates, read_state, write_state, can_connect_region, check_grid_connectivity, grow_forced_regions, region_colors, canonical_shape, filter_containment, fraction_parts, evaluate, math_runs, draw_math, inline_math, analyze_clues, solve_rational_clue, inferred_integer_variables, minimum_region_size, find_region_overlays, shape_orientations
 
 class VariableSearchTests(unittest.TestCase):
+    def test_saved_state_round_trip_retains_overlay_branch_types_and_history(self):
+        snapshot={'states':[{'cells':frozenset({2,3}),'assumptions':{0:1,2:2,3:2}}],
+                  'index':0,'highest':2,'base':{0:1},'tested':12,'target':'2',
+                  'message':'Overlay 1/1','labels':{0:1,2:2,3:2},'palette':{1:'red',2:'blue'}}
+        state={'size':2,'expressions':[['a',''],['','']], 'variables':{'a':'1'},
+               'overlay_snapshot':encode_overlay(snapshot),
+               'overlay_history':encode_overlay({'undo':[snapshot],'redo':[]})}
+        with tempfile.TemporaryDirectory() as directory:
+            path=Path(directory)/'saved states'/'test.json'
+            write_state(path,state)
+            restored=read_state(path)
+        self.assertEqual(decode_overlay(restored['overlay_snapshot']),snapshot)
+        self.assertEqual(decode_overlay(restored['overlay_history']),{'undo':[snapshot],'redo':[]})
+
+    def test_reset_keeps_equations_candidates_and_variable_analysis(self):
+        app=PuzzleApp.__new__(PuzzleApp)
+        def value(initial):
+            storage=[initial]
+            return SimpleNamespace(get=lambda:storage[0],set=lambda new:storage.__setitem__(0,new))
+        app.expressions=[['a',''],['','']]
+        app.variables={'a':value('1')}
+        app.valid_values={'a':value('1, 2')}
+        app.analytical_assignments=[{'a':Fraction(1)},{'a':Fraction(2)}]
+        app.SIZE=2
+        app.overlay_states=[{'cells':{0,1}}]
+        app.overlay_undo=[{}]
+        app.overlay_redo=[{}]
+        app.overlay_message=value('Some overlay')
+        app.overlay_target=value('2')
+        app.disabled_cells={0}
+        app.connectivity_message=value('Passed')
+        app.show_values=value(True)
+        app.update_display_button=lambda:None
+        app.refresh=lambda:None
+        app.save_state=lambda:None
+        app.reset_to_equations()
+        self.assertEqual(app.expressions,[['a',''],['','']])
+        self.assertEqual(app.variables['a'].get(),'1')
+        self.assertEqual(app.valid_values['a'].get(),'1, 2')
+        self.assertEqual(len(app.analytical_assignments),2)
+        self.assertEqual(app.SIZE,2)
+        self.assertFalse(app.overlay_states)
+        self.assertFalse(app.overlay_undo)
+        self.assertFalse(app.disabled_cells)
+        self.assertFalse(app.show_values.get())
+
     def test_completion_mirrors_through_two_higher_regions_and_preserves_branches(self):
         cells=frozenset({0,1,5,6,10})
         base={cell:5 for cell in cells}
