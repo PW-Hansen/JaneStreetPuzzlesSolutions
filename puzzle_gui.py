@@ -534,6 +534,7 @@ def find_region_overlays(expressions, variables, progress=None, region=None):
         raise ValueError(f"No {highest-1} cells are available to overlay onto region {highest}.")
     anchors = {cell for cell,value in labels.items() if value == highest}
     tested, survivors = 0, []
+    occupied_sets = set()
     for rotation,reflected,shape in shape_orientations(source,size):
         height,width = max(r for r,c in shape)+1,max(c for r,c in shape)+1
         for top in range(size-height+1):
@@ -561,6 +562,9 @@ def find_region_overlays(expressions, variables, progress=None, region=None):
                         if not bordering_regions_reachable(size,labels,highest,successor): continue
                         completed_minimum = minimum_region_size(size,labels,highest,anchors|set(successor))
                         if completed_minimum is None: continue
+                        occupied = frozenset(anchors|set(successor))
+                        if occupied in occupied_sets: continue
+                        occupied_sets.add(occupied)
                         survivors.append({'cells':successor,'overlay_cells':cells,
                                           'forced_cells':forced|post_connection_forced,
                                           'connection_cells':connection_cells,
@@ -575,6 +579,7 @@ def continue_region_overlays(size, base_labels, current, states, progress=None):
     if target > max_region_size(size):
         raise ValueError("The next region exceeds max region size.")
     survivors, tested = [], 0
+    occupied_sets = set()
     for parent_index,parent in enumerate(states):
         assumed = dict(parent.get('assumptions',base_labels))
         assumed.update({cell:current for cell in parent['cells']})
@@ -590,6 +595,9 @@ def continue_region_overlays(size, base_labels, current, states, progress=None):
             if any(not can_connect_region(size,combined,number,
                     [cell for cell,value in combined.items() if value==number]) for number in ancestors):
                 continue
+            occupied = frozenset(cell for cell,value in combined.items() if value == target)
+            if occupied in occupied_sets: continue
+            occupied_sets.add(occupied)
             child.update(assumptions=assumed, parent_index=parent_index,
                          ancestor_regions=sorted(ancestors))
             survivors.append(child)

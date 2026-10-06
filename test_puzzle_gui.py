@@ -89,10 +89,13 @@ class VariableSearchTests(unittest.TestCase):
     def test_continue_overlay_branches_from_every_parent(self):
         grid=[['1','',''],['','2',''],['','','3']]
         current,base,parents,_=find_region_overlays(grid,{},region=2)
-        target,children,tested=continue_region_overlays(3,base,current,parents)
+        progress=[]
+        target,children,tested=continue_region_overlays(3,base,current,parents,
+            lambda done,total,count:progress.append(done))
         self.assertEqual(target,3)
-        self.assertEqual(len(children),17)
-        self.assertEqual({child['parent_index'] for child in children},set(range(len(parents))))
+        self.assertEqual(len(children),5)
+        self.assertEqual(progress,list(range(1,len(parents)+1)))
+        self.assertEqual(len({frozenset(set(child['cells'])|{8}) for child in children}),len(children))
         self.assertGreater(tested,0)
         for child in children:
             parent=parents[child['parent_index']]
@@ -110,6 +113,7 @@ class VariableSearchTests(unittest.TestCase):
         self.assertEqual(target,2)
         self.assertEqual(tested,9)
         self.assertTrue(states)
+        self.assertEqual(len({frozenset(set(state['cells'])|{0}) for state in states}),len(states))
         self.assertTrue(all(state['minimum_size'] <= 2 for state in states))
         self.assertTrue(all(not state['cells'] & {4,6} for state in states))
         with self.assertRaisesRegex(ValueError,'Choose a region'):
