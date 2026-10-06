@@ -1,5 +1,7 @@
 import tempfile
 import unittest
+import threading
+import puzzle_gui
 from fractions import Fraction
 from pathlib import Path
 from types import SimpleNamespace
@@ -17,6 +19,29 @@ from puzzle_gui import encode_overlay, decode_overlay
 from puzzle_gui import GridCanvas, PuzzleApp, format_candidates, read_state, write_state, can_connect_region, check_grid_connectivity, grow_forced_regions, region_colors, canonical_shape, filter_containment, fraction_parts, evaluate, math_runs, draw_math, inline_math, analyze_clues, solve_rational_clue, inferred_integer_variables, minimum_region_size, find_region_overlays, shape_orientations
 
 class VariableSearchTests(unittest.TestCase):
+    def test_abort_interrupts_expensive_connectivity_work(self):
+        cancel=threading.Event()
+        cancel.set()
+        puzzle_gui._region_work.cancel=cancel
+        try:
+            with self.assertRaises(puzzle_gui.RegionOperationAborted):
+                minimum_region_size(13,{},16,{0,15,50,100})
+        finally:
+            del puzzle_gui._region_work.cancel
+
+    def test_abort_requests_stop_without_changing_existing_candidates(self):
+        cancel=threading.Event()
+        states=[{'cells':frozenset({0,1})}]
+        messages=[]
+        button_states=[]
+        app=SimpleNamespace(overlay_busy=True,region_cancel=cancel,overlay_states=states,
+                            abort_button=SimpleNamespace(configure=lambda **kwargs:button_states.append(kwargs)),
+                            overlay_message=SimpleNamespace(set=messages.append))
+        PuzzleApp.abort_region_operation(app)
+        self.assertTrue(cancel.is_set())
+        self.assertIs(app.overlay_states,states)
+        self.assertEqual(button_states,[{'state':'disabled'}])
+
     def test_saved_state_round_trip_retains_overlay_branch_types_and_history(self):
         snapshot={'states':[{'cells':frozenset({2,3}),'assumptions':{0:1,2:2,3:2}}],
                   'index':0,'highest':2,'base':{0:1},'tested':12,'target':'2',

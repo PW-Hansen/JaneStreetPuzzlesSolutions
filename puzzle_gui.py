@@ -22,6 +22,18 @@ from tkinter import font as tkfont, messagebox, simpledialog, ttk
 
 DATA_DIRECTORY = Path(__file__).resolve().parent / "grids"
 MIN_CELL_SIZE = 40
+_region_work = threading.local()
+
+
+class RegionOperationAborted(Exception):
+    def __init__(self):
+        super().__init__("Operation aborted. Previous overlays retained.")
+
+
+def check_region_abort():
+    cancel = getattr(_region_work,'cancel',None)
+    if cancel is not None and cancel.is_set():
+        raise RegionOperationAborted()
 
 
 def max_region_size(grid_size):
@@ -255,6 +267,7 @@ def format_candidates(values):
 
 def minimum_region_size(size, labels, number, terminals):
     """Exact graph Steiner-tree size using terminal-subset dynamic programming."""
+    check_region_abort()
     terminals = sorted(set(terminals))
     if not terminals:
         return 0
@@ -330,6 +343,7 @@ def minimum_region_size(size, labels, number, terminals):
     count = 1 << len(terminals)
     dp = [{} for _ in range(count)]
     for mask in range(1,count):
+        check_region_abort()
         if mask & (mask-1) == 0:
             index = mask.bit_length()-1
             dp[mask] = {cell:cost for cell,cost in distances[index].items() if cost <= budget}
@@ -337,6 +351,7 @@ def minimum_region_size(size, labels, number, terminals):
         best = {}
         sub = (mask-1)&mask
         while sub:
+            check_region_abort()
             other = mask^sub
             if sub < other:
                 first, second = dp[sub],dp[other]
@@ -349,6 +364,7 @@ def minimum_region_size(size, labels, number, terminals):
         heap = [(cost,cell) for cell,cost in best.items()]
         heapify(heap)
         while heap:
+            check_region_abort()
             cost,cell = heappop(heap)
             if cost != best[cell] or cost >= budget: continue
             for neighbor in neighbors[cell]:
@@ -490,6 +506,7 @@ def force_bordering_growth(size, labels, target, cells, candidate_limit=10, max_
     rounds = {}
     while pending:
         number = pending.popleft()
+        check_region_abort()
         queued.remove(number)
         required = {cell for cell,value in combined.items() if value == number}
         if len(required) < number:
@@ -609,6 +626,7 @@ def low_slack_connections(size, labels, target, cells):
     stack = [(start,frozenset([start]),frozenset()) for start in source]
     while stack:
         cell,visited,added = stack.pop()
+        check_region_abort()
         if cell in destinations:
             connected = frozenset(set(cells)|set(added))
             successors.update(low_slack_connections(size,labels,target,connected))
@@ -669,6 +687,7 @@ def find_region_overlays(expressions, variables, progress=None, region=None):
         height,width = max(r for r,c in shape)+1,max(c for r,c in shape)+1
         for top in range(size-height+1):
             for left in range(size-width+1):
+                check_region_abort()
                 tested += 1
                 cells = frozenset((r+top)*size+c+left for r,c in shape)
                 if reverse and not anchors <= cells: continue
@@ -777,6 +796,7 @@ def compare_incomplete_regions(size, base_labels, current, states, progress=None
                         height,width = max(r for r,c in shape)+1,max(c for r,c in shape)+1
                         for top in range(size-height+1):
                             for left in range(size-width+1):
+                                check_region_abort()
                                 cells = frozenset((r+top)*size+c+left for r,c in shape)
                                 if complete and not required <= cells: continue
                                 if any(cell in board and board[cell] != number for cell in cells): continue
@@ -840,6 +860,7 @@ def attempt_region_completions(size, base_labels, current, states, progress=None
             height,width = max(r for r,c in shape)+1,max(c for r,c in shape)+1
             for top in range(size-height+1):
                 for left in range(size-width+1):
+                    check_region_abort()
                     cells = {(r+top)*size+c+left for r,c in shape}
                     if any(cell in board and board[cell] != target for cell in cells): continue
                     for result in finish(board,target,cells | anchors):
@@ -888,6 +909,7 @@ def continue_region_overlays(size, base_labels, current, states, progress=None, 
     survivors, tested = [], 0
     occupied_sets = set()
     for parent_index,parent in enumerate(states):
+        check_region_abort()
         assumed = dict(parent.get('assumptions',base_labels))
         assumed.update({cell:current for cell in parent['cells']})
         expressions = [[str(assumed[r*size+c]) if r*size+c in assumed else ''
@@ -1544,6 +1566,7 @@ class PuzzleApp:
         self.overlay_index = 0
         self.overlay_undo = []
         self.overlay_redo = []
+        self.region_cancel = None
         self.storage_error = tk.StringVar()
         self.load_state()
         style = ttk.Style(root)
@@ -1643,8 +1666,10 @@ class PuzzleApp:
             self.overlay_buttons.append(button)
         for column in range(5):
             overlay_selection.columnconfigure(column,weight=1)
-        ttk.Label(overlay_panel, textvariable=self.overlay_message, wraplength=230).grid(row=7, column=0, sticky="nw", padx=(0, 10),pady=(8,0))
-        ttk.Label(overlay_panel, textvariable=self.region_elapsed, wraplength=230).grid(row=8,column=0,sticky="w",pady=(4,0))
+        ttk.Label(overlay_panel, textvariable=self.overlay_message, wraplength=230).grid(row=8, column=0, sticky="nw", padx=(0, 10),pady=(8,0))
+        ttk.Label(overlay_panel, textvariable=self.region_elapsed, wraplength=230).grid(row=9,column=0,sticky="w",pady=(4,0))
+        self.abort_button = ttk.Button(overlay_panel,text="Abort",command=self.abort_region_operation,state="disabled")
+        self.abort_button.grid(row=7,column=0,sticky="ew",padx=(0,10),pady=(0,8))
         overlay_navigation = ttk.Frame(overlay_panel)
         overlay_navigation.grid(row=3, column=0, sticky="ew", padx=(0,10), pady=8)
         ttk.Button(overlay_navigation, text="Previous", command=lambda:self.show_overlay(-1)).pack(side="left")
@@ -2096,6 +2121,12 @@ class PuzzleApp:
         self.overlay_busy = not enabled
         self.update_overlay_buttons()
 
+    def abort_region_operation(self):
+        if getattr(self,'overlay_busy',False) and self.region_cancel is not None:
+            self.region_cancel.set()
+            self.abort_button.configure(state="disabled")
+            self.overlay_message.set("Stopping region operation…")
+
     def overlay_snapshot(self):
         return deepcopy({
             'states':self.overlay_states,'index':self.overlay_index,
@@ -2165,6 +2196,10 @@ class PuzzleApp:
             self.compare_button.configure(state="normal" if self.overlay_states and not getattr(self,'overlay_busy',False) else "disabled")
         if hasattr(self,'completion_button'):
             self.completion_button.configure(state="normal" if self.overlay_states and not getattr(self,'overlay_busy',False) else "disabled")
+        if hasattr(self,'abort_button'):
+            busy = getattr(self,'overlay_busy',False)
+            self.abort_button.configure(state="normal" if busy and self.region_cancel is not None
+                                        and not self.region_cancel.is_set() else "disabled")
 
     def overlay_regions(self):
         expressions = self.active_expressions()
@@ -2177,10 +2212,13 @@ class PuzzleApp:
             return
         previous = self.overlay_snapshot()
         started = perf_counter()
+        cancel = threading.Event()
+        self.region_cancel = cancel
         self.set_overlay_buttons_enabled(False)
         self.overlay_message.set("Testing translated, reflected, and rotated overlays…")
         results = Queue()
         def work():
+            _region_work.cancel = cancel
             try:
                 results.put(('result',find_region_overlays(expressions,variables,
                     lambda tested,valid:results.put(('progress',(tested,valid))), region=target)))
@@ -2203,6 +2241,8 @@ class PuzzleApp:
             if final is None:
                 self.root.after(50,poll)
                 return
+            if cancel.is_set():
+                final = ('error',str(RegionOperationAborted()))
             self.set_overlay_buttons_enabled(True)
             try:
                 current = {name:Fraction(value.get().strip()) for name,value in self.variables.items()}
@@ -2271,10 +2311,13 @@ class PuzzleApp:
             return
         previous = self.overlay_snapshot()
         started = perf_counter()
+        cancel = threading.Event()
+        self.region_cancel = cancel
         self.set_overlay_buttons_enabled(False)
         self.overlay_message.set(f"Testing all {len(states)} preceding overlays for region {target}…")
         results = Queue()
         def work():
+            _region_work.cancel = cancel
             try:
                 result=continue_region_overlays(self.SIZE,self.overlay_base_labels,current,states,
                     lambda done,total,valid:results.put(('progress',(done,total,valid))),region=target)
@@ -2297,6 +2340,8 @@ class PuzzleApp:
             if final is None:
                 self.root.after(50,poll)
                 return
+            if cancel.is_set():
+                final = ('error',str(RegionOperationAborted()))
             self.set_overlay_buttons_enabled(True)
             if self.overlay_states is not states:
                 self.overlay_message.set("Grid or overlays changed. Generate overlays again.")
@@ -2329,11 +2374,14 @@ class PuzzleApp:
         current,base = self.overlay_highest,self.overlay_base_labels
         previous = self.overlay_snapshot()
         started = perf_counter()
+        cancel = threading.Event()
+        self.region_cancel = cancel
         self.set_overlay_buttons_enabled(False)
         self.overlay_message.set("Attempting region completions from smallest to largest…" if completion
                                  else "Comparing incomplete regions from largest to smallest…")
         results = Queue()
         def work():
+            _region_work.cancel = cancel
             try:
                 analyze = attempt_region_completions if completion else compare_incomplete_regions
                 children = analyze(self.SIZE,base,current,states,
@@ -2357,6 +2405,8 @@ class PuzzleApp:
             if final is None:
                 self.root.after(50,poll)
                 return
+            if cancel.is_set():
+                final = ('error',str(RegionOperationAborted()))
             self.set_overlay_buttons_enabled(True)
             if self.overlay_states is not states:
                 self.overlay_message.set("Grid or overlays changed. Compare again.")
