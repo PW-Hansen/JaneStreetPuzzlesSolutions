@@ -9,9 +9,36 @@ from puzzle_gui import bordering_regions_reachable
 from puzzle_gui import low_slack_connections
 from puzzle_gui import InvalidOverlay
 from puzzle_gui import force_bordering_growth
+from puzzle_gui import reverse_overlay_orientations
 from puzzle_gui import GridCanvas, PuzzleApp, format_candidates, read_state, write_state, can_connect_region, check_grid_connectivity, grow_forced_regions, region_colors, canonical_shape, filter_containment, fraction_parts, evaluate, math_runs, draw_math, inline_math, analyze_clues, solve_rational_clue, inferred_integer_variables, minimum_region_size, find_region_overlays, shape_orientations
 
 class VariableSearchTests(unittest.TestCase):
+    def test_reverse_containment_uses_completed_higher_region_without_lower_clues(self):
+        grid=[['4','4','',''],['4','4','',''],['','','',''],['3','3','','']]
+        _,_,states,_=find_region_overlays(grid,{},region=3)
+        self.assertEqual({state['cells'] for state in states},
+                         {frozenset({8,12,13}),frozenset({9,12,13})})
+        self.assertTrue(all(state['reverse_containment'] for state in states))
+
+    def test_reverse_containment_deletion_never_disconnects_shape(self):
+        orientations=reverse_overlay_orientations({0,1,2,5},4)
+        self.assertTrue(orientations)
+        shapes=[shape for _,_,shape in orientations]
+        self.assertEqual(len(shapes),len(set(shapes)))
+        for shape in shapes:
+            cells={r*4+c for r,c in shape}
+            self.assertEqual(minimum_region_size(4,{},3,cells),3)
+        self.assertNotIn(((0,0),(0,2),(1,1)),shapes)
+
+    def test_reverse_containment_uses_higher_region_from_prior_overlay(self):
+        target,children,_=continue_region_overlays(4,{12:3,13:3},4,
+                                                  [{'cells':frozenset({0,1,4,5})}],region=3)
+        self.assertEqual(target,3)
+        self.assertEqual({state['cells'] for state in children},
+                         {frozenset({8,12,13}),frozenset({9,12,13})})
+        self.assertTrue(all(state['reverse_containment'] for state in children))
+        self.assertTrue(all(state['assumptions'][0]==4 for state in children))
+
     def test_region_buttons_disable_only_identical_complete_regions(self):
         buttons=[SimpleNamespace(configure=lambda **kwargs:None) for _ in range(4)]
         status={}

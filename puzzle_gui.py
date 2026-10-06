@@ -610,6 +610,21 @@ def low_slack_connections(size, labels, target, cells):
     return sorted(successors,key=lambda region:tuple(sorted(region)))
 
 
+def reverse_overlay_orientations(cells, size):
+    """Unique connected shapes obtained by deleting one cell, with D4 symmetry."""
+    number = len(cells)-1
+    orientations,seen = [],set()
+    for removed in sorted(cells):
+        reduced = set(cells)-{removed}
+        if not reduced or minimum_region_size(size,{},number,reduced) is None:
+            continue
+        for rotation,reflected,shape in shape_orientations(reduced,size):
+            if shape not in seen:
+                seen.add(shape)
+                orientations.append((rotation,reflected,shape))
+    return orientations
+
+
 def find_region_overlays(expressions, variables, progress=None, region=None):
     size = len(expressions)
     labels = {r*size+c:int(evaluate(expression,variables))
@@ -626,18 +641,26 @@ def find_region_overlays(expressions, variables, progress=None, region=None):
     if type(highest) is not int or not 1 <= highest <= limit:
         raise ValueError(f"Choose a region from 1 to {limit}.")
     source = [cell for cell,value in labels.items() if value == highest-1]
-    if highest > 1 and not source:
+    higher = {cell for cell,value in labels.items() if value == highest+1}
+    reverse = len(higher) == highest+1
+    if reverse and minimum_region_size(size,labels,highest+1,higher) is None:
+        raise ValueError(f"The completed region {highest+1} is disconnected.")
+    if highest > 1 and not source and not reverse:
         raise ValueError(f"No {highest-1} cells are available to overlay onto region {highest}.")
     anchors = {cell for cell,value in labels.items() if value == highest}
     tested, survivors = 0, []
     occupied_sets = set()
-    orientations = [(0,False,((0,0),))] if highest == 1 else shape_orientations(source,size)
+    if reverse:
+        orientations = reverse_overlay_orientations(higher,size)
+    else:
+        orientations = [(0,False,((0,0),))] if highest == 1 else shape_orientations(source,size)
     for rotation,reflected,shape in orientations:
         height,width = max(r for r,c in shape)+1,max(c for r,c in shape)+1
         for top in range(size-height+1):
             for left in range(size-width+1):
                 tested += 1
                 cells = frozenset((r+top)*size+c+left for r,c in shape)
+                if reverse and not anchors <= cells: continue
                 if any(cell in labels and labels[cell] != highest for cell in cells): continue
                 terminals = anchors | cells
                 minimum = minimum_region_size(size,labels,highest,terminals)
@@ -674,6 +697,7 @@ def find_region_overlays(expressions, variables, progress=None, region=None):
                                           'connection_cells':connection_cells,
                                           'assumptions':combined,'neighbor_growth':neighbor_growth,
                                           'growth_limited':growth_limited,
+                                          'reverse_containment':reverse,
                                           'row':top,'column':left,'rotation':rotation,
                                           'reflected':reflected,'minimum_size':completed_minimum})
                 if progress: progress(tested,len(survivors))
@@ -1840,6 +1864,8 @@ class PuzzleApp:
             self.overlay_message.set(self.overlay_message.get()+" Some regions skipped: more than 10 candidate growth cells.")
         if 'parent_index' in state:
             self.overlay_message.set(self.overlay_message.get()+f" From preceding overlay {state['parent_index']+1}.")
+        if state.get('reverse_containment'):
+            self.overlay_message.set(self.overlay_message.get()+f" Shape derived by removing one cell from region {self.overlay_highest+1}.")
         self.refresh()
 
     def continue_overlay(self, region=None):
