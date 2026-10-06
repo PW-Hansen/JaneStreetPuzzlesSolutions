@@ -5,11 +5,15 @@ import tkinter as tk
 import threading
 from copy import deepcopy
 from datetime import datetime
-from time import perf_counter
 from queue import Queue, Empty
 from fractions import Fraction
 from pathlib import Path
 from tkinter import font as tkfont, messagebox, simpledialog, ttk
+
+from functions.solve_functions import (
+    BackgroundRegionOperation, analyze_grid, candidate_labels, completed_regions,
+    elapsed_text, included_expressions, make_overlay_snapshot, overlay_board,
+)
 
 
 from functions.persistence_functions import (
@@ -20,7 +24,6 @@ from functions.persistence_functions import (
 from functions.equations_functions import (
     variable_name,
     clue_variables,
-    analyze_clues,
     evaluate
 )
 
@@ -36,8 +39,6 @@ from functions.display_functions import (
 )
 
 from functions.region_functions import (
-    _region_work,
-    RegionOperationAborted,
     max_region_size,
     check_grid_connectivity,
     find_region_overlays,
@@ -411,9 +412,8 @@ class PuzzleApp:
             message.trace_add("write", lambda *_: schedule_fit())
         self.select(0, 0)
         if self.analytical_assignments is not None:
-            for name, label in self.valid_values.items():
-                values = {assignment.get(name) for assignment in self.analytical_assignments}
-                label.set("Unknown" if None in values else format_candidates(values))
+            for name,text in candidate_labels(self.analytical_assignments,self.valid_values).items():
+                self.valid_values[name].set(text)
             self.search_message.set(f"Restored {len(self.analytical_assignments)} analyzed partial assignments.")
         for variable in self.variables.values():
             variable.trace_add("write", self.settings_changed)
@@ -617,8 +617,8 @@ class PuzzleApp:
 
     def analyze_valid_values(self):
         try:
-            expressions = [cell for row in self.active_expressions() for cell in row if cell.strip()]
-            for expression in expressions:
+            expressions = self.active_expressions()
+            for expression in (text for row in expressions for text in row if text.strip()):
                 clue_variables(expression, self.variables)
         except (ValueError, SyntaxError, ZeroDivisionError) as error:
             self.search_message.set(str(error))
@@ -630,7 +630,7 @@ class PuzzleApp:
         results = Queue()
         def work():
             try:
-                results.put((analyze_clues(expressions, self.variables, max_region_size(self.SIZE)), None))
+                results.put((analyze_grid(expressions, self.variables), None))
             except Exception as error:
                 results.put((None, str(error)))
         threading.Thread(target=work, daemon=True).start()
@@ -648,9 +648,8 @@ class PuzzleApp:
                 return
             self.analytical_assignments, self.analysis_steps = result
             self.apply_single_assignment()
-            for name, label in self.valid_values.items():
-                values = {assignment[name] for assignment in self.analytical_assignments}
-                label.set("Unknown" if None in values else format_candidates(values))
+            for name,text in candidate_labels(self.analytical_assignments,self.valid_values).items():
+                self.valid_values[name].set(text)
             message = f"{len(self.analytical_assignments)} analytically valid partial assignments."
             if self.analytical_assignments:
                 message += " Example: " + ", ".join(f"{name}: {'?' if value is None else value}"
@@ -667,10 +666,7 @@ class PuzzleApp:
         self.refresh()
 
     def active_expressions(self):
-        disabled = getattr(self, "disabled_cells", set())
-        return [["" if row*self.SIZE+column in disabled else expression
-                 for column, expression in enumerate(cells)]
-                for row, cells in enumerate(self.expressions)]
+        return included_expressions(self.expressions,getattr(self,'disabled_cells',set()))
 
     def toggle_cell(self, event):
         left, top, side = self.board.bounds
@@ -799,15 +795,12 @@ class PuzzleApp:
             self.overlay_message.set("Stopping region operation…")
 
     def overlay_snapshot(self):
-        return deepcopy({
-            'states':self.overlay_states,'index':self.overlay_index,
-            'highest':getattr(self,'overlay_highest',None),
-            'base':getattr(self,'overlay_base_labels',{}),
-            'tested':getattr(self,'overlay_tested',0),
-            'target':str(self.overlay_highest) if self.overlay_states else self.overlay_target.get(),
-            'message':self.overlay_message.get(),
-            'labels':self.region_labels,'palette':self.region_palette,
-            'elapsed':self.region_elapsed.get() if hasattr(self,'region_elapsed') else ''})
+        return make_overlay_snapshot(self.overlay_states,self.overlay_index,
+            getattr(self,'overlay_highest',None),getattr(self,'overlay_base_labels',{}),
+            getattr(self,'overlay_tested',0),
+            str(self.overlay_highest) if self.overlay_states else self.overlay_target.get(),
+            self.overlay_message.get(),self.region_labels,self.region_palette,
+            self.region_elapsed.get() if hasattr(self,'region_elapsed') else '')
 
     def record_overlay(self, previous):
         self.overlay_undo.append(previous)
@@ -843,19 +836,8 @@ class PuzzleApp:
         self.restore_overlay(self.overlay_redo.pop())
 
     def update_overlay_buttons(self):
-        completed = set()
-        if self.overlay_states:
-            boards = []
-            for state in self.overlay_states:
-                board = dict(state.get('assumptions',self.overlay_base_labels))
-                board.update({cell:self.overlay_highest for cell in state['cells']})
-                boards.append(board)
-            for number in range(1,len(self.overlay_buttons)+1):
-                cells = frozenset(cell for cell,value in boards[0].items() if value == number)
-                if len(cells) == number and all(
-                        frozenset(cell for cell,value in board.items() if value == number) == cells
-                        for board in boards[1:]):
-                    completed.add(number)
+        completed = completed_regions(self.overlay_states,
+            getattr(self,'overlay_base_labels',{}),getattr(self,'overlay_highest',None),identical=True)
         for number,button in enumerate(self.overlay_buttons,start=1):
             disabled = getattr(self,"overlay_busy",False) or number in completed
             button.configure(state="disabled" if disabled else "normal")
@@ -882,38 +864,19 @@ class PuzzleApp:
             self.overlay_message.set("Enter numeric candidate values first.")
             return
         previous = self.overlay_snapshot()
-        started = perf_counter()
-        cancel = threading.Event()
-        self.region_cancel = cancel
+        task = BackgroundRegionOperation(lambda progress:find_region_overlays(expressions,variables,progress,region=target))
+        started = task.started
+        self.region_cancel = task.cancel
         self.set_overlay_buttons_enabled(False)
         self.overlay_message.set("Testing translated, reflected, and rotated overlays…")
-        results = Queue()
-        def work():
-            _region_work.cancel = cancel
-            try:
-                results.put(('result',find_region_overlays(expressions,variables,
-                    lambda tested,valid:results.put(('progress',(tested,valid))), region=target)))
-            except Exception as error:
-                results.put(('error',str(error)))
-        threading.Thread(target=work,daemon=True).start()
         def poll():
-            self.region_elapsed.set(f"Time: {perf_counter()-started:.2f} seconds")
-            final = None
-            try:
-                while True:
-                    kind,data = results.get_nowait()
-                    if kind == 'progress':
-                        self.overlay_message.set(f"Tested {data[0]} placements; {data[1]} valid so far.")
-                    else:
-                        final = (kind,data)
-                        break
-            except Empty:
-                pass
+            self.region_elapsed.set(elapsed_text(started))
+            updates,final = task.poll()
+            for data in updates:
+                self.overlay_message.set(f"Tested {data[0]} placements; {data[1]} valid so far.")
             if final is None:
                 self.root.after(50,poll)
                 return
-            if cancel.is_set():
-                final = ('error',str(RegionOperationAborted()))
             self.set_overlay_buttons_enabled(True)
             try:
                 current = {name:Fraction(value.get().strip()) for name,value in self.variables.items()}
@@ -928,7 +891,7 @@ class PuzzleApp:
                 return
             self.record_overlay(previous)
             self.clear_regions(reset_history=False)
-            self.region_elapsed.set(f"Time: {perf_counter()-started:.2f} seconds")
+            self.region_elapsed.set(elapsed_text(started))
             self.overlay_highest,self.overlay_base_labels,self.overlay_states,self.overlay_tested = data
             self.overlay_index = 0
             if not self.overlay_states:
@@ -944,8 +907,7 @@ class PuzzleApp:
         self.update_overlay_buttons()
         self.overlay_index = (self.overlay_index+step)%len(self.overlay_states)
         state = self.overlay_states[self.overlay_index]
-        self.region_labels = dict(state.get('assumptions',self.overlay_base_labels))
-        self.region_labels.update({cell:self.overlay_highest for cell in state['cells']})
+        self.region_labels = overlay_board(state,self.overlay_base_labels,self.overlay_highest)
         self.region_palette = region_colors(self.SIZE,self.region_labels)
         self.overlay_message.set(
             f"Overlay {self.overlay_index+1}/{len(self.overlay_states)} for region {self.overlay_highest}. "
@@ -981,38 +943,19 @@ class PuzzleApp:
             self.overlay_message.set("The next region exceeds max region size.")
             return
         previous = self.overlay_snapshot()
-        started = perf_counter()
-        cancel = threading.Event()
-        self.region_cancel = cancel
+        task = BackgroundRegionOperation(lambda progress:continue_region_overlays(self.SIZE,self.overlay_base_labels,current,states,progress,region=target))
+        started = task.started
+        self.region_cancel = task.cancel
         self.set_overlay_buttons_enabled(False)
         self.overlay_message.set(f"Testing all {len(states)} preceding overlays for region {target}…")
-        results = Queue()
-        def work():
-            _region_work.cancel = cancel
-            try:
-                result=continue_region_overlays(self.SIZE,self.overlay_base_labels,current,states,
-                    lambda done,total,valid:results.put(('progress',(done,total,valid))),region=target)
-                results.put(('result',result))
-            except Exception as error:
-                results.put(('error',str(error)))
-        threading.Thread(target=work,daemon=True).start()
         def poll():
-            self.region_elapsed.set(f"Time: {perf_counter()-started:.2f} seconds")
-            final=None
-            try:
-                while True:
-                    kind,data=results.get_nowait()
-                    if kind=='progress':
-                        self.overlay_message.set(f"Checked {data[0]}/{data[1]} preceding overlays; {data[2]} valid continuations.")
-                    else:
-                        final=(kind,data)
-                        break
-            except Empty: pass
+            self.region_elapsed.set(elapsed_text(started))
+            updates,final = task.poll()
+            for data in updates:
+                self.overlay_message.set(f"Checked {data[0]}/{data[1]} preceding overlays; {data[2]} valid continuations.")
             if final is None:
                 self.root.after(50,poll)
                 return
-            if cancel.is_set():
-                final = ('error',str(RegionOperationAborted()))
             self.set_overlay_buttons_enabled(True)
             if self.overlay_states is not states:
                 self.overlay_message.set("Grid or overlays changed. Generate overlays again.")
@@ -1044,40 +987,20 @@ class PuzzleApp:
         states = self.overlay_states
         current,base = self.overlay_highest,self.overlay_base_labels
         previous = self.overlay_snapshot()
-        started = perf_counter()
-        cancel = threading.Event()
-        self.region_cancel = cancel
+        analyze = attempt_region_completions if completion else compare_incomplete_regions
+        task = BackgroundRegionOperation(lambda progress:analyze(self.SIZE,base,current,states,progress))
+        started = task.started
+        self.region_cancel = task.cancel
         self.set_overlay_buttons_enabled(False)
-        self.overlay_message.set("Attempting region completions from smallest to largest…" if completion
-                                 else "Comparing incomplete regions from largest to smallest…")
-        results = Queue()
-        def work():
-            _region_work.cancel = cancel
-            try:
-                analyze = attempt_region_completions if completion else compare_incomplete_regions
-                children = analyze(self.SIZE,base,current,states,
-                    lambda done,total,valid:results.put(('progress',(done,total,valid))))
-                results.put(('result',children))
-            except Exception as error:
-                results.put(('error',str(error)))
-        threading.Thread(target=work,daemon=True).start()
+        self.overlay_message.set("Attempting region completions from smallest to largest…" if completion else "Comparing incomplete regions from largest to smallest…")
         def poll():
-            self.region_elapsed.set(f"Time: {perf_counter()-started:.2f} seconds")
-            final = None
-            try:
-                while True:
-                    kind,data = results.get_nowait()
-                    if kind == 'progress':
-                        self.overlay_message.set(f"Checked {data[0]}/{data[1]} overlays; {data[2]} surviving.")
-                    else:
-                        final = (kind,data)
-                        break
-            except Empty: pass
+            self.region_elapsed.set(elapsed_text(started))
+            updates,final = task.poll()
+            for data in updates:
+                self.overlay_message.set(f"Checked {data[0]}/{data[1]} overlays; {data[2]} surviving.")
             if final is None:
                 self.root.after(50,poll)
                 return
-            if cancel.is_set():
-                final = ('error',str(RegionOperationAborted()))
             self.set_overlay_buttons_enabled(True)
             if self.overlay_states is not states:
                 self.overlay_message.set("Grid or overlays changed. Compare again.")

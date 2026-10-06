@@ -2,6 +2,7 @@ import tempfile
 import unittest
 import threading
 import puzzle_gui
+from functions.region_functions.cancellation import _region_work, RegionOperationAborted
 from functions import persistence_functions
 from functions.persistence_functions import encode_overlay, decode_overlay, read_state, write_state
 from functions.persistence_functions import make_grid_state, make_saved_state, load_snapshot
@@ -167,12 +168,12 @@ class VariableSearchTests(unittest.TestCase):
     def test_abort_interrupts_expensive_connectivity_work(self):
         cancel=threading.Event()
         cancel.set()
-        puzzle_gui._region_work.cancel=cancel
+        _region_work.cancel=cancel
         try:
-            with self.assertRaises(puzzle_gui.RegionOperationAborted):
+            with self.assertRaises(RegionOperationAborted):
                 minimum_region_size(13,{},16,{0,15,50,100})
         finally:
-            del puzzle_gui._region_work.cancel
+            del _region_work.cancel
 
     def test_abort_requests_stop_without_changing_existing_candidates(self):
         cancel=threading.Event()
