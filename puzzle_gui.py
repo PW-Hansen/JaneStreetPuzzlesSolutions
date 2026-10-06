@@ -597,8 +597,9 @@ class PuzzleApp:
         footer.grid(row=1, column=0, sticky="ew", padx=(0, 20))
         options = ttk.Frame(footer)
         options.pack(fill="x")
-        ttk.Checkbutton(options, text="Show calculated values", variable=self.show_values,
-                        command=self.settings_changed).pack(side="left")
+        self.display_button = ttk.Button(options, command=self.toggle_display)
+        self.display_button.pack(side="left")
+        self.update_display_button()
         detail_label = ttk.Label(footer, textvariable=self.detail)
         detail_label.pack(anchor="w", fill="x", pady=(12, 4))
         status_label = ttk.Label(footer, textvariable=self.status)
@@ -681,6 +682,16 @@ class PuzzleApp:
         if _:
             self.clear_regions()
         self.connectivity_message.set("")
+        self.refresh()
+        self.save_state()
+
+    def update_display_button(self):
+        self.display_button.configure(text="Prioritize equations" if self.show_values.get()
+                                      else "Prioritize values")
+
+    def toggle_display(self):
+        self.show_values.set(not self.show_values.get())
+        self.update_display_button()
         self.refresh()
         self.save_state()
 
@@ -901,13 +912,11 @@ class PuzzleApp:
                         errors += 1
                         color = "#ffe0e0"
                         detail = f"Cannot calculate {expression}: {error}"
-                        if self.show_values.get():
-                            text = "Error"
                 selected = (x, y) == self.selected
                 region = self.region_labels.get(y*self.SIZE+x)
                 if region is not None:
                     color = self.region_palette[region]
-                    text = str(region)
+                    text = str(region) if self.show_values.get() or not expression else expression
                     if not expression:
                         detail = f"Forced cell in region {region}."
                 cells.append((x, y, text, color))

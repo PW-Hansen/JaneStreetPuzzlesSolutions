@@ -11,6 +11,31 @@ from puzzle_gui import (GridCanvas, PuzzleApp, format_candidates,
 
 
 class VariableSearchTests(unittest.TestCase):
+    def test_display_toggle_preserves_colors_and_number_only_cells(self):
+        app = PuzzleApp.__new__(PuzzleApp)
+        def variable(initial):
+            data = [initial]
+            return SimpleNamespace(get=lambda: data[0], set=lambda value: data.__setitem__(0, value))
+        app.SIZE = 2
+        app.expressions = [['a', ''], ['a/2', 'unknown']]
+        app.variables = {'a': variable('2')}
+        app.selected = (0, 0)
+        app.show_values = variable(False)
+        app.detail, app.status = variable(''), variable('')
+        app.region_labels = {0: 2, 1: 2}
+        app.region_palette = {2: '#123456'}
+        app.board = SimpleNamespace(draw=lambda: None)
+        app.display_button = SimpleNamespace(configure=lambda **kw: None)
+        app.save_state = lambda: None
+        app.refresh()
+        before = app.board.cells[:]
+        self.assertEqual([cell[2] for cell in before], ['a', '2', 'a/2', 'unknown'])
+        app.toggle_display()
+        self.assertEqual([cell[2] for cell in app.board.cells], ['2', '2', '1', 'unknown'])
+        self.assertEqual([cell[3] for cell in before], [cell[3] for cell in app.board.cells])
+        app.toggle_display()
+        self.assertEqual(app.board.cells, before)
+
     def test_forced_regions_from_blocked_paths(self):
         grid = [['', '6', '', '3', ''], ['', '', '5', '', ''],
                 ['4', '', '', '', '5'], ['', '1', '', '6', ''],
