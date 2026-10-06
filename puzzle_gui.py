@@ -187,7 +187,50 @@ def region_completions(size, labels, number):
     return completed
 
 
-def grow_forced_regions(expressions, variables):
+def canonical_shape(cells, size):
+    """Translation-independent shape, allowing all rotations and reflections."""
+    points = [divmod(cell, size) for cell in cells]
+    shapes = []
+    for swap in (False, True):
+        for row_sign in (-1, 1):
+            for column_sign in (-1, 1):
+                transformed = [(row_sign*(c if swap else r), column_sign*(r if swap else c))
+                               for r, c in points]
+                min_row = min(r for r, c in transformed)
+                min_column = min(c for r, c in transformed)
+                shapes.append(tuple(sorted((r-min_row, c-min_column) for r, c in transformed)))
+    return min(shapes)
+
+
+def filter_containment(options, size):
+    """Enforce adjacent-size shape support, processing largest sizes first."""
+    shapes = {region: canonical_shape(region, size)
+              for regions in options.values() for region in regions}
+    contained = {region: {canonical_shape(region - {cell}, size) for cell in region}
+                 for number, regions in options.items() if number > 1 for region in regions}
+    while True:
+        changed = False
+        for number in sorted(options, reverse=True):
+            if number - 1 not in options:
+                continue
+            bigger, smaller = options[number], options[number-1]
+            supported_big, supported_small = set(), set()
+            for big in bigger:
+                for small in smaller:
+                    if big.isdisjoint(small) and shapes[small] in contained[big]:
+                        supported_big.add(big)
+                        supported_small.add(small)
+            if not supported_big or not supported_small:
+                raise ValueError(f"Regions {number} and {number-1} cannot satisfy shape containment.")
+            new_big = [region for region in bigger if region in supported_big]
+            new_small = [region for region in smaller if region in supported_small]
+            changed |= len(new_big) != len(bigger) or len(new_small) != len(smaller)
+            options[number], options[number-1] = new_big, new_small
+        if not changed:
+            return options
+
+
+def grow_forced_regions(expressions, variables, use_containment=True):
     passed, message = check_grid_connectivity(expressions, variables)
     if not passed:
         raise ValueError(message)
@@ -198,8 +241,10 @@ def grow_forced_regions(expressions, variables):
     original = dict(labels)
     while True:
         forced = {}
+        candidates = {}
         for number in sorted(set(labels.values())):
             options = region_completions(size, labels, number)
+            candidates[number] = options
             if not options:
                 raise ValueError(f"Region {number} has no connected completion of size {number}.")
             mandatory = set.intersection(*(set(option) for option in options))
@@ -208,7 +253,19 @@ def grow_forced_regions(expressions, variables):
                     raise ValueError("Different regions require the same blank cell.")
                 forced[cell] = number
         if not forced:
-            return labels, len(labels) - len(original)
+            if not use_containment:
+                return labels, len(labels) - len(original)
+            candidates = filter_containment(candidates, size)
+            for number in sorted(candidates, reverse=True):
+                mandatory = set.intersection(*(set(option) for option in candidates[number]))
+                for cell in mandatory - labels.keys():
+                    if cell in forced and forced[cell] != number:
+                        raise ValueError("Different regions require the same blank cell.")
+                    forced[cell] = number
+            if not forced:
+                return labels, len(labels) - len(original)
+            # Restart ordinary connected-region deductions before another
+            # largest-to-smallest containment pass.
         labels.update(forced)
 
 
@@ -494,7 +551,7 @@ class PuzzleApp:
         self.board.grid(row=0, column=0, sticky="nsew", padx=(0, 20))
         self.board.bind("<Double-Button-1>", lambda event: self.entry.focus_set())
         sidebar = ttk.Frame(body)
-        sidebar.grid(row=0, column=1, sticky="nsew")
+        sidebar.grid(row=0, column=1, rowspan=2, sticky="nsew")
         sidebar.columnconfigure(0, weight=1)
         sidebar.rowconfigure(0, weight=1)
         scroll_variables = len(self.variables) > 3
@@ -536,8 +593,8 @@ class PuzzleApp:
         self.region_button = ttk.Button(panel, text="Create regions", command=self.create_regions)
         self.region_button.grid(row=6, column=0, sticky="ew", padx=(0, 10), pady=(12, 8))
         ttk.Label(panel, textvariable=self.region_message, wraplength=230).grid(row=7, column=0, sticky="nw", padx=(0, 10))
-        footer = ttk.Frame(layout)
-        footer.grid(row=2, column=0, sticky="ew")
+        footer = ttk.Frame(body)
+        footer.grid(row=1, column=0, sticky="ew", padx=(0, 20))
         options = ttk.Frame(footer)
         options.pack(fill="x")
         ttk.Checkbutton(options, text="Show calculated values", variable=self.show_values,
@@ -548,11 +605,33 @@ class PuzzleApp:
         status_label.pack(anchor="w", fill="x")
         storage_label = ttk.Label(footer, textvariable=self.storage_error, foreground="#a02828")
         storage_label.pack(anchor="w", fill="x")
-        def wrap_labels(event):
-            for label in (help_label, detail_label, status_label, storage_label):
-                label.configure(wraplength=max(100, event.width))
-        main.bind("<Configure>", wrap_labels)
-        footer.bind("<Configure>", wrap_labels)
+        def wrap_grid_labels(event):
+            width = max(100, min(self.board.winfo_width(), self.board.winfo_height()) - 8)
+            for label in (detail_label, status_label, storage_label):
+                if int(float(label.cget("wraplength"))) != width:
+                    label.configure(wraplength=width)
+        self.board.bind("<Configure>", wrap_grid_labels, add="+")
+        main.bind("<Configure>", lambda event: help_label.configure(wraplength=max(100, event.width)))
+        # Messages can add lines after a search finishes. Recalculate the
+        # minimum height so the sidebar's last button never gets clipped.
+        resize_pending = [False]
+        def fit_contents():
+            resize_pending[0] = False
+            left_height = 240 + footer.winfo_reqheight()
+            right_height = 240 if scroll_variables else panel.winfo_reqheight()
+            height = max(620, main.winfo_reqheight() + max(left_height, right_height) + 80)
+            width = max(820, sidebar.winfo_reqwidth() + 420)
+            root.minsize(width, height)
+        def schedule_fit(event=None):
+            if not resize_pending[0]:
+                resize_pending[0] = True
+                root.after_idle(fit_contents)
+        footer.bind("<Configure>", schedule_fit)
+        panel.bind("<Configure>", schedule_fit, add="+")
+        main.bind("<Configure>", schedule_fit, add="+")
+        for message in (self.search_message, self.connectivity_message, self.region_message,
+                        self.detail, self.status, self.storage_error):
+            message.trace_add("write", lambda *_: schedule_fit())
         self.select(0, 0)
         for variable in self.variables.values():
             variable.trace_add("write", self.settings_changed)
@@ -561,8 +640,9 @@ class PuzzleApp:
                 value.trace_add("write", self.bounds_changed)
         root.update_idletasks()
         # Reserve room for controls even with Windows font/display scaling.
-        body_height = 240 if scroll_variables else max(240, panel.winfo_reqheight() + 80)
-        minimum_height = max(620, main.winfo_reqheight() + footer.winfo_reqheight() + body_height)
+        body_height = max(240 + footer.winfo_reqheight(),
+                          240 if scroll_variables else panel.winfo_reqheight())
+        minimum_height = max(620, main.winfo_reqheight() + body_height + 80)
         minimum_width = max(820, sidebar.winfo_reqwidth() + 420)
         root.minsize(minimum_width, minimum_height)
         root.geometry(f"{max(940, minimum_width + 60)}x{max(760, minimum_height)}")
