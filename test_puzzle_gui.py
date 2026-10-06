@@ -12,6 +12,18 @@ from puzzle_gui import (GridCanvas, PuzzleApp, format_candidates,
 
 
 class VariableSearchTests(unittest.TestCase):
+    def test_logarithm_with_variable_or_numeric_base(self):
+        self.assertEqual(evaluate('log_c(a)', {'c':2, 'a':8}), 3)
+        self.assertEqual(evaluate('log_2(16)+1', {}), 5)
+        self.assertEqual(evaluate('log_c(a)', {'c':'1/2', 'a':4}), -2)
+        self.assertEqual(math_runs(inline_math('log_c(a)')),
+                         [('log', ([('text','c')], [('text','a')]))])
+        for values in ({'c':1,'a':8}, {'c':0,'a':8}, {'c':2,'a':0}, {'c':-2,'a':8}):
+            with self.assertRaises(ValueError):
+                evaluate('log_c(a)', values)
+        self.assertEqual([assignment for assignment in valid_combinations(
+            ['log_c(a)'], {'c':(2,2), 'a':(2,8)}, 6) if assignment is not None],
+            [{'c':2,'a':2}, {'c':2,'a':4}, {'c':2,'a':8}])
     def test_fraction_inside_subtraction_is_stacked(self):
         runs = math_runs(inline_math('a^b-12/a'))
         self.assertEqual(runs, [('power', ([('text','a')], [('text','b')])), ('text', ' − '),

@@ -401,6 +401,14 @@ def inline_math(expression):
         return display_expression(expression)
     replacements = {}
     class Fractions(ast.NodeTransformer):
+        def visit_Call(self, node):
+            node = self.generic_visit(node)
+            if (isinstance(node.func, ast.Name) and re.fullmatch(r"log_([a-z]+|\d+)", node.func.id)
+                    and len(node.args) == 1 and not node.keywords):
+                name = f"__fraction_{len(replacements)}__"
+                replacements[name] = "〔" + node.func.id[4:] + "¦" + ast.unparse(node.args[0]) + "〕"
+                return ast.copy_location(ast.Name(id=name, ctx=ast.Load()), node)
+            return node
         def visit_BinOp(self, node):
             node = self.generic_visit(node)
             if isinstance(node.op, ast.Div):
@@ -422,16 +430,17 @@ def math_runs(text):
     """Separate radical arguments from surrounding text, including nested roots."""
     runs = []
     while text:
-        root_start, fraction_start, power_start = text.find("√("), text.find("⟦"), text.find("〖")
-        candidates = [start for start in (root_start, fraction_start, power_start) if start >= 0]
+        root_start, fraction_start, power_start, log_start = text.find("√("), text.find("⟦"), text.find("〖"), text.find("〔")
+        candidates = [start for start in (root_start, fraction_start, power_start, log_start) if start >= 0]
         start = min(candidates) if candidates else -1
         if start < 0:
             runs.append(("text", text))
             break
         is_fraction = start == fraction_start
         is_power = start == power_start
-        paired = is_fraction or is_power
-        opening, closing = ("⟦", "⟧") if is_fraction else ("〖", "〗") if is_power else ("(", ")")
+        is_log = start == log_start
+        paired = is_fraction or is_power or is_log
+        opening, closing = ("⟦", "⟧") if is_fraction else ("〖", "〗") if is_power else ("〔", "〕") if is_log else ("(", ")")
         depth, end = 1, start + (1 if paired else 2)
         separator = None
         while end < len(text) and depth:
@@ -445,7 +454,7 @@ def math_runs(text):
         if start:
             runs.append(("text", text[:start]))
         if paired:
-            runs.append(("fraction" if is_fraction else "power", (math_runs(text[start+1:separator]), math_runs(text[separator+1:end-1]))))
+            runs.append(("fraction" if is_fraction else "power" if is_power else "log", (math_runs(text[start+1:separator]), math_runs(text[separator+1:end-1]))))
         else:
             runs.append(("root", math_runs(text[start+2:end-1])))
         text = text[end:]
@@ -456,6 +465,7 @@ def math_width(runs, font):
     return sum(font.measure(value) if kind == "text" else
                max(math_width(part, font) for part in value) + 6 if kind == "fraction" else
                math_width(value[0], font) + 0.85 * math_width(value[1], font) if kind == "power" else
+               font.measure("log ") + 0.85 * math_width(value[0], font) + math_width(value[1], font) if kind == "log" else
                font.measure("√") + 4 + math_width(value, font) for kind, value in runs)
 
 
@@ -475,6 +485,14 @@ def draw_math(canvas, center_x, center_y, text, font):
                 draw(value[0], left, y, scale)
                 draw(value[1], left+base_width, y-local_height*0.42, scale*0.85)
                 left += base_width + math_width(value[1], font)*scale*0.85
+            elif kind == "log":
+                canvas.create_text(left, y, text="log", anchor="w",
+                                   font=("Times New Roman", max(6, round(font.cget("size")*scale))), fill="#252525")
+                left += font.measure("log")*scale
+                draw(value[0], left, y+local_height*0.3, scale*0.85)
+                left += math_width(value[0], font)*scale*0.85 + font.measure(" ")*scale
+                draw(value[1], left, y, scale)
+                left += math_width(value[1], font)*scale
             elif kind == "fraction":
                 width = (max(math_width(part, font) for part in value) + 6)*scale
                 for part, offset in ((value[0], -local_height*0.8), (value[1], local_height*0.8)):
@@ -592,6 +610,24 @@ def evaluate(expression, variables):
         if isinstance(node, ast.UnaryOp) and isinstance(node.op, (ast.UAdd, ast.USub)):
             value = visit(node.operand)
             return value if isinstance(node.op, ast.UAdd) else -value
+        if (isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+                and re.fullmatch(r"log_([a-z]+|\d+)", node.func.id)
+                and len(node.args) == 1 and not node.keywords):
+            base_name = node.func.id[4:]
+            if base_name.isdigit():
+                base = Fraction(int(base_name))
+            elif base_name in variables:
+                base = Fraction(variables[base_name])
+            else:
+                raise ValueError(f"Unknown logarithm base variable: {base_name}")
+            argument = visit(node.args[0])
+            if base <= 0 or base == 1 or argument <= 0:
+                raise ValueError("Logarithms require a positive argument and a positive base different from 1")
+            with localcontext() as context:
+                context.prec = 80
+                base_decimal = Decimal(base.numerator)/Decimal(base.denominator)
+                argument_decimal = Decimal(argument.numerator)/Decimal(argument.denominator) if isinstance(argument, Fraction) else argument
+                return argument_decimal.ln()/base_decimal.ln()
         if (isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
                 and node.func.id == "sqrt" and len(node.args) == 1 and not node.keywords):
             value = visit(node.args[0])
@@ -884,7 +920,9 @@ class PuzzleApp:
                 tree = ast.parse(expression.replace("^", "**"), mode="eval")
                 for node in ast.walk(tree):
                     if isinstance(node, ast.Name) and node.id not in bounds and node.id != "sqrt":
-                        raise ValueError(f"Unknown variable: {node.id}")
+                        match = re.fullmatch(r"log_([a-z]+|\d+)", node.id)
+                        if not match or (not match[1].isdigit() and match[1] not in bounds):
+                            raise ValueError(f"Unknown variable: {node.id}")
         except (ValueError, SyntaxError) as error:
             self.search_message.set(str(error))
             return
