@@ -3,9 +3,56 @@ import unittest
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
+from puzzle_gui import continue_region_overlays
+from puzzle_gui import force_overlay_neighbors
 from puzzle_gui import GridCanvas, PuzzleApp, format_candidates, read_state, write_state, can_connect_region, check_grid_connectivity, grow_forced_regions, region_colors, canonical_shape, filter_containment, fraction_parts, evaluate, math_runs, draw_math, inline_math, analyze_clues, solve_rational_clue, inferred_integer_variables, minimum_region_size, find_region_overlays, shape_orientations
 
 class VariableSearchTests(unittest.TestCase):
+    def test_overlay_forces_unavoidable_bridge_only_in_target_region(self):
+        labels={0:3,2:3,6:2,8:2}
+        expanded,forced=force_overlay_neighbors(3,labels,3,{0,2})
+        self.assertEqual(forced,frozenset({1}))
+        self.assertEqual(expanded,frozenset({0,1,2}))
+        self.assertNotIn(7,expanded)
+        self.assertEqual(labels,{0:3,2:3,6:2,8:2})
+
+    def test_optional_adjacent_cell_is_not_forced(self):
+        expanded,forced=force_overlay_neighbors(3,{0:5,2:5},5,{0,2})
+        self.assertEqual(expanded,frozenset({0,2}))
+        self.assertFalse(forced)
+
+    def test_multiple_forced_bridge_cells_are_added(self):
+        expanded,forced=force_overlay_neighbors(3,{0:5,2:5,6:5},5,{0,2,6})
+        self.assertEqual(forced,frozenset({1,3}))
+        self.assertEqual(expanded,frozenset({0,1,2,3,6}))
+    def test_continue_overlay_branches_from_every_parent(self):
+        grid=[['1','',''],['','2',''],['','','3']]
+        current,base,parents,_=find_region_overlays(grid,{},region=2)
+        target,children,tested=continue_region_overlays(3,base,current,parents)
+        self.assertEqual(target,3)
+        self.assertEqual(len(children),17)
+        self.assertEqual({child['parent_index'] for child in children},set(range(len(parents))))
+        self.assertGreater(tested,0)
+        for child in children:
+            parent=parents[child['parent_index']]
+            self.assertTrue(all(child['assumptions'][cell]==2 for cell in parent['cells']))
+            self.assertTrue(all(child['assumptions'].get(cell,3)==3 for cell in child['cells']))
+            combined=dict(child['assumptions'])
+            combined.update({cell:3 for cell in child['cells']})
+            self.assertTrue(can_connect_region(3,combined,2,[cell for cell,value in combined.items() if value==2]))
+        self.assertEqual(base,{0:1,4:2,8:3})
+        with self.assertRaisesRegex(ValueError,'exceeds'):
+            continue_region_overlays(3,base,3,children)
+    def test_overlay_can_target_region_below_highest(self):
+        grid = [['2','',''],['','3',''],['1','','']]
+        target, labels, states, tested = find_region_overlays(grid,{},region=2)
+        self.assertEqual(target,2)
+        self.assertEqual(tested,9)
+        self.assertTrue(states)
+        self.assertTrue(all(state['minimum_size'] <= 2 for state in states))
+        self.assertTrue(all(not state['cells'] & {4,6} for state in states))
+        with self.assertRaisesRegex(ValueError,'Choose a region'):
+            find_region_overlays(grid,{},region=4)
     def test_larger_region_keeps_preferred_color(self):
         colors = region_colors(2, {0:16, 1:7})
         self.assertEqual(colors[16], '#e7afd4')

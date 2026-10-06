@@ -258,9 +258,45 @@ def minimum_region_size(size, labels, number, terminals):
     if len(terminals) > number:
         return None
     allowed = {cell for cell in range(size*size) if cell not in labels or labels[cell] == number}
+    if not set(terminals) <= allowed:
+        return None
     neighbors = {cell: [r*size+c for r,c in ((cell//size-1,cell%size),
                   (cell//size+1,cell%size),(cell//size,cell%size-1),(cell//size,cell%size+1))
                   if 0 <= r < size and 0 <= c < size and r*size+c in allowed] for cell in allowed}
+    mandatory = set(terminals)
+    remaining = set(mandatory)
+    components = []
+    while remaining:
+        component = {remaining.pop()}
+        queue = list(component)
+        while queue:
+            cell = queue.pop()
+            for other in neighbors[cell]:
+                if other in remaining:
+                    remaining.remove(other)
+                    component.add(other)
+                    queue.append(other)
+        components.append(component)
+    if len(components) == 1:
+        return len(terminals)
+    if len(components) == 2:
+        # All mandatory cells already belong to two connected pieces. Only
+        # the minimum number of blank bridge cells remains to be determined.
+        distance = {cell:0 for cell in components[0]}
+        queue = deque(components[0])
+        while queue:
+            cell = queue.popleft()
+            if cell in components[1]:
+                total = len(terminals)+distance[cell]
+                return total if total <= number else None
+            for other in neighbors[cell]:
+                cost = 0 if other in mandatory else 1
+                candidate = distance[cell]+cost
+                if candidate < distance.get(other,number+1):
+                    distance[other] = candidate
+                    if cost: queue.append(other)
+                    else: queue.appendleft(other)
+        return None
     distances = []
     for terminal in terminals:
         if terminal not in allowed:
@@ -341,7 +377,34 @@ def shape_orientations(cells, size):
     return orientations
 
 
-def find_region_overlays(expressions, variables, progress=None):
+def force_overlay_neighbors(size, labels, number, cells):
+    """Force multiply-adjacent blanks that no size-bounded completion can avoid."""
+    terminals = {cell for cell,value in labels.items() if value == number} | set(cells)
+    added = set()
+    while True:
+        touches = {}
+        for cell in terminals:
+            row,column = divmod(cell,size)
+            for r,c in ((row-1,column),(row+1,column),(row,column-1),(row,column+1)):
+                neighbor = r*size+c
+                if 0 <= r < size and 0 <= c < size and neighbor not in labels and neighbor not in terminals:
+                    touches[neighbor] = touches.get(neighbor,0)+1
+        forced = set()
+        for cell,count in touches.items():
+            if count < 2: continue
+            blocked = dict(labels)
+            blocked[cell] = -1
+            if not can_connect_region(size,blocked,number,terminals):
+                forced.add(cell)
+        if not forced:
+            return frozenset(set(cells)|added),frozenset(added)
+        terminals.update(forced)
+        added.update(forced)
+        if len(terminals) > number:
+            raise ValueError(f"Forced cells exceed region {number}'s size.")
+
+
+def find_region_overlays(expressions, variables, progress=None, region=None):
     size = len(expressions)
     labels = {r*size+c:int(evaluate(expression,variables))
               for r,row in enumerate(expressions) for c,expression in enumerate(row) if expression.strip()}
@@ -353,7 +416,9 @@ def find_region_overlays(expressions, variables, progress=None):
                 if value.denominator != 1 or not 1 <= value <= limit:
                     raise ValueError("All included clues must evaluate to valid region sizes.")
     if not labels: raise ValueError("No included clues to overlay.")
-    highest = max(labels.values())
+    highest = max(labels.values()) if region is None else region
+    if type(highest) is not int or not 2 <= highest <= limit:
+        raise ValueError(f"Choose a region from 2 to {limit}.")
     source = [cell for cell,value in labels.items() if value == highest-1]
     if highest == 1 or not source:
         raise ValueError(f"No {highest-1} cells are available to overlay onto region {highest}.")
@@ -369,10 +434,39 @@ def find_region_overlays(expressions, variables, progress=None):
                 terminals = anchors | cells
                 minimum = minimum_region_size(size,labels,highest,terminals)
                 if minimum is not None:
-                    survivors.append({'cells':cells,'row':top,'column':left,'rotation':rotation,
+                    expanded,forced = force_overlay_neighbors(size,labels,highest,cells)
+                    survivors.append({'cells':expanded,'overlay_cells':cells,'forced_cells':forced,
+                                      'row':top,'column':left,'rotation':rotation,
                                       'reflected':reflected,'minimum_size':minimum})
                 if progress: progress(tested,len(survivors))
     return highest,labels,survivors,tested
+
+
+def continue_region_overlays(size, base_labels, current, states, progress=None):
+    target = current+1
+    if target > max_region_size(size):
+        raise ValueError("The next region exceeds max region size.")
+    survivors, tested = [], 0
+    for parent_index,parent in enumerate(states):
+        assumed = dict(parent.get('assumptions',base_labels))
+        assumed.update({cell:current for cell in parent['cells']})
+        expressions = [[str(assumed[r*size+c]) if r*size+c in assumed else ''
+                        for c in range(size)] for r in range(size)]
+        _,_,children,count = find_region_overlays(expressions,{},region=target)
+        tested += count
+        for child in children:
+            combined = dict(assumed)
+            combined.update({cell:target for cell in child['cells']})
+            # New cells also become obstacles for the assumed ancestor regions.
+            ancestors = set(parent.get('ancestor_regions', [])) | {current}
+            if any(not can_connect_region(size,combined,number,
+                    [cell for cell,value in combined.items() if value==number]) for number in ancestors):
+                continue
+            child.update(assumptions=assumed, parent_index=parent_index,
+                         ancestor_regions=sorted(ancestors))
+            survivors.append(child)
+        if progress: progress(parent_index+1,len(states),len(survivors))
+    return target,survivors,tested
 
 
 
@@ -980,6 +1074,7 @@ class PuzzleApp:
         self.region_palette = {}
         self.region_message = tk.StringVar()
         self.overlay_message = tk.StringVar()
+        self.overlay_target = tk.StringVar(value="Highest")
         self.overlay_states = []
         self.overlay_index = 0
         self.storage_error = tk.StringVar()
@@ -1065,13 +1160,22 @@ class PuzzleApp:
         self.region_button = ttk.Button(panel, text="Create regions", command=self.create_regions)
         self.region_button.grid(row=6, column=0, sticky="ew", padx=(0, 10), pady=(12, 8))
         ttk.Label(panel, textvariable=self.region_message, wraplength=230).grid(row=7, column=0, sticky="nw", padx=(0, 10))
+        overlay_selection = ttk.Frame(panel)
+        overlay_selection.grid(row=8, column=0, sticky="ew", padx=(0,10), pady=(12,4))
+        ttk.Label(overlay_selection, text="Overlay region K").pack(side="left", padx=(0,8))
+        selector = ttk.Combobox(overlay_selection, textvariable=self.overlay_target, state="readonly", width=8,
+                               values=["Highest"] + list(range(2,max_region_size(self.SIZE)+1)))
+        selector.pack(side="left")
+        selector.bind("<<ComboboxSelected>>", self.overlay_selection_changed)
         self.overlay_button = ttk.Button(panel, text="Overlay regions", command=self.overlay_regions)
-        self.overlay_button.grid(row=8, column=0, sticky="ew", padx=(0, 10), pady=(12, 8))
-        ttk.Label(panel, textvariable=self.overlay_message, wraplength=230).grid(row=9, column=0, sticky="nw", padx=(0, 10))
+        self.overlay_button.grid(row=9, column=0, sticky="ew", padx=(0, 10), pady=(4, 8))
+        ttk.Label(panel, textvariable=self.overlay_message, wraplength=230).grid(row=10, column=0, sticky="nw", padx=(0, 10))
         overlay_navigation = ttk.Frame(panel)
-        overlay_navigation.grid(row=10, column=0, sticky="ew", padx=(0,10), pady=8)
+        overlay_navigation.grid(row=11, column=0, sticky="ew", padx=(0,10), pady=8)
         ttk.Button(overlay_navigation, text="Previous", command=lambda:self.show_overlay(-1)).pack(side="left")
         ttk.Button(overlay_navigation, text="Next", command=lambda:self.show_overlay(1)).pack(side="left", padx=8)
+        self.continue_button = ttk.Button(panel, text="Continue overlay", command=self.continue_overlay)
+        self.continue_button.grid(row=12,column=0,sticky="ew",padx=(0,10),pady=(0,8))
         footer = ttk.Frame(body)
         footer.grid(row=1, column=0, sticky="ew", padx=(0, 20))
         options = ttk.Frame(footer)
@@ -1142,6 +1246,7 @@ class PuzzleApp:
             self.disabled_cells = set(state.get("disabled_cells", []))
             self.variables = {name: tk.StringVar(value=value) for name, value in state["variables"].items()}
             self.show_values.set(show_values)
+            self.overlay_target.set(str(state.get("overlay_region", "Highest")))
             analysis = state.get("analysis")
             if analysis:
                 self.analytical_assignments = [{name: None if value is None else Fraction(value)
@@ -1155,6 +1260,7 @@ class PuzzleApp:
         state = {"size": self.SIZE, "expressions": self.expressions,
                  "disabled_cells": sorted(self.disabled_cells),
                  "variables": {name: value.get() for name, value in self.variables.items()},
+                 "overlay_region": self.overlay_target.get(),
                  "show_values": self.show_values.get()}
         if self.analytical_assignments is not None:
             state["analysis"] = {
@@ -1376,10 +1482,17 @@ class PuzzleApp:
         self.overlay_states = []
         self.overlay_message.set("")
 
+    def overlay_selection_changed(self, event=None):
+        self.clear_regions()
+        self.refresh()
+        self.save_state()
+
     def overlay_regions(self):
         expressions = self.active_expressions()
+        selected = self.overlay_target.get()
         try:
             variables = {name:Fraction(value.get().strip()) for name,value in self.variables.items()}
+            target = None if selected == "Highest" else int(selected)
         except (ValueError,ZeroDivisionError):
             self.overlay_message.set("Enter numeric candidate values first.")
             return
@@ -1389,7 +1502,7 @@ class PuzzleApp:
         def work():
             try:
                 results.put(('result',find_region_overlays(expressions,variables,
-                    lambda tested,valid:results.put(('progress',(tested,valid))))))
+                    lambda tested,valid:results.put(('progress',(tested,valid))), region=target)))
             except Exception as error:
                 results.put(('error',str(error)))
         threading.Thread(target=work,daemon=True).start()
@@ -1412,7 +1525,7 @@ class PuzzleApp:
             try:
                 current = {name:Fraction(value.get().strip()) for name,value in self.variables.items()}
             except (ValueError,ZeroDivisionError): current = None
-            if expressions != self.active_expressions() or current != variables:
+            if expressions != self.active_expressions() or current != variables or self.overlay_target.get() != selected:
                 self.overlay_message.set("Grid or candidates changed. Overlay regions again.")
                 return
             self.clear_regions()
@@ -1435,7 +1548,7 @@ class PuzzleApp:
             return
         self.overlay_index = (self.overlay_index+step)%len(self.overlay_states)
         state = self.overlay_states[self.overlay_index]
-        self.region_labels = dict(self.overlay_base_labels)
+        self.region_labels = dict(state.get('assumptions',self.overlay_base_labels))
         self.region_labels.update({cell:self.overlay_highest for cell in state['cells']})
         self.region_palette = region_colors(self.SIZE,self.region_labels)
         self.overlay_message.set(
@@ -1443,7 +1556,68 @@ class PuzzleApp:
             f"Row {state['row']+1}, column {state['column']+1}; rotation {state['rotation']*90}°"
             f"{' reflected' if state['reflected'] else ''}. "
             f"Minimum connected size: {state['minimum_size']}. {self.overlay_tested} placements tested.")
+        if state.get('forced_cells'):
+            self.overlay_message.set(self.overlay_message.get()+f" {len(state['forced_cells'])} forced adjacent cells added.")
+        if 'parent_index' in state:
+            self.overlay_message.set(self.overlay_message.get()+f" From preceding overlay {state['parent_index']+1}.")
         self.refresh()
+
+    def continue_overlay(self):
+        if not self.overlay_states:
+            self.overlay_message.set("Generate valid overlays first.")
+            return
+        states = self.overlay_states
+        current = self.overlay_highest
+        if current >= max_region_size(self.SIZE):
+            self.overlay_message.set("The next region exceeds max region size.")
+            return
+        self.continue_button.configure(state="disabled")
+        self.overlay_button.configure(state="disabled")
+        self.overlay_message.set(f"Testing all {len(states)} preceding overlays for region {current+1}…")
+        results = Queue()
+        def work():
+            try:
+                result=continue_region_overlays(self.SIZE,self.overlay_base_labels,current,states,
+                    lambda done,total,valid:results.put(('progress',(done,total,valid))))
+                results.put(('result',result))
+            except Exception as error:
+                results.put(('error',str(error)))
+        threading.Thread(target=work,daemon=True).start()
+        def poll():
+            final=None
+            try:
+                while True:
+                    kind,data=results.get_nowait()
+                    if kind=='progress':
+                        self.overlay_message.set(f"Checked {data[0]}/{data[1]} preceding overlays; {data[2]} valid continuations.")
+                    else:
+                        final=(kind,data)
+                        break
+            except Empty: pass
+            if final is None:
+                self.root.after(50,poll)
+                return
+            self.continue_button.configure(state="normal")
+            self.overlay_button.configure(state="normal")
+            if self.overlay_states is not states:
+                self.overlay_message.set("Grid or overlays changed. Generate overlays again.")
+                return
+            kind,data=final
+            if kind=='error':
+                self.overlay_message.set(data)
+                return
+            target,children,tested=data
+            if not children:
+                self.overlay_message.set(f"No valid region {target} continuations. Previous overlays retained.")
+                return
+            self.overlay_highest=target
+            self.overlay_states=children
+            self.overlay_tested=tested
+            self.overlay_target.set(str(target))
+            self.overlay_index=0
+            self.show_overlay(0)
+            self.save_state()
+        self.root.after(50,poll)
 
     def create_regions(self):
         expressions = self.active_expressions()
