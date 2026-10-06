@@ -37,19 +37,11 @@
       "a^3-b"
     ]
   ],
+  "disabled_cells": [],
   "variables": {
-    "a": "2",
-    "b": "6"
+    "a": "",
+    "b": ""
   },
-  "bounds": {
-    "a": {
-      "min": "0",
-      "max": "10"
-    },
-    "b": {
-      "min": "0",
-      "max": "10"
-    }
-  },
-  "show_values": true
+  "overlay_region": "Highest",
+  "show_values": false
 }
