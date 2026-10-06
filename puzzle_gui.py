@@ -12,7 +12,7 @@ from decimal import Decimal, localcontext
 from queue import Queue, Empty
 from fractions import Fraction
 from itertools import product
-from math import isqrt
+from math import ceil, floor, isqrt
 from pathlib import Path
 from tkinter import font as tkfont, messagebox, simpledialog, ttk
 
@@ -35,10 +35,173 @@ def variable_name(index):
     return name
 
 
-def valid_combinations(expressions, bounds, region_limit):
+def candidate_domain(low, high, integer_only=True, max_denominator=10):
+    low, high = Fraction(low), Fraction(high)
+    if low > high:
+        raise ValueError("Min must not exceed Max")
+    if integer_only:
+        return list(range(ceil(low), floor(high)+1))
+    if max_denominator < 1:
+        raise ValueError("Max denominator must be at least 1")
+    return sorted({Fraction(numerator, denominator)
+                   for denominator in range(1, max_denominator+1)
+                   for numerator in range(ceil(low*denominator), floor(high*denominator)+1)})
+
+
+def clue_variables(expression, names):
+    tree = ast.parse(expression.replace("^", "**"), mode="eval")
+    used = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Name):
+            if node.id in names:
+                used.add(node.id)
+            elif node.id.startswith("log_") and node.id[4:] in names:
+                used.add(node.id[4:])
+            elif node.id not in ("sqrt", "cbrt") and not re.fullmatch(r"log_\d+", node.id):
+                raise ValueError(f"Unknown variable: {node.id}")
+    return used
+
+
+def solve_rational_clue(expression, unknown, known, limit):
+    """Solve a univariate rational expression for each permitted cell integer.
+
+    Return None for forms requiring the bounded per-clue fallback.
+    """
+    def add(a, b, sign=1):
+        result = dict(a)
+        for degree, coefficient in b.items():
+            result[degree] = result.get(degree, 0) + sign*coefficient
+        return {degree: coefficient for degree, coefficient in result.items() if coefficient}
+    def multiply(a, b):
+        result = {}
+        for i, x in a.items():
+            for j, y in b.items():
+                if i+j > 40:
+                    raise ValueError("Polynomial degree too large")
+                result[i+j] = result.get(i+j, 0)+x*y
+        return {degree: coefficient for degree, coefficient in result.items() if coefficient}
+    def visit(node):
+        if isinstance(node, ast.Constant) and type(node.value) in (int, float):
+            return {0: Fraction(str(node.value))}, {0: Fraction(1)}
+        if isinstance(node, ast.Name):
+            if node.id == unknown:
+                return {1: Fraction(1)}, {0: Fraction(1)}
+            return {0: Fraction(known[node.id])}, {0: Fraction(1)}
+        if isinstance(node, ast.UnaryOp) and isinstance(node.op, (ast.USub, ast.UAdd)):
+            numerator, denominator = visit(node.operand)
+            return ({degree: -value for degree, value in numerator.items()}
+                    if isinstance(node.op, ast.USub) else numerator), denominator
+        if not isinstance(node, ast.BinOp):
+            raise ValueError("Unsupported symbolic form")
+        if isinstance(node.op, ast.Pow):
+            exponent = evaluate(ast.unparse(node.right), known)
+            if exponent.denominator != 1 or abs(exponent) > 20:
+                raise ValueError("Unsupported symbolic power")
+            numerator, denominator = visit(node.left)
+            if exponent < 0:
+                numerator, denominator = denominator, numerator
+            result_n, result_d = {0: Fraction(1)}, {0: Fraction(1)}
+            for _ in range(abs(int(exponent))):
+                result_n, result_d = multiply(result_n, numerator), multiply(result_d, denominator)
+            return result_n, result_d
+        a, b = visit(node.left)
+        c, d = visit(node.right)
+        if isinstance(node.op, (ast.Add, ast.Sub)):
+            return add(multiply(a, d), multiply(c, b), -1 if isinstance(node.op, ast.Sub) else 1), multiply(b, d)
+        if isinstance(node.op, ast.Mult):
+            return multiply(a, c), multiply(b, d)
+        if isinstance(node.op, ast.Div):
+            return multiply(a, d), multiply(b, c)
+        raise ValueError("Unsupported symbolic operator")
+    try:
+        numerator, denominator = visit(ast.parse(expression.replace('^', '**'), mode='eval').body)
+        solutions = set()
+        for target in range(1, limit+1):
+            polynomial = add(numerator, {degree: target*value for degree, value in denominator.items()}, -1)
+            degree = max(polynomial, default=-1)
+            if degree < 0 or degree > 2:
+                return None
+            if degree == 0:
+                continue
+            if degree == 1:
+                solutions.add(-polynomial.get(0, 0)/polynomial[1])
+            else:
+                a, b, c = polynomial[2], polynomial.get(1, 0), polynomial.get(0, 0)
+                discriminant = b*b-4*a*c
+                if discriminant < 0:
+                    continue
+                n, d = isqrt(discriminant.numerator), isqrt(discriminant.denominator)
+                if n*n == discriminant.numerator and d*d == discriminant.denominator:
+                    root = Fraction(n, d)
+                    solutions.update(((-b-root)/(2*a), (-b+root)/(2*a)))
+        return solutions
+    except (ValueError, KeyError, ArithmeticError):
+        return None
+
+
+def analyze_clues(expressions, bounds, limit, options=None):
+    """Keep correlated partial assignments, deriving one unknown at a time."""
+    options = options or {}
+    clues = sorted([(expression, clue_variables(expression, bounds)) for expression in expressions],
+                   key=lambda clue: len(clue[1]))
+    assignments = [{name: None for name in bounds}]
+    notes = []
+    pending = list(clues)
+    while pending and assignments:
+        ready = next((i for i, (_, used) in enumerate(pending)
+                      if all(sum(assignment[name] is None for name in used) <= 1 for assignment in assignments)), 0)
+        expression, used = pending.pop(ready)
+        survivors = {}
+        fallbacks = 0
+        for assignment in assignments:
+            unknowns = sorted(name for name in used if assignment[name] is None)
+            # If no clue anchors these variables, branch only within this clue,
+            # then solve the final unknown; unrelated variables remain unknown.
+            seeds = [assignment]
+            if len(unknowns) > 1:
+                fallbacks += 1
+                for name in unknowns[:-1]:
+                    domain = candidate_domain(*bounds[name], *options.get(name, (True, 10)))
+                    seeds = [dict(seed, **{name:value}) for seed in seeds for value in domain]
+            for seed in seeds:
+                unknown = unknowns[-1] if unknowns else None
+                known = {name:value for name, value in seed.items() if value is not None}
+                if unknown is None:
+                    candidates = [None]
+                else:
+                    candidates = solve_rational_clue(expression, unknown, known, limit)
+                    if candidates is None:
+                        fallbacks += 1
+                        candidates = candidate_domain(*bounds[unknown], *options.get(unknown, (True, 10)))
+                for candidate in sorted(candidates) if unknown is not None else candidates:
+                    updated = dict(seed)
+                    if unknown is not None:
+                        low, high = map(Fraction, bounds[unknown])
+                        is_integer = Fraction(candidate).denominator == 1
+                        if (not is_integer and not low <= candidate <= high) or (
+                                options.get(unknown, (True, 10))[0] and not is_integer):
+                            continue
+                        updated[unknown] = Fraction(candidate)
+                    try:
+                        value = evaluate(expression, {name:value for name,value in updated.items() if value is not None})
+                        if value.denominator != 1 or not 1 <= value <= limit:
+                            continue
+                    except (ValueError, ArithmeticError):
+                        continue
+                    survivors[tuple(updated.items())] = updated
+        assignments = list(survivors.values())
+        notes.append(f"{expression}: {len(assignments)} partial assignments" +
+                     (" (bounded per-clue fallback)" if fallbacks else " (solved analytically)"))
+    return assignments, notes
+
+
+def valid_combinations(expressions, bounds, region_limit, options=None):
     """Yield valid assignments (or None) so searches can run in UI-sized batches."""
     names = list(bounds)
-    for combination in product(*(range(low, high + 1) for low, high in bounds.values())):
+    options = options or {}
+    domains = [candidate_domain(low, high, *options.get(name, (True, 10)))
+               for name, (low, high) in bounds.items()]
+    for combination in product(*domains):
         values = dict(zip(names, combination))
         try:
             valid = True
@@ -57,6 +220,8 @@ def format_candidates(values):
     numbers = sorted(values)
     if not numbers:
         return "None"
+    if any(Fraction(value).denominator != 1 for value in numbers):
+        return ", ".join(str(value) for value in numbers)
     parts = []
     start = previous = numbers[0]
     for value in numbers[1:] + [None]:
@@ -142,13 +307,13 @@ def check_grid_connectivity(expressions, variables):
     return True, "Connectivity check passed. Each value can connect through blank cells within its region size."
 
 
-def connectivity_candidates(expressions, bounds):
+def connectivity_candidates(expressions, bounds, options=None):
     """Project surviving joint assignments onto each variable's candidate list."""
     flat = [cell for row in expressions for cell in row if cell.strip()]
     values = {name: set() for name in bounds}
     count = 0
     first = None
-    for assignment in valid_combinations(flat, bounds, max_region_size(len(expressions))):
+    for assignment in valid_combinations(flat, bounds, max_region_size(len(expressions)), options):
         if assignment is None or not check_grid_connectivity(expressions, assignment)[0]:
             continue
         count += 1
@@ -325,6 +490,12 @@ def read_state(path):
             or type(state.get("show_values", False)) is not bool):
         raise ValueError("Invalid saved settings")
     state["size"] = size
+    integer_settings = state.get("integer_only", {})
+    denominator_settings = state.get("denominator_limits", {})
+    if (not isinstance(integer_settings, dict) or any(type(value) is not bool for value in integer_settings.values())
+            or not isinstance(denominator_settings, dict)
+            or any(not isinstance(value, str) for value in denominator_settings.values())):
+        raise ValueError("Invalid saved variable search settings")
     disabled = state.get("disabled_cells", [])
     if (not isinstance(disabled, list) or any(type(cell) is not int or not 0 <= cell < size*size for cell in disabled)):
         raise ValueError("Invalid disabled cells")
@@ -729,10 +900,14 @@ class PuzzleApp:
         self.detail = tk.StringVar()
         self.variables = {}
         self.bounds = {}
+        self.integer_only = {}
+        self.denominator_limits = {}
         self.valid_values = {}
         self.search_job = None
         self.search_revision = 0
-        self.search_message = tk.StringVar(value="Set integer bounds, then compute valid values.")
+        self.analytical_assignments = None
+        self.analysis_steps = []
+        self.search_message = tk.StringVar(value="Set bounds, then compute valid values.")
         self.connectivity_message = tk.StringVar()
         self.region_labels = {}
         self.region_palette = {}
@@ -812,10 +987,21 @@ class PuzzleApp:
                 ttk.Label(field, text=label).grid(row=row, column=0, sticky="w", padx=(0, 10), pady=3)
                 ttk.Entry(field, textvariable=value, width=10).grid(row=row, column=1, sticky="ew", pady=3)
             self.valid_values[name] = tk.StringVar(value="Not computed")
-            ttk.Label(field, text="Valid values").grid(row=3, column=0, columnspan=2, sticky="w", pady=(8, 0))
-            ttk.Label(field, textvariable=self.valid_values[name], wraplength=210).grid(row=4, column=0, columnspan=2, sticky="w")
+            ttk.Checkbutton(field, text="Integer only", variable=self.integer_only[name],
+                            command=self.bounds_changed).grid(row=3, column=0, columnspan=2, sticky="w", pady=4)
+            ttk.Label(field, text="Max denominator").grid(row=4, column=0, sticky="w", padx=(0, 8))
+            denominator_entry = ttk.Entry(field, textvariable=self.denominator_limits[name], width=6)
+            denominator_entry.grid(row=4, column=1, sticky="ew")
+            def update_denominator(*_, name=name, entry=denominator_entry):
+                entry.configure(state="disabled" if self.integer_only[name].get() else "normal")
+            self.integer_only[name].trace_add("write", update_denominator)
+            update_denominator()
+            ttk.Label(field, text="Valid values").grid(row=5, column=0, columnspan=2, sticky="w", pady=(8, 0))
+            ttk.Label(field, textvariable=self.valid_values[name], wraplength=210).grid(row=6, column=0, columnspan=2, sticky="w")
         self.compute_button = ttk.Button(panel, text="Compute valid values", command=self.compute_valid_values)
         self.compute_button.grid(row=2, column=0, sticky="ew", padx=(0, 10), pady=(0, 8))
+        self.analyze_button = ttk.Button(panel, text="Analyze valid values", command=self.analyze_valid_values)
+        self.analyze_button.grid(row=2, column=1, sticky="ew", padx=(0, 10), pady=(0, 8))
         ttk.Label(panel, textvariable=self.search_message, wraplength=230).grid(row=3, column=0, sticky="nw", padx=(0, 10))
         self.connectivity_button = ttk.Button(panel, text="Check connectivity", command=self.check_connectivity)
         self.connectivity_button.grid(row=4, column=0, sticky="ew", padx=(0, 10), pady=(12, 8))
@@ -866,11 +1052,18 @@ class PuzzleApp:
                         self.detail, self.status, self.storage_error):
             message.trace_add("write", lambda *_: schedule_fit())
         self.select(0, 0)
+        if self.analytical_assignments is not None:
+            for name, label in self.valid_values.items():
+                values = {assignment.get(name) for assignment in self.analytical_assignments}
+                label.set("Unknown" if None in values else format_candidates(values))
+            self.search_message.set(f"Restored {len(self.analytical_assignments)} analyzed partial assignments.")
         for variable in self.variables.values():
             variable.trace_add("write", self.settings_changed)
         for bound in self.bounds.values():
             for value in bound.values():
                 value.trace_add("write", self.bounds_changed)
+        for value in self.denominator_limits.values():
+            value.trace_add("write", self.bounds_changed)
         root.update_idletasks()
         # Reserve room for controls even with Windows font/display scaling.
         body_height = max(minimum_board + 32 + footer.winfo_reqheight(),
@@ -890,12 +1083,22 @@ class PuzzleApp:
             self.expressions = expressions
             self.disabled_cells = set(state.get("disabled_cells", []))
             self.variables = {name: tk.StringVar(value=value) for name, value in state["variables"].items()}
+            self.integer_only = {name: tk.BooleanVar(value=state.get("integer_only", {}).get(name, True))
+                                 for name in self.variables}
+            self.denominator_limits = {name: tk.StringVar(value=state.get("denominator_limits", {}).get(name, "10"))
+                                       for name in self.variables}
             default_max = str(max_region_size(self.SIZE))
             self.bounds = {
                 name: {key: tk.StringVar(value=state.get("bounds", {}).get(name, {}).get(key, default))
                        for key, default in (("min", "1"), ("max", default_max))}
                 for name in self.variables}
             self.show_values.set(show_values)
+            analysis = state.get("analysis")
+            if analysis:
+                self.analytical_assignments = [{name: None if value is None else Fraction(value)
+                                               for name, value in assignment.items()}
+                                              for assignment in analysis.get("assignments", [])]
+                self.analysis_steps = analysis.get("steps", [])
         except (OSError, ValueError, KeyError, TypeError) as error:
             self.storage_error.set(f"Could not load saved grid: {error}")
 
@@ -903,9 +1106,16 @@ class PuzzleApp:
         state = {"size": self.SIZE, "expressions": self.expressions,
                  "disabled_cells": sorted(self.disabled_cells),
                  "variables": {name: value.get() for name, value in self.variables.items()},
+                 "integer_only": {name: value.get() for name, value in self.integer_only.items()},
+                 "denominator_limits": {name: value.get() for name, value in self.denominator_limits.items()},
                  "bounds": {name: {key: value.get() for key, value in bound.items()}
                             for name, bound in self.bounds.items()},
                  "show_values": self.show_values.get()}
+        if self.analytical_assignments is not None:
+            state["analysis"] = {
+                "assignments": [{name: None if value is None else str(value) for name,value in assignment.items()}
+                                for assignment in self.analytical_assignments],
+                "steps": self.analysis_steps}
         try:
             write_state(self.STATE_PATH, state)
             self.storage_error.set("")
@@ -930,6 +1140,8 @@ class PuzzleApp:
         self.save_state()
 
     def invalidate_search(self):
+        self.analytical_assignments = None
+        self.analysis_steps = []
         self.search_revision += 1
         self.search_job = None
         self.compute_button.configure(text="Compute valid values")
@@ -941,6 +1153,66 @@ class PuzzleApp:
         self.invalidate_search()
         self.save_state()
 
+    def search_options(self):
+        options = {}
+        for name in self.variables:
+            integer = self.integer_only[name].get()
+            denominator = 10 if integer else int(self.denominator_limits[name].get())
+            if denominator < 1:
+                raise ValueError(f"{name}: Max denominator must be at least 1.")
+            options[name] = (integer, denominator)
+        return options
+
+    def analyze_valid_values(self):
+        try:
+            bounds = {name: (Fraction(fields["min"].get()), Fraction(fields["max"].get()))
+                      for name, fields in self.bounds.items()}
+            if any(low > high for low, high in bounds.values()):
+                raise ValueError("Min must not exceed Max")
+            options = self.search_options()
+            expressions = [cell for row in self.active_expressions() for cell in row if cell.strip()]
+            for expression in expressions:
+                clue_variables(expression, bounds)
+        except (ValueError, SyntaxError, ZeroDivisionError) as error:
+            self.search_message.set(str(error))
+            return
+        self.invalidate_search()
+        revision = self.search_revision
+        self.analyze_button.configure(state="disabled")
+        self.search_message.set("Analyzing included clues…")
+        results = Queue()
+        def work():
+            try:
+                results.put((analyze_clues(expressions, bounds, max_region_size(self.SIZE), options), None))
+            except Exception as error:
+                results.put((None, str(error)))
+        threading.Thread(target=work, daemon=True).start()
+        def poll():
+            try:
+                result, error = results.get_nowait()
+            except Empty:
+                self.root.after(50, poll)
+                return
+            self.analyze_button.configure(state="normal")
+            if revision != self.search_revision:
+                return
+            if error:
+                self.search_message.set(f"Could not analyze: {error}")
+                return
+            self.analytical_assignments, self.analysis_steps = result
+            for name, label in self.valid_values.items():
+                values = {assignment[name] for assignment in self.analytical_assignments}
+                label.set("Unknown" if None in values else format_candidates(values))
+            message = f"{len(self.analytical_assignments)} analytically valid partial assignments."
+            if self.analytical_assignments:
+                message += " Example: " + ", ".join(f"{name}: {'?' if value is None else value}"
+                                                    for name,value in self.analytical_assignments[0].items()) + "."
+            if any("fallback" in step for step in self.analysis_steps):
+                message += " Some clues used a bounded per-clue search."
+            self.search_message.set(message)
+            self.save_state()
+        self.root.after(50, poll)
+
     def compute_valid_values(self):
         self.search_revision += 1
         if self.search_job is not None:
@@ -949,13 +1221,14 @@ class PuzzleApp:
             return
         try:
             bounds = {}
+            options = self.search_options()
             total = 1
             for name, fields in self.bounds.items():
-                low, high = int(fields["min"].get()), int(fields["max"].get())
+                low, high = Fraction(fields["min"].get()), Fraction(fields["max"].get())
                 if low > high:
                     raise ValueError(f"{name}: Min must not exceed Max.")
                 bounds[name] = (low, high)
-                total *= high - low + 1
+                total *= len(candidate_domain(low, high, *options[name]))
             expressions = [cell for row in self.active_expressions() for cell in row if cell.strip()]
             # Reject syntax mistakes and unknown names before enumerating candidates.
             for expression in expressions:
@@ -965,10 +1238,10 @@ class PuzzleApp:
                         match = re.fullmatch(r"log_([a-z]+|\d+)", node.id)
                         if not match or (not match[1].isdigit() and match[1] not in bounds):
                             raise ValueError(f"Unknown variable: {node.id}")
-        except (ValueError, SyntaxError) as error:
+        except (ValueError, SyntaxError, ZeroDivisionError) as error:
             self.search_message.set(str(error))
             return
-        job = {"iterator": valid_combinations(expressions, bounds, max_region_size(self.SIZE)), "total": total,
+        job = {"iterator": valid_combinations(expressions, bounds, max_region_size(self.SIZE), options), "total": total,
                "checked": 0, "count": 0, "values": {name: set() for name in bounds}, "first": None}
         self.search_job = job
         for value in self.valid_values.values():
@@ -1057,12 +1330,13 @@ class PuzzleApp:
         expressions = self.active_expressions()
         try:
             variables = {name: Fraction(value.get().strip()) for name, value in self.variables.items()}
-            bounds = {name: (int(fields["min"].get()), int(fields["max"].get()))
+            options = self.search_options()
+            bounds = {name: (Fraction(fields["min"].get()), Fraction(fields["max"].get()))
                       for name, fields in self.bounds.items()}
             if any(low > high for low, high in bounds.values()):
                 raise ValueError("Min exceeds Max")
         except (ValueError, ZeroDivisionError):
-            self.connectivity_message.set("Enter numeric candidates and integer bounds with Min ≤ Max.")
+            self.connectivity_message.set("Enter numeric candidates and bounds with Min ≤ Max, and a positive integer denominator limit.")
             return
         if self.search_job is not None:
             self.invalidate_search()
@@ -1073,7 +1347,7 @@ class PuzzleApp:
         def work():
             try:
                 message = check_grid_connectivity(expressions, variables)[1]
-                results.put((message, connectivity_candidates(expressions, bounds)))
+                results.put((message, connectivity_candidates(expressions, bounds, options)))
             except Exception as error:
                 results.put((f"Could not finish connectivity check: {error}", None))
         threading.Thread(target=work, daemon=True).start()
