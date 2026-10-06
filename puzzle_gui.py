@@ -805,6 +805,80 @@ def compare_incomplete_regions(size, base_labels, current, states, progress=None
     return survivors
 
 
+def attempt_region_completions(size, base_labels, current, states, progress=None):
+    """Complete one-cell gaps and carry the completed shape through higher ranks."""
+    def neighbors(cell):
+        row,column = divmod(cell,size)
+        return [r*size+c for r,c in ((row-1,column),(row+1,column),(row,column-1),(row,column+1))
+                if 0 <= r < size and 0 <= c < size]
+
+    def finish(board, number, required):
+        if len(required) > number: return []
+        additions = [set()] if len(required) == number else [
+            {cell} for cell in sorted({other for anchor in required for other in neighbors(anchor)
+                                      if other not in board and other not in required})]
+        results = []
+        for extra in additions:
+            cells = required | extra
+            if len(cells) != number or minimum_region_size(size,board,number,cells) is None: continue
+            if not bordering_regions_reachable(size,board,number,cells): continue
+            result = dict(board)
+            result.update({cell:number for cell in cells})
+            results.append(result)
+        return results
+
+    def mirror(board, number, largest):
+        if number >= largest: return [board]
+        target = number+1
+        anchors = {cell for cell,value in board.items() if value == target}
+        if not anchors: return [board]
+        source = {cell for cell,value in board.items() if value == number}
+        successors = {}
+        for _,_,shape in shape_orientations(source,size):
+            height,width = max(r for r,c in shape)+1,max(c for r,c in shape)+1
+            for top in range(size-height+1):
+                for left in range(size-width+1):
+                    cells = {(r+top)*size+c+left for r,c in shape}
+                    if any(cell in board and board[cell] != target for cell in cells): continue
+                    for result in finish(board,target,cells | anchors):
+                        successors[tuple(sorted(result.items()))] = result
+        results = {}
+        for successor in successors.values():
+            for result in mirror(successor,target,largest):
+                results[tuple(sorted(result.items()))] = result
+        return list(results.values())
+
+    survivors,seen = [],set()
+    for index,state in enumerate(states):
+        original = dict(state.get('assumptions',base_labels))
+        original.update({cell:current for cell in state['cells']})
+        largest = max(original.values())
+        branches = [original]
+        for number in range(1,largest+1):
+            successors = {}
+            for board in branches:
+                required = {cell for cell,value in board.items() if value == number}
+                results = [board]
+                if required and len(required) == number-1:
+                    results = [result for completed in finish(board,number,required)
+                               for result in mirror(completed,number,largest)]
+                for result in results:
+                    successors[tuple(sorted(result.items()))] = result
+            branches = list(successors.values())
+            if not branches: break
+        for board in branches:
+            key = (tuple(sorted(board.items())),tuple(state.get('ancestor_regions',[])))
+            if key in seen: continue
+            seen.add(key)
+            result = deepcopy(state)
+            result['assumptions'] = board
+            result['cells'] = frozenset(cell for cell,value in board.items() if value == current)
+            result['completion_growth'] = {cell:value for cell,value in board.items() if cell not in original}
+            survivors.append(result)
+        if progress: progress(index+1,len(states),len(survivors))
+    return survivors
+
+
 def continue_region_overlays(size, base_labels, current, states, progress=None, region=None):
     target = current+1 if region is None else region
     if target > max_region_size(size):
@@ -1552,9 +1626,12 @@ class PuzzleApp:
         ttk.Button(overlay_navigation, text="Previous", command=lambda:self.show_overlay(-1)).pack(side="left")
         ttk.Button(overlay_navigation, text="Next", command=lambda:self.show_overlay(1)).pack(side="left", padx=8)
         history_navigation = ttk.Frame(overlay_panel)
-        history_navigation.grid(row=5,column=0,sticky="ew",pady=(0,8))
+        history_navigation.grid(row=6,column=0,sticky="ew",pady=(0,8))
         self.compare_button = ttk.Button(overlay_panel,text="Compare incomplete regions",command=self.compare_regions,state="disabled")
         self.compare_button.grid(row=4,column=0,sticky="ew",padx=(0,10),pady=(0,8))
+        self.completion_button = ttk.Button(overlay_panel,text="Attempt region completion",
+                                           command=self.attempt_region_completion,state="disabled")
+        self.completion_button.grid(row=5,column=0,sticky="ew",padx=(0,10),pady=(0,8))
         self.overlay_undo_button = ttk.Button(history_navigation,text="Undo",command=self.undo_overlay,state="disabled")
         self.overlay_undo_button.pack(side="left")
         self.overlay_redo_button = ttk.Button(history_navigation,text="Redo",command=self.redo_overlay,state="disabled")
@@ -1946,6 +2023,8 @@ class PuzzleApp:
             self.overlay_redo_button.configure(state="normal" if self.overlay_redo and not busy else "disabled")
         if hasattr(self,'compare_button'):
             self.compare_button.configure(state="normal" if self.overlay_states and not getattr(self,'overlay_busy',False) else "disabled")
+        if hasattr(self,'completion_button'):
+            self.completion_button.configure(state="normal" if self.overlay_states and not getattr(self,'overlay_busy',False) else "disabled")
 
     def overlay_regions(self):
         expressions = self.active_expressions()
@@ -2033,6 +2112,8 @@ class PuzzleApp:
             self.overlay_message.set(self.overlay_message.get()+f" Shape derived by removing one cell from region {self.overlay_highest+1}.")
         if 'comparison_growth' in state:
             self.overlay_message.set(self.overlay_message.get()+f" {len(state['comparison_growth'])} cells forced by comparing incomplete regions.")
+        if 'completion_growth' in state:
+            self.overlay_message.set(self.overlay_message.get()+f" {len(state['completion_growth'])} cells added by mirrored region completion.")
         self.refresh()
 
     def continue_overlay(self, region=None):
@@ -2093,18 +2174,23 @@ class PuzzleApp:
             self.save_state()
         self.root.after(50,poll)
 
-    def compare_regions(self):
+    def attempt_region_completion(self):
+        self.compare_regions(completion=True)
+
+    def compare_regions(self, completion=False):
         if not self.overlay_states or getattr(self,'overlay_busy',False):
             return
         states = self.overlay_states
         current,base = self.overlay_highest,self.overlay_base_labels
         previous = self.overlay_snapshot()
         self.set_overlay_buttons_enabled(False)
-        self.overlay_message.set("Comparing incomplete regions from largest to smallest…")
+        self.overlay_message.set("Attempting region completions from smallest to largest…" if completion
+                                 else "Comparing incomplete regions from largest to smallest…")
         results = Queue()
         def work():
             try:
-                children = compare_incomplete_regions(self.SIZE,base,current,states,
+                analyze = attempt_region_completions if completion else compare_incomplete_regions
+                children = analyze(self.SIZE,base,current,states,
                     lambda done,total,valid:results.put(('progress',(done,total,valid))))
                 results.put(('result',children))
             except Exception as error:
@@ -2116,7 +2202,7 @@ class PuzzleApp:
                 while True:
                     kind,data = results.get_nowait()
                     if kind == 'progress':
-                        self.overlay_message.set(f"Compared {data[0]}/{data[1]} overlays; {data[2]} surviving.")
+                        self.overlay_message.set(f"Checked {data[0]}/{data[1]} overlays; {data[2]} surviving.")
                     else:
                         final = (kind,data)
                         break
@@ -2133,7 +2219,8 @@ class PuzzleApp:
                 self.overlay_message.set(data)
                 return
             if not data:
-                self.overlay_message.set("No overlays survive incomplete-region comparison. Previous overlays retained.")
+                self.overlay_message.set("No overlays survive mirrored completion. Previous overlays retained." if completion
+                                         else "No overlays survive incomplete-region comparison. Previous overlays retained.")
                 return
             self.record_overlay(previous)
             self.overlay_states = data

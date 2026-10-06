@@ -11,9 +11,44 @@ from puzzle_gui import InvalidOverlay
 from puzzle_gui import force_bordering_growth
 from puzzle_gui import reverse_overlay_orientations
 from puzzle_gui import compare_incomplete_regions
+from puzzle_gui import attempt_region_completions
 from puzzle_gui import GridCanvas, PuzzleApp, format_candidates, read_state, write_state, can_connect_region, check_grid_connectivity, grow_forced_regions, region_colors, canonical_shape, filter_containment, fraction_parts, evaluate, math_runs, draw_math, inline_math, analyze_clues, solve_rational_clue, inferred_integer_variables, minimum_region_size, find_region_overlays, shape_orientations
 
 class VariableSearchTests(unittest.TestCase):
+    def test_completion_mirrors_through_two_higher_regions_and_preserves_branches(self):
+        cells=frozenset({0,1,5,6,10})
+        base={cell:5 for cell in cells}
+        base.update({15:4,16:4,20:4,22:3,23:3,24:2})
+        original=dict(base)
+        states=attempt_region_completions(5,base,5,[{'cells':cells}])
+        self.assertTrue(states)
+        for state in states:
+            board=state['assumptions']
+            for number in (2,3,4,5):
+                shape={cell for cell,value in board.items() if value==number}
+                self.assertEqual(len(shape),number)
+                self.assertEqual(minimum_region_size(5,board,number,shape),number)
+            for number in (2,3,4):
+                lower={cell for cell,value in board.items() if value==number}
+                higher={cell for cell,value in board.items() if value==number+1}
+                lower_shape=canonical_shape(lower,5)
+                self.assertTrue(any(canonical_shape(higher-{removed},5)==lower_shape
+                                    for removed in higher))
+            self.assertIn(19,state['completion_growth'])
+        self.assertEqual(base,original)
+
+    def test_completion_rejects_shape_that_cannot_be_mirrored_into_higher_region(self):
+        base={0:4,1:4,2:4,3:4,15:3,21:3,24:2}
+        states=attempt_region_completions(5,base,4,[{'cells':frozenset({0,1,2,3})}])
+        self.assertEqual(states,[])
+
+    def test_completion_keeps_alternative_final_cells(self):
+        base={0:4,1:4,5:4,6:4,15:3,16:3,24:2}
+        states=attempt_region_completions(5,base,4,[{'cells':frozenset({0,1,5,6})}])
+        self.assertEqual({cell for state in states for cell,value in state['completion_growth'].items()
+                          if value==2},{19,23})
+        self.assertEqual(len({tuple(sorted(state['assumptions'].items())) for state in states}),len(states))
+
     def test_partial_higher_region_comparison_matches_screenshot_deduction(self):
         rows=[
             [0,5,5,5,15,15,0,11,0,0,0,0,0],
