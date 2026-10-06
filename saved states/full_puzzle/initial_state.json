@@ -205,7 +205,6 @@
   },
   "overlay_region": "Highest",
   "show_values": false,
-  "forced_growth": true,
   "analysis": {
     "assignments": [
       {
@@ -301,6 +300,10 @@
           "type": "dict",
           "items": []
         }
+      ],
+      [
+        "elapsed",
+        ""
       ]
     ]
   },
@@ -326,6 +329,6 @@
     "b": "-3",
     "c": "1/2"
   },
-  "search_message": "Restored 1 analyzed partial assignments.",
+  "search_message": "1 analytically valid partial assignments. Example: a: 1/4, b: -3, c: 1/2.",
   "connectivity_message": ""
 }
