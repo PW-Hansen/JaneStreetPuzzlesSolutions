@@ -12,6 +12,23 @@ from puzzle_gui import force_bordering_growth
 from puzzle_gui import GridCanvas, PuzzleApp, format_candidates, read_state, write_state, can_connect_region, check_grid_connectivity, grow_forced_regions, region_colors, canonical_shape, filter_containment, fraction_parts, evaluate, math_runs, draw_math, inline_math, analyze_clues, solve_rational_clue, inferred_integer_variables, minimum_region_size, find_region_overlays, shape_orientations
 
 class VariableSearchTests(unittest.TestCase):
+    def test_region_buttons_use_prior_candidates_for_the_next_region(self):
+        calls=[]
+        app=SimpleNamespace(overlay_target=SimpleNamespace(set=lambda value:calls.append(value)),
+                            save_state=lambda:None,overlay_states=[{}],overlay_highest=12,
+                            continue_overlay=lambda number:calls.append(('continue',number)),
+                            overlay_regions=lambda:calls.append('fresh'))
+        PuzzleApp.select_overlay_region(app,13)
+        self.assertEqual(calls,['13',('continue',13)])
+        app.overlay_states=[]
+        PuzzleApp.select_overlay_region(app,12)
+        self.assertEqual(calls[-2:],['12','fresh'])
+
+    def test_region_one_generates_single_cell_candidates(self):
+        _,_,states,_=find_region_overlays([['1','',''],['','',''],['','','']],{},region=1)
+        self.assertEqual(len(states),1)
+        self.assertEqual(states[0]['cells'],frozenset({0}))
+
     def test_single_exit_is_forced_even_with_more_than_ten_region_candidates(self):
         walls={23,25,31}
         labels={cell:14 for cell in walls}

@@ -623,15 +623,16 @@ def find_region_overlays(expressions, variables, progress=None, region=None):
                     raise ValueError("All included clues must evaluate to valid region sizes.")
     if not labels: raise ValueError("No included clues to overlay.")
     highest = max(labels.values()) if region is None else region
-    if type(highest) is not int or not 2 <= highest <= limit:
-        raise ValueError(f"Choose a region from 2 to {limit}.")
+    if type(highest) is not int or not 1 <= highest <= limit:
+        raise ValueError(f"Choose a region from 1 to {limit}.")
     source = [cell for cell,value in labels.items() if value == highest-1]
-    if highest == 1 or not source:
+    if highest > 1 and not source:
         raise ValueError(f"No {highest-1} cells are available to overlay onto region {highest}.")
     anchors = {cell for cell,value in labels.items() if value == highest}
     tested, survivors = 0, []
     occupied_sets = set()
-    for rotation,reflected,shape in shape_orientations(source,size):
+    orientations = [(0,False,((0,0),))] if highest == 1 else shape_orientations(source,size)
+    for rotation,reflected,shape in orientations:
         height,width = max(r for r,c in shape)+1,max(c for r,c in shape)+1
         for top in range(size-height+1):
             for left in range(size-width+1):
@@ -679,8 +680,8 @@ def find_region_overlays(expressions, variables, progress=None, region=None):
     return highest,labels,survivors,tested
 
 
-def continue_region_overlays(size, base_labels, current, states, progress=None):
-    target = current+1
+def continue_region_overlays(size, base_labels, current, states, progress=None, region=None):
+    target = current+1 if region is None else region
     if target > max_region_size(size):
         raise ValueError("The next region exceeds max region size.")
     survivors, tested = [], 0
@@ -1313,7 +1314,6 @@ class PuzzleApp:
         self.connectivity_message = tk.StringVar()
         self.region_labels = {}
         self.region_palette = {}
-        self.region_message = tk.StringVar()
         self.overlay_message = tk.StringVar()
         self.overlay_target = tk.StringVar(value="Highest")
         self.overlay_states = []
@@ -1365,27 +1365,35 @@ class PuzzleApp:
         sidebar.grid(row=0, column=1, rowspan=2, sticky="nsew")
         sidebar.columnconfigure(0, weight=1)
         sidebar.rowconfigure(0, weight=1)
+        variable_area = ttk.Frame(sidebar)
+        variable_area.grid(row=0,column=0,sticky="nsew",padx=(0,12))
+        variable_area.columnconfigure(0,weight=1)
+        variable_area.rowconfigure(0,weight=1)
+        overlay_panel = ttk.Frame(sidebar)
+        overlay_panel.grid(row=0,column=1,sticky="new")
+        overlay_panel.columnconfigure(0,minsize=250)
+        ttk.Label(overlay_panel, text="Regions", font=("Segoe UI", 14, "bold")).grid(row=0, column=0, sticky="w", pady=(0, 8))
         scroll_variables = len(self.variables) > 3
         if scroll_variables:
-            variable_canvas = tk.Canvas(sidebar, width=750, height=280,
+            variable_canvas = tk.Canvas(variable_area, width=250, height=400,
                                         bg="#f4f6fa", highlightthickness=0)
             variable_canvas.grid(row=0, column=0, sticky="nsew")
-            scrollbar = ttk.Scrollbar(sidebar, orient="vertical", command=variable_canvas.yview)
+            scrollbar = ttk.Scrollbar(variable_area, orient="vertical", command=variable_canvas.yview)
             scrollbar.grid(row=0, column=1, sticky="ns")
-            horizontal_scrollbar = ttk.Scrollbar(sidebar, orient="horizontal", command=variable_canvas.xview)
+            horizontal_scrollbar = ttk.Scrollbar(variable_area, orient="horizontal", command=variable_canvas.xview)
             horizontal_scrollbar.grid(row=1, column=0, sticky="ew")
             variable_canvas.configure(yscrollcommand=scrollbar.set, xscrollcommand=horizontal_scrollbar.set)
             panel = ttk.Frame(variable_canvas)
             variable_canvas.create_window(0, 0, window=panel, anchor="nw")
             panel.bind("<Configure>", lambda event: variable_canvas.configure(scrollregion=variable_canvas.bbox("all")))
         else:
-            panel = ttk.Frame(sidebar)
+            panel = ttk.Frame(variable_area)
             panel.grid(row=0, column=0, sticky="new")
         ttk.Label(panel, text="Variables", font=("Segoe UI", 14, "bold")).grid(row=0, column=0, sticky="w", pady=(0, 8))
-        for column, (name, variable) in enumerate(self.variables.items()):
-            panel.columnconfigure(column, minsize=250)
+        panel.columnconfigure(0,minsize=250)
+        for row, (name, variable) in enumerate(self.variables.items(),start=1):
             field = ttk.LabelFrame(panel, text=name, padding=10)
-            field.grid(row=1, column=column, sticky="new", padx=(0, 10), pady=(0, 10))
+            field.grid(row=row, column=0, sticky="new", padx=(0, 10), pady=(0, 10))
             field.columnconfigure(1, weight=1)
             ttk.Label(field, text="Candidate").grid(row=0, column=0, sticky="w", padx=(0,10))
             ttk.Entry(field, textvariable=variable, width=10).grid(row=0, column=1, sticky="ew")
@@ -1393,30 +1401,27 @@ class PuzzleApp:
             ttk.Label(field, text="Valid values").grid(row=1, column=0, columnspan=2, sticky="w", pady=(8,0))
             ttk.Label(field, textvariable=self.valid_values[name], wraplength=210).grid(row=2, column=0, columnspan=2, sticky="w")
         self.analyze_button = ttk.Button(panel, text="Analyze valid values", command=self.analyze_valid_values)
-        self.analyze_button.grid(row=2, column=0, sticky="ew", padx=(0, 10), pady=(0, 8))
-        ttk.Label(panel, textvariable=self.search_message, wraplength=230).grid(row=3, column=0, sticky="nw", padx=(0, 10))
+        controls_row = len(self.variables)+1
+        self.analyze_button.grid(row=controls_row, column=0, sticky="ew", padx=(0, 10), pady=(0, 8))
+        ttk.Label(panel, textvariable=self.search_message, wraplength=230).grid(row=controls_row+1, column=0, sticky="nw", padx=(0, 10))
         self.connectivity_button = ttk.Button(panel, text="Check connectivity", command=self.check_connectivity)
-        self.connectivity_button.grid(row=4, column=0, sticky="ew", padx=(0, 10), pady=(12, 8))
-        ttk.Label(panel, textvariable=self.connectivity_message, wraplength=230).grid(row=5, column=0, sticky="nw", padx=(0, 10))
-        self.region_button = ttk.Button(panel, text="Create regions", command=self.create_regions)
-        self.region_button.grid(row=6, column=0, sticky="ew", padx=(0, 10), pady=(12, 8))
-        ttk.Label(panel, textvariable=self.region_message, wraplength=230).grid(row=7, column=0, sticky="nw", padx=(0, 10))
-        overlay_selection = ttk.Frame(panel)
-        overlay_selection.grid(row=8, column=0, sticky="ew", padx=(0,10), pady=(12,4))
-        ttk.Label(overlay_selection, text="Overlay region K").pack(side="left", padx=(0,8))
-        selector = ttk.Combobox(overlay_selection, textvariable=self.overlay_target, state="readonly", width=8,
-                               values=["Highest"] + list(range(2,max_region_size(self.SIZE)+1)))
-        selector.pack(side="left")
-        selector.bind("<<ComboboxSelected>>", self.overlay_selection_changed)
-        self.overlay_button = ttk.Button(panel, text="Overlay regions", command=self.overlay_regions)
-        self.overlay_button.grid(row=9, column=0, sticky="ew", padx=(0, 10), pady=(4, 8))
-        ttk.Label(panel, textvariable=self.overlay_message, wraplength=230).grid(row=10, column=0, sticky="nw", padx=(0, 10))
-        overlay_navigation = ttk.Frame(panel)
-        overlay_navigation.grid(row=11, column=0, sticky="ew", padx=(0,10), pady=8)
+        self.connectivity_button.grid(row=controls_row+2, column=0, sticky="ew", padx=(0, 10), pady=(12, 8))
+        ttk.Label(panel, textvariable=self.connectivity_message, wraplength=230).grid(row=controls_row+3, column=0, sticky="nw", padx=(0, 10))
+        overlay_selection = ttk.LabelFrame(overlay_panel, text="Overlay region")
+        overlay_selection.grid(row=1, column=0, sticky="ew", padx=(0,10), pady=(0,8))
+        self.overlay_buttons = []
+        for number in range(1,max_region_size(self.SIZE)+1):
+            button = ttk.Button(overlay_selection, text=str(number), width=4,
+                                command=lambda value=number:self.select_overlay_region(value))
+            button.grid(row=(number-1)//5, column=(number-1)%5, padx=2, pady=2, sticky="ew")
+            self.overlay_buttons.append(button)
+        for column in range(5):
+            overlay_selection.columnconfigure(column,weight=1)
+        ttk.Label(overlay_panel, textvariable=self.overlay_message, wraplength=230).grid(row=2, column=0, sticky="nw", padx=(0, 10))
+        overlay_navigation = ttk.Frame(overlay_panel)
+        overlay_navigation.grid(row=3, column=0, sticky="ew", padx=(0,10), pady=8)
         ttk.Button(overlay_navigation, text="Previous", command=lambda:self.show_overlay(-1)).pack(side="left")
         ttk.Button(overlay_navigation, text="Next", command=lambda:self.show_overlay(1)).pack(side="left", padx=8)
-        self.continue_button = ttk.Button(panel, text="Continue overlay", command=self.continue_overlay)
-        self.continue_button.grid(row=12,column=0,sticky="ew",padx=(0,10),pady=(0,8))
         footer = ttk.Frame(body)
         footer.grid(row=1, column=0, sticky="ew", padx=(0, 20))
         options = ttk.Frame(footer)
@@ -1445,7 +1450,7 @@ class PuzzleApp:
         def fit_contents():
             resize_pending[0] = False
             left_height = minimum_board + 32 + footer.winfo_reqheight()
-            right_height = 240 if scroll_variables else panel.winfo_reqheight()
+            right_height = max(420 if scroll_variables else panel.winfo_reqheight(),overlay_panel.winfo_reqheight())
             height = max(620, main.winfo_reqheight() + max(left_height, right_height) + 80)
             width = max(820, sidebar.winfo_reqwidth() + minimum_board + 68)
             root.minsize(width, height)
@@ -1455,8 +1460,9 @@ class PuzzleApp:
                 root.after_idle(fit_contents)
         footer.bind("<Configure>", schedule_fit)
         panel.bind("<Configure>", schedule_fit, add="+")
+        overlay_panel.bind("<Configure>", schedule_fit, add="+")
         main.bind("<Configure>", schedule_fit, add="+")
-        for message in (self.search_message, self.connectivity_message, self.region_message,
+        for message in (self.search_message, self.connectivity_message,
                         self.overlay_message, self.detail, self.status, self.storage_error):
             message.trace_add("write", lambda *_: schedule_fit())
         self.select(0, 0)
@@ -1470,7 +1476,7 @@ class PuzzleApp:
         root.update_idletasks()
         # Reserve room for controls even with Windows font/display scaling.
         body_height = max(minimum_board + 32 + footer.winfo_reqheight(),
-                          240 if scroll_variables else panel.winfo_reqheight())
+                          max(420 if scroll_variables else panel.winfo_reqheight(),overlay_panel.winfo_reqheight()))
         minimum_height = max(620, main.winfo_reqheight() + body_height + 80)
         minimum_width = max(820, sidebar.winfo_reqwidth() + minimum_board + 68)
         root.minsize(minimum_width, minimum_height)
@@ -1719,14 +1725,20 @@ class PuzzleApp:
     def clear_regions(self):
         self.region_labels = {}
         self.region_palette = {}
-        self.region_message.set("")
         self.overlay_states = []
         self.overlay_message.set("")
 
-    def overlay_selection_changed(self, event=None):
-        self.clear_regions()
-        self.refresh()
+    def select_overlay_region(self, number):
+        self.overlay_target.set(str(number))
         self.save_state()
+        if self.overlay_states and number != self.overlay_highest:
+            self.continue_overlay(number)
+        else:
+            self.overlay_regions()
+
+    def set_overlay_buttons_enabled(self, enabled):
+        for button in self.overlay_buttons:
+            button.configure(state="normal" if enabled else "disabled")
 
     def overlay_regions(self):
         expressions = self.active_expressions()
@@ -1737,7 +1749,7 @@ class PuzzleApp:
         except (ValueError,ZeroDivisionError):
             self.overlay_message.set("Enter numeric candidate values first.")
             return
-        self.overlay_button.configure(state="disabled")
+        self.set_overlay_buttons_enabled(False)
         self.overlay_message.set("Testing translated, reflected, and rotated overlays…")
         results = Queue()
         def work():
@@ -1762,7 +1774,7 @@ class PuzzleApp:
             if final is None:
                 self.root.after(50,poll)
                 return
-            self.overlay_button.configure(state="normal")
+            self.set_overlay_buttons_enabled(True)
             try:
                 current = {name:Fraction(value.get().strip()) for name,value in self.variables.items()}
             except (ValueError,ZeroDivisionError): current = None
@@ -1809,23 +1821,23 @@ class PuzzleApp:
             self.overlay_message.set(self.overlay_message.get()+f" From preceding overlay {state['parent_index']+1}.")
         self.refresh()
 
-    def continue_overlay(self):
+    def continue_overlay(self, region=None):
         if not self.overlay_states:
             self.overlay_message.set("Generate valid overlays first.")
             return
         states = self.overlay_states
         current = self.overlay_highest
-        if current >= max_region_size(self.SIZE):
+        target = current+1 if region is None else region
+        if target > max_region_size(self.SIZE):
             self.overlay_message.set("The next region exceeds max region size.")
             return
-        self.continue_button.configure(state="disabled")
-        self.overlay_button.configure(state="disabled")
-        self.overlay_message.set(f"Testing all {len(states)} preceding overlays for region {current+1}…")
+        self.set_overlay_buttons_enabled(False)
+        self.overlay_message.set(f"Testing all {len(states)} preceding overlays for region {target}…")
         results = Queue()
         def work():
             try:
                 result=continue_region_overlays(self.SIZE,self.overlay_base_labels,current,states,
-                    lambda done,total,valid:results.put(('progress',(done,total,valid))))
+                    lambda done,total,valid:results.put(('progress',(done,total,valid))),region=target)
                 results.put(('result',result))
             except Exception as error:
                 results.put(('error',str(error)))
@@ -1844,8 +1856,7 @@ class PuzzleApp:
             if final is None:
                 self.root.after(50,poll)
                 return
-            self.continue_button.configure(state="normal")
-            self.overlay_button.configure(state="normal")
+            self.set_overlay_buttons_enabled(True)
             if self.overlay_states is not states:
                 self.overlay_message.set("Grid or overlays changed. Generate overlays again.")
                 return
@@ -1865,47 +1876,6 @@ class PuzzleApp:
             self.show_overlay(0)
             self.save_state()
         self.root.after(50,poll)
-
-    def create_regions(self):
-        expressions = self.active_expressions()
-        try:
-            variables = {name: Fraction(value.get().strip()) for name, value in self.variables.items()}
-        except (ValueError, ZeroDivisionError):
-            self.region_message.set("Enter numeric candidate values first.")
-            return
-        self.region_button.configure(state="disabled")
-        self.region_message.set("Finding forced cells…")
-        results = Queue()
-        def work():
-            try:
-                results.put((grow_forced_regions(expressions, variables), None))
-            except Exception as error:
-                results.put((None, str(error)))
-        threading.Thread(target=work, daemon=True).start()
-        def poll():
-            try:
-                result, error = results.get_nowait()
-            except Empty:
-                self.root.after(50, poll)
-                return
-            self.region_button.configure(state="normal")
-            try:
-                current = {name: Fraction(value.get().strip()) for name, value in self.variables.items()}
-            except (ValueError, ZeroDivisionError):
-                current = None
-            if expressions != self.active_expressions() or variables != current:
-                self.region_message.set("Grid or candidates changed. Create regions again.")
-                return
-            self.clear_regions()
-            if error:
-                self.region_message.set(error)
-                self.refresh()
-                return
-            self.region_labels, added = result
-            self.region_palette = region_colors(self.SIZE, self.region_labels)
-            self.region_message.set(f"Added {added} forced cells. Ambiguous cells remain blank.")
-            self.refresh()
-        self.root.after(50, poll)
 
     def refresh(self):
         filled, errors = 0, 0
