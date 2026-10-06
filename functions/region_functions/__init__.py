@@ -16,10 +16,7 @@ from .connectivity import (
 from .shapes import (
     shape_orientations,
     reverse_overlay_orientations,
-    region_completions,
     canonical_shape,
-    filter_containment,
-    grow_forced_regions
 )
 
 from .overlays import (

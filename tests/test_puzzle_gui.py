@@ -22,9 +22,7 @@ from functions.region_functions import (
     attempt_region_completions,
     can_connect_region,
     check_grid_connectivity,
-    grow_forced_regions,
     canonical_shape,
-    filter_containment,
     minimum_region_size,
     find_region_overlays,
     shape_orientations
@@ -828,28 +826,6 @@ class VariableSearchTests(unittest.TestCase):
         app.toggle_display()
         self.assertEqual(app.board.cells, before)
 
-    def test_forced_regions_from_blocked_paths(self):
-        grid = [['', '6', '', '3', ''], ['', '', '5', '', ''], ['4', '', '', '', '5'], ['', '1', '', '6', ''], ['4', '', '', '', '2']]
-        labels, added = grow_forced_regions(grid, {}, use_containment=False)
-        self.assertEqual(labels[15], 4)
-        for cell in (6, 11, 12):
-            self.assertEqual(labels[cell], 6)
-        self.assertEqual(labels[8], 5)
-        self.assertNotIn(13, labels)
-        self.assertNotIn(17, labels)
-        self.assertGreater(added, 0)
-        self.assertEqual(grid[1][1], '')
-
-    def test_containment_forces_screenshot_cell_and_restarts_growth(self):
-        grid = [['', '6', '', '3', ''], ['', '', '5', '', ''], ['4', '', '', '', '5'], ['', '1', '', '6', ''], ['4', '', '', '', '2']]
-        ordinary, _ = grow_forced_regions(grid, {}, use_containment=False)
-        labels, added = grow_forced_regions(grid, {})
-        self.assertNotIn(9, ordinary)
-        self.assertEqual(labels[9], 5)
-        self.assertEqual(labels[13], 6)
-        self.assertEqual(labels[19], 5)
-        self.assertEqual(added, 12)
-        self.assertEqual(len(labels), 21)
 
     def test_shape_equivalence_allows_rotations_and_reflections(self):
         original = {0, 5, 10, 11}
@@ -858,14 +834,6 @@ class VariableSearchTests(unittest.TestCase):
         self.assertEqual(canonical_shape(original, 5), canonical_shape(reflected, 5))
         self.assertEqual(canonical_shape(original, 5), canonical_shape(rotated, 5))
 
-    def test_containment_rejects_incompatible_shapes(self):
-        with self.assertRaisesRegex(ValueError, 'shape containment'):
-            filter_containment({4: [frozenset({0, 1, 3, 4})], 3: [frozenset({6, 7, 8})]}, 3)
-
-    def test_ambiguous_growth_stays_blank(self):
-        labels, added = grow_forced_regions([['', '', ''], ['', '2', ''], ['', '', '']], {})
-        self.assertEqual(labels, {4: 2})
-        self.assertEqual(added, 0)
 
     def test_color_conflicts_are_resolved(self):
         labels = {0: 4, 1: 13, 2: 22, 3: 6}

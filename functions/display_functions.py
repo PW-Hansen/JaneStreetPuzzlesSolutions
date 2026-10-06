@@ -7,7 +7,6 @@ import struct
 import sys
 import zlib
 from fractions import Fraction
-from tkinter import font as tkfont
 
 
 def format_candidates(values):
