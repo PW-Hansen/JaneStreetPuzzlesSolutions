@@ -12,6 +12,8 @@ Run `python solve_full_puzzle.py` to solve the supplied full puzzle. It analyzes
 
 The result is saved to `saved states/full_puzzle/solved-full-puzzle.json`, ready to load in the GUI. The input grid is preserved. Use `--input` and `--output` to select other paths.
 
+For each validated solution, the solver prints the row sums and the puzzle answer: the minimum row sum multiplied by the maximum. In the GUI, **Calculate answer** below the grid displays the same calculation for the current completed candidate. Blank cells contribute zero; incomplete or invalid grids report an error.
+
 ## Editing and analysis
 
 Select a cell, enter an expression, and click **Set cell**. Right-click to include or exclude an equation; excluded equations remain visible on a light grey background. **Exclude all** affects only cells containing expressions. **Include all** restores them. The display-priority button switches between equations and values while preserving region colors.

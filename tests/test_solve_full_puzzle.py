@@ -54,6 +54,17 @@ class FullPuzzleRunnerTests(unittest.TestCase):
             with self.subTest(board=board):
                 self.assertFalse(is_solution(3, board, {}))
 
+    def test_solver_logs_row_sums_and_answer(self):
+        messages = []
+        candidate = {'cells':frozenset({0}), 'assumptions':{0:1}}
+        with patch('functions.solve_functions.analyze_clues',return_value=([{},],[])), \
+             patch('functions.solve_functions.find_region_overlays',return_value=(1,{0:1},[candidate],1)), \
+             patch('functions.solve_functions.continue_region_overlays',return_value=(1,[candidate],1)), \
+             patch('functions.solve_functions.compare_incomplete_regions',return_value=[candidate]), \
+             patch('functions.solve_functions.attempt_region_completions',return_value=[candidate]):
+            solve({'size':1,'expressions':[['1']],'variables':{}},log=messages.append)
+        self.assertIn('Row sums: 1\nAnswer: 1 × 1 = 1',messages)
+
 
 if __name__ == '__main__':
     unittest.main()

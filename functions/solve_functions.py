@@ -122,6 +122,20 @@ def is_solution(size, board, clues):
     return True
 
 
+def puzzle_answer(size, board, clues=None):
+    """Return row sums and the puzzle answer for a validated completed grid."""
+    if not is_solution(size, board, {} if clues is None else clues):
+        raise ValueError('Complete a valid grid before calculating the answer.')
+    sums = [sum(board.get(row*size+column, 0) for column in range(size))
+            for row in range(size)]
+    return sums, min(sums)*max(sums)
+
+
+def answer_text(row_sums, answer):
+    return (f"Row sums: {', '.join(map(str, row_sums))}\n"
+            f"Answer: {min(row_sums)} × {max(row_sums)} = {answer}")
+
+
 def solve_sequence(state, regions, log=print):
     size = state['size']
     disabled = set(state.get('disabled_cells', []))
@@ -187,6 +201,9 @@ def solve_sequence(state, regions, log=print):
 
     solutions = [index for index, candidate in enumerate(states)
                  if is_solution(size, overlay_board(candidate, base, current), base)]
+    for solution in solutions:
+        sums, answer = puzzle_answer(size, overlay_board(states[solution], base, current), base)
+        log(answer_text(sums, answer))
     index = solutions[0] if solutions else 0
     board = overlay_board(states[index], base, current)
     snapshot = make_overlay_snapshot(states,index,current,base,tested,str(current),

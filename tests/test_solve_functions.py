@@ -1,14 +1,45 @@
 import unittest
 from fractions import Fraction
 from unittest.mock import patch
+from types import SimpleNamespace
+
+from puzzle_gui import PuzzleApp
 
 from functions.solve_functions import (
     BackgroundRegionOperation, candidate_labels, completed_regions, elapsed_text,
     included_expressions, overlay_board,
+    puzzle_answer, answer_text,
 )
 
 
 class SharedSolveTests(unittest.TestCase):
+    def test_gui_calculates_current_overlay_and_reports_incomplete_grid(self):
+        app = PuzzleApp.__new__(PuzzleApp)
+        app.SIZE = 2
+        app.variables = {'a':SimpleNamespace(get=lambda:'1')}
+        app.expressions = [['a',''],['','']]
+        app.disabled_cells = set()
+        app.region_labels = {2:2,3:2}
+        messages = []
+        app.answer_message = SimpleNamespace(set=messages.append)
+        app.calculate_answer()
+        self.assertEqual(messages[-1],'Row sums: 1, 4\nAnswer: 1 × 4 = 4')
+        app.region_labels = {2:2}
+        app.calculate_answer()
+        self.assertIn('Complete a valid grid',messages[-1])
+
+    def test_puzzle_answer_counts_only_labeled_cells(self):
+        sums,answer = puzzle_answer(2,{0:1,2:2,3:2})
+        self.assertEqual((sums,answer),([1,4],4))
+        self.assertEqual(answer_text(sums,answer),'Row sums: 1, 4\nAnswer: 1 × 4 = 4')
+        self.assertEqual(puzzle_answer(3,{0:1,3:2,4:2}),([1,4,0],0))
+
+    def test_puzzle_answer_requires_valid_completion(self):
+        with self.assertRaisesRegex(ValueError,'Complete a valid grid'):
+            puzzle_answer(2,{0:1,2:2})
+        with self.assertRaises(ValueError):
+            puzzle_answer(2,{0:1,2:2,3:2},{0:2})
+
     def test_gui_and_runner_completion_rules_remain_distinct(self):
         states = [{'cells': {5}, 'assumptions': {0: 2, 1: 2}},
                   {'cells': {5}, 'assumptions': {0: 2, 2: 2}}]

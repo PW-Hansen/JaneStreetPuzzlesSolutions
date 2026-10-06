@@ -13,6 +13,7 @@ from tkinter import font as tkfont, messagebox, simpledialog, ttk
 from functions.solve_functions import (
     BackgroundRegionOperation, analyze_grid, candidate_labels, completed_regions,
     elapsed_text, included_expressions, make_overlay_snapshot, overlay_board,
+    puzzle_answer, answer_text,
 )
 
 
@@ -376,6 +377,10 @@ class PuzzleApp:
         ttk.Button(saved_controls,text="Load state",command=self.choose_saved_state).pack(side="left",padx=8)
         ttk.Button(saved_controls,text="Reset to equations",command=self.reset_to_equations).pack(side="left")
         ttk.Button(saved_controls,text="Print state",command=self.print_state).pack(side="left",padx=(8,0))
+        ttk.Button(footer,text="Calculate answer",command=self.calculate_answer).pack(anchor="w",pady=(8,0))
+        self.answer_message = tk.StringVar(value="")
+        answer_label = ttk.Label(footer,textvariable=self.answer_message)
+        answer_label.pack(anchor="w",fill="x")
         detail_label = ttk.Label(footer, textvariable=self.detail)
         detail_label.pack(anchor="w", fill="x", pady=(12, 4))
         status_label = ttk.Label(footer, textvariable=self.status)
@@ -384,7 +389,7 @@ class PuzzleApp:
         storage_label.pack(anchor="w", fill="x")
         def wrap_grid_labels(event):
             width = max(100, min(self.board.winfo_width(), self.board.winfo_height()) - 8)
-            for label in (detail_label, status_label, storage_label):
+            for label in (detail_label, status_label, storage_label, answer_label):
                 if str(label.cget("wraplength")) != str(width):
                     label.configure(wraplength=width)
         self.board.bind("<Configure>", wrap_grid_labels, add="+")
@@ -408,7 +413,7 @@ class PuzzleApp:
         overlay_panel.bind("<Configure>", schedule_fit, add="+")
         main.bind("<Configure>", schedule_fit, add="+")
         for message in (self.search_message, self.connectivity_message,
-                        self.overlay_message, self.detail, self.status, self.storage_error):
+                        self.overlay_message, self.detail, self.status, self.storage_error, self.answer_message):
             message.trace_add("write", lambda *_: schedule_fit())
         self.select(0, 0)
         if self.analytical_assignments is not None:
@@ -1020,7 +1025,27 @@ class PuzzleApp:
             self.save_state()
         self.root.after(50,poll)
 
+    def calculate_answer(self):
+        try:
+            values = {name:Fraction(variable.get().strip())
+                      for name,variable in self.variables.items() if variable.get().strip()}
+            clues = {}
+            for row,expressions in enumerate(self.active_expressions()):
+                for column,expression in enumerate(expressions):
+                    if expression.strip():
+                        value = evaluate(expression,values)
+                        if value.denominator != 1:
+                            raise ValueError('Included clues must evaluate to integers.')
+                        clues[row*self.SIZE+column] = int(value)
+            board = {**clues, **self.region_labels}
+            sums,answer = puzzle_answer(self.SIZE,board,clues)
+            self.answer_message.set(answer_text(sums,answer))
+        except (ValueError, SyntaxError, ArithmeticError, RecursionError) as error:
+            self.answer_message.set(f"Could not calculate answer: {error}")
+
     def refresh(self):
+        if hasattr(self,'answer_message'):
+            self.answer_message.set('')
         filled, errors = 0, 0
         cells = []
         variable_error = None
