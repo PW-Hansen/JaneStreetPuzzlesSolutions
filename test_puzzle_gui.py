@@ -12,6 +12,12 @@ from puzzle_gui import (GridCanvas, PuzzleApp, format_candidates,
 
 
 class VariableSearchTests(unittest.TestCase):
+    def test_power_preserves_compound_base_parentheses(self):
+        self.assertEqual(math_runs(inline_math('(b-1)^2')),
+                         [('power', ([('text', '(b − 1)')], [('text', '2')]))])
+        self.assertEqual(math_runs(inline_math('b-1^2')),
+                         [('text', 'b − '), ('power', ([('text', '1')], [('text', '2')]))])
+        self.assertEqual(evaluate('(b-1)^2', {'b':4}), 9)
     def test_cube_root_evaluation_and_display(self):
         self.assertEqual(evaluate('cbrt(43-a*c)/a', {'a':1, 'c':16}), 3)
         self.assertEqual(evaluate('cbrt(-8)', {}), -2)

@@ -417,7 +417,11 @@ def inline_math(expression):
                 return ast.copy_location(ast.Name(id=name, ctx=ast.Load()), node)
             if isinstance(node.op, ast.Pow):
                 name = f"__fraction_{len(replacements)}__"
-                replacements[name] = "〖" + ast.unparse(node.left) + "¦" + ast.unparse(node.right) + "〗"
+                base = ast.unparse(node.left)
+                if isinstance(node.left, (ast.BinOp, ast.UnaryOp)) or (
+                        isinstance(node.left, ast.Name) and node.left.id in replacements):
+                    base = "(" + base + ")"
+                replacements[name] = "〖" + base + "¦" + ast.unparse(node.right) + "〗"
                 return ast.copy_location(ast.Name(id=name, ctx=ast.Load()), node)
             return node
     text = ast.unparse(Fractions().visit(tree))
