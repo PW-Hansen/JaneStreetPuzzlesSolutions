@@ -8,15 +8,17 @@ import re
 import tkinter as tk
 import threading
 from collections import deque
+from decimal import Decimal, localcontext
 from queue import Queue, Empty
 from fractions import Fraction
 from itertools import product
 from math import isqrt
 from pathlib import Path
-from tkinter import messagebox, simpledialog, ttk
+from tkinter import font as tkfont, messagebox, simpledialog, ttk
 
 
 DATA_DIRECTORY = Path(__file__).resolve().parent / "grids"
+MIN_CELL_SIZE = 50
 
 
 def max_region_size(grid_size):
@@ -373,18 +375,120 @@ def prepare_grid(root, name):
 
 def display_expression(expression):
     """Use compact mathematical notation without changing the stored input."""
-    expression = re.sub(r"(?:\^|\*\*)(-?\d+)",
+    expression = re.sub(r"\s*(?:\^|\*\*)\s*(-?\d+)",
                         lambda match: match[1].translate(str.maketrans(
                             "0123456789-", "⁰¹²³⁴⁵⁶⁷⁸⁹⁻")), expression)
     expression = re.sub(r"(?<=\d)\s*\*\s*(?=[a-z])", "", expression)
-    return expression.replace("-", "−").replace("*", "·")
+    return expression.replace("sqrt(", "√(").replace("**", "^").replace("-", "−").replace("*", "·")
+
+
+def fraction_parts(expression):
+    """Split a top-level quotient without changing its mathematical meaning."""
+    try:
+        node = ast.parse(expression.replace("^", "**"), mode="eval").body
+    except (SyntaxError, ValueError):
+        return None
+    if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Div):
+        return inline_math(ast.unparse(node.left)), inline_math(ast.unparse(node.right))
+    return None
+
+
+def inline_math(expression):
+    """Replace divisions anywhere in an expression with layout markers."""
+    try:
+        tree = ast.parse(expression.replace("^", "**"), mode="eval")
+    except (ValueError, SyntaxError):
+        return display_expression(expression)
+    replacements = {}
+    class Fractions(ast.NodeTransformer):
+        def visit_BinOp(self, node):
+            node = self.generic_visit(node)
+            if isinstance(node.op, ast.Div):
+                name = f"__fraction_{len(replacements)}__"
+                replacements[name] = "⟦" + ast.unparse(node.left) + "¦" + ast.unparse(node.right) + "⟧"
+                return ast.copy_location(ast.Name(id=name, ctx=ast.Load()), node)
+            return node
+    text = ast.unparse(Fractions().visit(tree))
+    for name, replacement in reversed(list(replacements.items())):
+        text = text.replace(name, replacement)
+    return display_expression(text)
+
+
+def math_runs(text):
+    """Separate radical arguments from surrounding text, including nested roots."""
+    runs = []
+    while text:
+        root_start, fraction_start = text.find("√("), text.find("⟦")
+        candidates = [start for start in (root_start, fraction_start) if start >= 0]
+        start = min(candidates) if candidates else -1
+        if start < 0:
+            runs.append(("text", text))
+            break
+        is_fraction = start == fraction_start
+        depth, end = 1, start + (1 if is_fraction else 2)
+        separator = None
+        while end < len(text) and depth:
+            if is_fraction and text[end] == "¦" and depth == 1:
+                separator = end
+            depth += (text[end] == ("⟦" if is_fraction else "(")) - (text[end] == ("⟧" if is_fraction else ")"))
+            end += 1
+        if depth:
+            runs.append(("text", text))
+            break
+        if start:
+            runs.append(("text", text[:start]))
+        if is_fraction:
+            runs.append(("fraction", (math_runs(text[start+1:separator]), math_runs(text[separator+1:end-1]))))
+        else:
+            runs.append(("root", math_runs(text[start+2:end-1])))
+        text = text[end:]
+    return runs
+
+
+def math_width(runs, font):
+    return sum(font.measure(value) if kind == "text" else
+               max(math_width(part, font) for part in value) + 6 if kind == "fraction" else
+               font.measure("√") + 4 + math_width(value, font) for kind, value in runs)
+
+
+def draw_math(canvas, center_x, center_y, text, font):
+    runs = math_runs(text)
+    font_spec = ("Times New Roman", font.cget("size"), "italic")
+    height = font.metrics("linespace")
+    def draw(parts, left, y):
+        for kind, value in parts:
+            if kind == "text":
+                canvas.create_text(left, y, text=value, anchor="w", font=font_spec, fill="#252525")
+                left += font.measure(value)
+            elif kind == "fraction":
+                width = max(math_width(part, font) for part in value) + 6
+                for part, offset in ((value[0], -height*0.58), (value[1], height*0.58)):
+                    draw(part, left+(width-math_width(part, font))/2, y+offset)
+                canvas.create_line(left, y, left+width, y, fill="#252525", width=1)
+                left += width
+            else:
+                root_width = font.measure("√")
+                argument_width = math_width(value, font)
+                # Draw the radical and vinculum as one continuous stroke.
+                bar_y = y - height * 0.46
+                canvas.create_line(left, y, left+root_width*0.28, y-height*0.08,
+                                   left+root_width*0.52, y+height*0.35,
+                                   left+root_width, bar_y,
+                                   left+root_width+argument_width+4, bar_y,
+                                   fill="#252525", width=1)
+                draw(value, left+root_width+2, y)
+                left += root_width+argument_width+4
+        return left
+    draw(runs, center_x - math_width(runs, font)/2, center_y)
 
 
 class GridCanvas(tk.Canvas):
     """A square paper-style board with clickable cells."""
 
     def __init__(self, parent, select, size):
-        super().__init__(parent, bg="#f4f6fa", highlightthickness=0, height=360)
+        minimum = size * MIN_CELL_SIZE + 8
+        super().__init__(parent, bg="#f4f6fa", highlightthickness=0,
+                         width=minimum, height=max(360, minimum))
         self.select_cell = select
         self.size = size
         self.cells = []
@@ -416,19 +520,23 @@ class GridCanvas(tk.Canvas):
             if color != "#ffffff":
                 self.create_rectangle(x0, y0, x0 + cell, y0 + cell, fill=color, outline="")
             cx, cy = x0 + cell / 2, y0 + cell / 2
-            # A simple quotient is drawn as a stacked fraction, like the reference.
-            fraction = re.fullmatch(r"\s*([a-z]+|\d+)\s*/\s*([a-z]+|\d+)\s*", text)
+            fraction = fraction_parts(text)
             if fraction:
-                for part, offset in ((fraction[1], -font_size * 0.65),
-                                     (fraction[2], font_size * 0.65)):
-                    self.create_text(cx, cy + offset, text=part,
-                                     font=("Times New Roman", font_size, "italic"))
-                half = font_size * max(len(fraction[1]), len(fraction[2])) * 0.4
+                fraction_font = tkfont.Font(family="Times New Roman", size=font_size, slant="italic")
+                while max(math_width(math_runs(part), fraction_font) for part in fraction) > cell - 16 and fraction_font.cget("size") > 8:
+                    fraction_font.configure(size=fraction_font.cget("size") - 1)
+                offset_size = fraction_font.metrics("linespace") * 0.55
+                for part, offset in ((fraction[0], -offset_size),
+                                     (fraction[1], offset_size)):
+                    draw_math(self, cx, cy + offset, part, fraction_font)
+                half = (max(math_width(math_runs(part), fraction_font) for part in fraction) + 6) / 2
                 self.create_line(cx - half, cy, cx + half, cy, fill="#333333")
             else:
-                self.create_text(cx, cy, text=display_expression(text),
-                                 font=("Times New Roman", font_size, "italic"),
-                                 width=cell - 8, fill="#252525")
+                rendered = inline_math(text)
+                math_font = tkfont.Font(family="Times New Roman", size=font_size, slant="italic")
+                while math_width(math_runs(rendered), math_font) > cell - 12 and math_font.cget("size") > 8:
+                    math_font.configure(size=math_font.cget("size") - 1)
+                draw_math(self, cx, cy, rendered, math_font)
         for index in range(1, self.size):
             offset = index * cell
             self.create_line(left + offset, top, left + offset, top + side,
@@ -469,20 +577,51 @@ def evaluate(expression, variables):
         if isinstance(node, ast.UnaryOp) and isinstance(node.op, (ast.UAdd, ast.USub)):
             value = visit(node.operand)
             return value if isinstance(node.op, ast.UAdd) else -value
+        if (isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+                and node.func.id == "sqrt" and len(node.args) == 1 and not node.keywords):
+            value = visit(node.args[0])
+            if value < 0:
+                raise ValueError("sqrt requires a nonnegative argument")
+            if isinstance(value, Fraction):
+                numerator, denominator = isqrt(value.numerator), isqrt(value.denominator)
+                if numerator*numerator == value.numerator and denominator*denominator == value.denominator:
+                    return Fraction(numerator, denominator)
+            with localcontext() as context:
+                context.prec = 80
+                decimal = (Decimal(value.numerator)/Decimal(value.denominator)
+                           if isinstance(value, Fraction) else value)
+                return decimal.sqrt()
         if isinstance(node, ast.BinOp) and type(node.op) in OPERATORS:
             left, right = visit(node.left), visit(node.right)
             if isinstance(node.op, ast.Pow):
-                if right.denominator != 1 or abs(right) > 20:
+                if right != int(right) or abs(right) > 20:
                     raise ValueError("Powers require an integer exponent from -20 to 20")
                 right = int(right)
-            result = OPERATORS[type(node.op)](left, right)
+            if isinstance(left, Decimal) or isinstance(right, Decimal):
+                with localcontext() as context:
+                    context.prec = 80
+                    left = Decimal(left.numerator)/Decimal(left.denominator) if isinstance(left, Fraction) else left
+                    right = Decimal(right.numerator)/Decimal(right.denominator) if isinstance(right, Fraction) else right
+                    result = OPERATORS[type(node.op)](left, right)
+            else:
+                result = OPERATORS[type(node.op)](left, right)
+            if isinstance(result, Decimal):
+                return result
             result = Fraction(result)
             if result.numerator.bit_length() > 4096 or result.denominator.bit_length() > 4096:
                 raise ValueError("Result is too large")
             return result
         raise ValueError("Use numbers, defined variables, parentheses, and arithmetic operators only")
 
-    return visit(tree.body)
+    with localcontext() as context:
+        context.prec = 80
+        result = visit(tree.body)
+        if isinstance(result, Decimal):
+            nearest = result.to_integral_value()
+            if abs(result - nearest) < Decimal("1e-60"):
+                return Fraction(int(nearest))
+            return Fraction(result)
+        return result
 
 
 class PuzzleApp:
@@ -546,7 +685,9 @@ class PuzzleApp:
         body = ttk.Frame(layout)
         body.grid(row=1, column=0, sticky="nsew", pady=16)
         body.columnconfigure(0, weight=1)
-        body.rowconfigure(0, weight=1)
+        minimum_board = self.SIZE * MIN_CELL_SIZE + 8
+        body.columnconfigure(0, minsize=minimum_board + 20)
+        body.rowconfigure(0, weight=1, minsize=minimum_board + 32)
         self.board = GridCanvas(body, self.select, self.SIZE)
         self.board.grid(row=0, column=0, sticky="nsew", padx=(0, 20))
         self.board.bind("<Double-Button-1>", lambda event: self.entry.focus_set())
@@ -618,10 +759,10 @@ class PuzzleApp:
         resize_pending = [False]
         def fit_contents():
             resize_pending[0] = False
-            left_height = 240 + footer.winfo_reqheight()
+            left_height = minimum_board + 32 + footer.winfo_reqheight()
             right_height = 240 if scroll_variables else panel.winfo_reqheight()
             height = max(620, main.winfo_reqheight() + max(left_height, right_height) + 80)
-            width = max(820, sidebar.winfo_reqwidth() + 420)
+            width = max(820, sidebar.winfo_reqwidth() + minimum_board + 68)
             root.minsize(width, height)
         def schedule_fit(event=None):
             if not resize_pending[0]:
@@ -641,10 +782,10 @@ class PuzzleApp:
                 value.trace_add("write", self.bounds_changed)
         root.update_idletasks()
         # Reserve room for controls even with Windows font/display scaling.
-        body_height = max(240 + footer.winfo_reqheight(),
+        body_height = max(minimum_board + 32 + footer.winfo_reqheight(),
                           240 if scroll_variables else panel.winfo_reqheight())
         minimum_height = max(620, main.winfo_reqheight() + body_height + 80)
-        minimum_width = max(820, sidebar.winfo_reqwidth() + 420)
+        minimum_width = max(820, sidebar.winfo_reqwidth() + minimum_board + 68)
         root.minsize(minimum_width, minimum_height)
         root.geometry(f"{max(940, minimum_width + 60)}x{max(760, minimum_height)}")
 
@@ -727,7 +868,7 @@ class PuzzleApp:
             for expression in expressions:
                 tree = ast.parse(expression.replace("^", "**"), mode="eval")
                 for node in ast.walk(tree):
-                    if isinstance(node, ast.Name) and node.id not in bounds:
+                    if isinstance(node, ast.Name) and node.id not in bounds and node.id != "sqrt":
                         raise ValueError(f"Unknown variable: {node.id}")
         except (ValueError, SyntaxError) as error:
             self.search_message.set(str(error))

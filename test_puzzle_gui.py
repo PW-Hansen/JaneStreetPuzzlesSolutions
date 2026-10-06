@@ -7,10 +7,55 @@ from unittest.mock import patch
 from puzzle_gui import (GridCanvas, PuzzleApp, format_candidates,
                         read_state, valid_combinations, write_state,
                         can_connect_region, check_grid_connectivity, connectivity_candidates,
-                        grow_forced_regions, region_colors, canonical_shape, filter_containment)
+                        grow_forced_regions, region_colors, canonical_shape, filter_containment,
+                        fraction_parts, evaluate, math_runs, draw_math, inline_math)
 
 
 class VariableSearchTests(unittest.TestCase):
+    def test_fraction_inside_subtraction_is_stacked(self):
+        runs = math_runs(inline_math('a^b-12/a'))
+        self.assertEqual(runs, [('text', 'a ^ b − '),
+                                ('fraction', ([('text', '12')], [('text', 'a')]))])
+        texts, lines = [], []
+        font = SimpleNamespace(measure=lambda value:len(value)*8,
+                               cget=lambda key:12, metrics=lambda key:18)
+        canvas = SimpleNamespace(create_text=lambda *args, **kw:texts.append((args, kw['text'])),
+                                 create_line=lambda *args, **kw:lines.append(args))
+        draw_math(canvas, 50, 30, inline_math('a^b-12/a'), font)
+        self.assertLess(texts[1][0][1], texts[2][0][1])
+        self.assertEqual(len(lines), 1)
+
+    def test_radical_draws_bar_and_removes_outer_parentheses(self):
+        text, lines = [], []
+        font = SimpleNamespace(measure=lambda value: len(value)*8,
+                               cget=lambda key:12, metrics=lambda key:18)
+        canvas = SimpleNamespace(create_text=lambda *args, **kwargs:text.append(kwargs['text']),
+                                 create_line=lambda *args, **kwargs:lines.append(args))
+        draw_math(canvas, 50, 30, '√(3 + 2c)', font)
+        self.assertEqual(text, ['3 + 2c'])
+        self.assertEqual(len(lines), 1)
+        self.assertEqual(lines[0][-1], lines[0][-3])
+        self.assertEqual(math_runs('√(a + √(b))'),
+                         [('root', [('text','a + '), ('root',[('text','b')])])])
+    def test_square_roots(self):
+        self.assertEqual(evaluate('(b+9)/sqrt(c-a)', {'a':1, 'b':3, 'c':5}), 6)
+        self.assertEqual(evaluate('sqrt(1/4)', {}), evaluate('1/2', {}))
+        self.assertEqual(evaluate('sqrt(2)*sqrt(2)', {}), 2)
+        self.assertNotEqual(evaluate('sqrt(2)', {}).denominator, 1)
+        self.assertEqual(fraction_parts('(b+9)/sqrt(c-a)'), ('b + 9', '√(c − a)'))
+        with self.assertRaises(ValueError):
+            evaluate('sqrt(-1)', {})
+        with self.assertRaises(ZeroDivisionError):
+            evaluate('1/sqrt(0)', {})
+        self.assertEqual(list(valid_combinations(['sqrt(a)'], {'a':(1,4)}, 6)),
+                         [{'a':1}, None, None, {'a':4}])
+    def test_compound_fraction_notation_preserves_denominator(self):
+        self.assertEqual(fraction_parts('(x-y)/(y-c)'), ('x − y', 'y − c'))
+        self.assertEqual(fraction_parts('(a^b-b)/(6*c+1)'), ('a ^ b − b', '6c + 1'))
+        self.assertEqual(fraction_parts('(a^2-b)/(6*c+1)'), ('a² − b', '6c + 1'))
+        self.assertEqual(fraction_parts('b/a'), ('b', 'a'))
+        self.assertIsNone(fraction_parts('a/b + 1'))
+        self.assertIsNone(fraction_parts('a//b'))
     def test_display_toggle_preserves_colors_and_number_only_cells(self):
         app = PuzzleApp.__new__(PuzzleApp)
         def variable(initial):
