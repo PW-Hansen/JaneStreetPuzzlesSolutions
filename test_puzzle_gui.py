@@ -2,24 +2,70 @@ import tempfile
 import unittest
 import threading
 import puzzle_gui
+from persistence import encode_overlay, decode_overlay, read_state, write_state
+from persistence import make_grid_state, make_saved_state, load_snapshot
 from fractions import Fraction
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
-from puzzle_gui import continue_region_overlays
-from puzzle_gui import force_overlay_neighbors
-from puzzle_gui import bordering_regions_reachable
-from puzzle_gui import low_slack_connections
-from puzzle_gui import InvalidOverlay
-from puzzle_gui import force_bordering_growth
-from puzzle_gui import reverse_overlay_orientations
-from puzzle_gui import compare_incomplete_regions
-from puzzle_gui import attempt_region_completions
-from puzzle_gui import encode_overlay, decode_overlay
-from puzzle_gui import rgb_png
-from puzzle_gui import GridCanvas, PuzzleApp, format_candidates, read_state, write_state, can_connect_region, check_grid_connectivity, grow_forced_regions, region_colors, canonical_shape, filter_containment, fraction_parts, evaluate, math_runs, draw_math, inline_math, analyze_clues, solve_rational_clue, inferred_integer_variables, minimum_region_size, find_region_overlays, shape_orientations
+from region_functions import (
+    continue_region_overlays,
+    force_overlay_neighbors,
+    bordering_regions_reachable,
+    low_slack_connections,
+    InvalidOverlay,
+    force_bordering_growth,
+    reverse_overlay_orientations,
+    compare_incomplete_regions,
+    attempt_region_completions,
+    can_connect_region,
+    check_grid_connectivity,
+    grow_forced_regions,
+    canonical_shape,
+    filter_containment,
+    minimum_region_size,
+    find_region_overlays,
+    shape_orientations
+)
+from puzzle_gui import (
+    GridCanvas,
+    PuzzleApp,
+)
+from display_functions import (
+    rgb_png,
+    format_candidates,
+    region_colors,
+    fraction_parts,
+    math_runs,
+    draw_math,
+    inline_math
+)
+from equations_functions import (
+    evaluate,
+    analyze_clues,
+    solve_rational_clue,
+    inferred_integer_variables
+)
 
 class VariableSearchTests(unittest.TestCase):
+    def test_persistence_restores_fractional_analysis_and_full_snapshot(self):
+        snapshot={'states':[],'index':0,'highest':None,'base':{},'tested':0,
+                  'target':'Highest','message':'','labels':{},'palette':{}}
+        state=make_grid_state(1,[['a']],set(),{'a':'1/2'},'Highest',False,
+                              [{'a':Fraction(1,2)},{'a':None}],['Analysis step'])
+        state=make_saved_state(state,snapshot,[snapshot],[],(0,0),{'a':'1/2'},'Analyzed','')
+        with tempfile.TemporaryDirectory() as directory:
+            path=Path(directory)/'snapshot.json'
+            write_state(path,state)
+            _,restored,history,selected,analysis,assignments=load_snapshot(path,1,['a'])
+            self.assertEqual(restored,snapshot)
+            self.assertEqual(history,{'undo':[snapshot],'redo':[]})
+            self.assertEqual(selected,[0,0])
+            self.assertEqual(analysis['steps'],['Analysis step'])
+            self.assertEqual(assignments,[{'a':Fraction(1,2)},{'a':None}])
+            with self.assertRaisesRegex(ValueError,'different grid size'):
+                load_snapshot(path,2,['a'])
+
     def test_launcher_lists_grids_and_named_saved_states(self):
         with tempfile.TemporaryDirectory() as directory:
             root=Path(directory)
@@ -65,8 +111,8 @@ class VariableSearchTests(unittest.TestCase):
         gdi.GetDIBits=pixels
         canvas=SimpleNamespace(update=lambda:calls.append('paint'),winfo_width=lambda:3,
                                winfo_height=lambda:3,winfo_id=lambda:10,bounds=(0,0,2))
-        with patch('puzzle_gui.sys.platform','win32'), \
-             patch('puzzle_gui.ctypes.WinDLL',side_effect=lambda name,**kwargs:user if name=='user32' else gdi,create=True):
+        with patch('display_functions.sys.platform','win32'), \
+             patch('display_functions.ctypes.WinDLL',side_effect=lambda name,**kwargs:user if name=='user32' else gdi,create=True):
             png=puzzle_gui.grid_picture(canvas)
         self.assertEqual(calls,['paint','copy'])
         self.assertEqual(png,rgb_png(3,3,b'\xff\x00\x00'*9))
@@ -440,7 +486,7 @@ class VariableSearchTests(unittest.TestCase):
 
     def test_bordering_growth_stops_before_testing_more_than_ten_candidates(self):
         labels={0:1,1:9,9:9,17:9,25:9}
-        with patch('puzzle_gui.can_connect_region',side_effect=AssertionError('cutoff failed')):
+        with patch('region_functions.overlays.can_connect_region',side_effect=AssertionError('cutoff failed')):
             board,added,limited=force_bordering_growth(6,labels,1,{0})
         self.assertTrue(limited)
         self.assertEqual(board,labels)
@@ -477,7 +523,7 @@ class VariableSearchTests(unittest.TestCase):
             if calls[0]==2:
                 raise InvalidOverlay('Forced cells exceed region size')
             return original(size,labels,number,cells)
-        with patch('puzzle_gui.force_overlay_neighbors',side_effect=reject_one):
+        with patch('region_functions.overlays.force_overlay_neighbors',side_effect=reject_one):
             _,_,states,tested=find_region_overlays([['2','',''],['','3',''],['','','']],{})
         self.assertTrue(states)
         self.assertEqual(tested,9)
@@ -824,7 +870,7 @@ class VariableSearchTests(unittest.TestCase):
         self.assertEqual(colors[6], '#a9d8af')
 
     def test_connectivity_counts_reject_before_search(self):
-        with patch('puzzle_gui.can_connect_region') as search:
+        with patch('region_functions.connectivity.can_connect_region') as search:
             passed, message = check_grid_connectivity([['1', '1'], ['', '']], {})
             self.assertFalse(passed)
             self.assertIn('at most 1', message)
