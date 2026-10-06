@@ -6,9 +6,60 @@ from unittest.mock import patch
 from puzzle_gui import continue_region_overlays
 from puzzle_gui import force_overlay_neighbors
 from puzzle_gui import bordering_regions_reachable
+from puzzle_gui import low_slack_connections
+from puzzle_gui import InvalidOverlay
 from puzzle_gui import GridCanvas, PuzzleApp, format_candidates, read_state, write_state, can_connect_region, check_grid_connectivity, grow_forced_regions, region_colors, canonical_shape, filter_containment, fraction_parts, evaluate, math_runs, draw_math, inline_math, analyze_clues, solve_rational_clue, inferred_integer_variables, minimum_region_size, find_region_overlays, shape_orientations
 
 class VariableSearchTests(unittest.TestCase):
+    def test_all_isolated_pieces_are_checked_for_impossible_connections(self):
+        cells={0,2,24}
+        self.assertEqual(low_slack_connections(5,{cell:5 for cell in cells},5,cells),[])
+
+    def test_more_constrained_larger_piece_is_connected_too(self):
+        cells={0,2,3,23,24}
+        labels={cell:9 for cell in cells}
+        successors=low_slack_connections(5,labels,9,cells)
+        self.assertTrue(successors)
+        self.assertTrue(all(1 in region for region in successors))
+        self.assertTrue(all(len(region)<=9 for region in successors))
+        for region in successors:
+            reached={0}
+            while True:
+                grown=reached|{cell for cell in region if any(
+                    abs(cell//5-other//5)+abs(cell%5-other%5)==1 for other in reached)}
+                if grown==reached: break
+                reached=grown
+            self.assertEqual(reached,set(region))
+    def test_impossible_successor_is_rejected_before_forced_growth(self):
+        with self.assertRaises(InvalidOverlay):
+            force_overlay_neighbors(3,{0:2,8:2},2,{0,8})
+
+    def test_candidate_contradiction_does_not_abort_overlay_search(self):
+        original=force_overlay_neighbors
+        calls=[0]
+        def reject_one(size,labels,number,cells):
+            calls[0]+=1
+            if calls[0]==2:
+                raise InvalidOverlay('Forced cells exceed region size')
+            return original(size,labels,number,cells)
+        with patch('puzzle_gui.force_overlay_neighbors',side_effect=reject_one):
+            _,_,states,tested=find_region_overlays([['2','',''],['','3',''],['','','']],{})
+        self.assertTrue(states)
+        self.assertEqual(tested,9)
+        self.assertGreater(calls[0],2)
+    def test_low_slack_branches_into_four_short_connections(self):
+        cells={1,2,3,17,20,21,22,23,24}
+        labels={cell:12 for cell in cells}
+        labels[7]=6
+        successors=low_slack_connections(5,labels,12,cells)
+        self.assertEqual({frozenset(set(region)-cells) for region in successors},
+                         {frozenset(path) for path in ((6,11,12),(6,11,16),(8,12,13),(8,13,18))})
+        self.assertTrue(all(len(region)==12 for region in successors))
+
+    def test_high_slack_does_not_branch_and_impossible_connection_rejects(self):
+        cells={0,2}
+        self.assertEqual(low_slack_connections(3,{0:5,2:5},5,cells),[frozenset(cells)])
+        self.assertEqual(low_slack_connections(3,{0:2,8:2},2,{0,8}),[])
     def test_bordering_region_rejects_disconnected_clues(self):
         self.assertFalse(bordering_regions_reachable(5,{11:6,13:6},7,{2,7,12,17,22}))
 
@@ -72,7 +123,7 @@ class VariableSearchTests(unittest.TestCase):
         highest, labels, states, tested = find_region_overlays(grid,{})
         self.assertEqual(highest,3)
         self.assertEqual(tested,9)
-        self.assertEqual(len(states),8)  # source 2 is an obstacle
+        self.assertEqual(len(states),11)  # near-forced connections branch some placements
         self.assertTrue(all(0 not in state['cells'] for state in states))
         self.assertEqual(grid[0][0],'2')
         self.assertEqual(labels,{0:2,4:3})

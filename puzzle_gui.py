@@ -377,11 +377,17 @@ def shape_orientations(cells, size):
     return orientations
 
 
+class InvalidOverlay(ValueError):
+    """A candidate contradiction, rather than a failure of the whole search."""
+
+
 def force_overlay_neighbors(size, labels, number, cells):
     """Force multiply-adjacent blanks that no size-bounded completion can avoid."""
     terminals = {cell for cell,value in labels.items() if value == number} | set(cells)
     added = set()
     while True:
+        if not can_connect_region(size,labels,number,terminals):
+            raise InvalidOverlay(f"Region {number} cannot connect within its size.")
         touches = {}
         for cell in terminals:
             row,column = divmod(cell,size)
@@ -401,7 +407,7 @@ def force_overlay_neighbors(size, labels, number, cells):
         terminals.update(forced)
         added.update(forced)
         if len(terminals) > number:
-            raise ValueError(f"Forced cells exceed region {number}'s size.")
+            raise InvalidOverlay(f"Forced cells exceed region {number}'s size.")
 
 
 def bordering_regions_reachable(size, labels, target, cells):
@@ -444,6 +450,70 @@ def bordering_regions_reachable(size, labels, target, cells):
     return True
 
 
+def low_slack_connections(size, labels, target, cells):
+    """Check all isolated pieces and branch recursively on tight connections."""
+    terminals = {cell for cell,value in labels.items() if value == target} | set(cells)
+    def neighbors(cell):
+        row,column = divmod(cell,size)
+        return [r*size+c for r,c in ((row-1,column),(row+1,column),(row,column-1),(row,column+1))
+                if 0 <= r < size and 0 <= c < size
+                and (r*size+c not in labels or labels[r*size+c] == target)]
+    remaining,components = set(terminals),[]
+    while remaining:
+        part = {remaining.pop()}
+        queue = list(part)
+        while queue:
+            for other in neighbors(queue.pop()):
+                if other in remaining:
+                    remaining.remove(other)
+                    part.add(other)
+                    queue.append(other)
+        components.append(part)
+    if len(components) < 2:
+        return [frozenset(cells)]
+    budget = target-len(terminals)
+    constrained = []
+    for source in components:
+        destinations = terminals-source
+        # Reverse Dijkstra counts blank cells needed, not existing region cells.
+        distance = {cell:0 for cell in destinations}
+        heap = [(0,cell) for cell in destinations]
+        heapify(heap)
+        while heap:
+            cost,cell = heappop(heap)
+            if cost != distance[cell]: continue
+            for other in neighbors(cell):
+                candidate = cost+(0 if cell in terminals else 1)
+                if candidate < distance.get(other,target+1):
+                    distance[other] = candidate
+                    heappush(heap,(candidate,other))
+        shortest = min((distance.get(cell,target+1) for cell in source),default=target+1)
+        slack = budget-shortest
+        if slack < 0:
+            return []
+        if slack <= 1:
+            constrained.append((slack,len(source),min(source),source,destinations,distance))
+    if not constrained:
+        return [frozenset(cells)]
+    # Branch on the tightest piece first, then reconsider every piece in each
+    # successor. Each path joins components, so this recursion always progresses.
+    _,_,_,source,destinations,distance = min(constrained,key=lambda item:item[:3])
+    successors = set()
+    stack = [(start,frozenset([start]),frozenset()) for start in source]
+    while stack:
+        cell,visited,added = stack.pop()
+        if cell in destinations:
+            connected = frozenset(set(cells)|set(added))
+            successors.update(low_slack_connections(size,labels,target,connected))
+            continue
+        for other in neighbors(cell):
+            if other in visited or other in source: continue
+            next_added = added if other in terminals else added|{other}
+            if len(next_added)+distance.get(other,target+1) <= budget:
+                stack.append((other,visited|{other},next_added))
+    return sorted(successors,key=lambda region:tuple(sorted(region)))
+
+
 def find_region_overlays(expressions, variables, progress=None, region=None):
     size = len(expressions)
     labels = {r*size+c:int(evaluate(expression,variables))
@@ -474,13 +544,28 @@ def find_region_overlays(expressions, variables, progress=None, region=None):
                 terminals = anchors | cells
                 minimum = minimum_region_size(size,labels,highest,terminals)
                 if minimum is not None:
-                    expanded,forced = force_overlay_neighbors(size,labels,highest,cells)
+                    try:
+                        expanded,forced = force_overlay_neighbors(size,labels,highest,cells)
+                    except InvalidOverlay:
+                        if progress: progress(tested,len(survivors))
+                        continue
                     if not bordering_regions_reachable(size,labels,highest,expanded):
                         if progress: progress(tested,len(survivors))
                         continue
-                    survivors.append({'cells':expanded,'overlay_cells':cells,'forced_cells':forced,
-                                      'row':top,'column':left,'rotation':rotation,
-                                      'reflected':reflected,'minimum_size':minimum})
+                    for successor in low_slack_connections(size,labels,highest,expanded):
+                        connection_cells = frozenset(set(successor)-set(expanded))
+                        try:
+                            successor,post_connection_forced = force_overlay_neighbors(size,labels,highest,successor)
+                        except InvalidOverlay:
+                            continue
+                        if not bordering_regions_reachable(size,labels,highest,successor): continue
+                        completed_minimum = minimum_region_size(size,labels,highest,anchors|set(successor))
+                        if completed_minimum is None: continue
+                        survivors.append({'cells':successor,'overlay_cells':cells,
+                                          'forced_cells':forced|post_connection_forced,
+                                          'connection_cells':connection_cells,
+                                          'row':top,'column':left,'rotation':rotation,
+                                          'reflected':reflected,'minimum_size':completed_minimum})
                 if progress: progress(tested,len(survivors))
     return highest,labels,survivors,tested
 
@@ -1601,6 +1686,8 @@ class PuzzleApp:
             f"Minimum connected size: {state['minimum_size']}. {self.overlay_tested} placements tested.")
         if state.get('forced_cells'):
             self.overlay_message.set(self.overlay_message.get()+f" {len(state['forced_cells'])} forced adjacent cells added.")
+        if state.get('connection_cells'):
+            self.overlay_message.set(self.overlay_message.get()+f" {len(state['connection_cells'])} low-slack connection cells added.")
         if 'parent_index' in state:
             self.overlay_message.set(self.overlay_message.get()+f" From preceding overlay {state['parent_index']+1}.")
         self.refresh()
