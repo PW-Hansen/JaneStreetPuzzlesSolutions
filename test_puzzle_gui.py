@@ -6,10 +6,37 @@ from unittest.mock import patch
 
 from puzzle_gui import (GridCanvas, PuzzleApp, format_candidates,
                         read_state, valid_combinations, write_state,
-                        can_connect_region, check_grid_connectivity, connectivity_candidates)
+                        can_connect_region, check_grid_connectivity, connectivity_candidates,
+                        grow_forced_regions, region_colors)
 
 
 class VariableSearchTests(unittest.TestCase):
+    def test_forced_regions_from_blocked_paths(self):
+        grid = [['', '6', '', '3', ''], ['', '', '5', '', ''],
+                ['4', '', '', '', '5'], ['', '1', '', '6', ''],
+                ['4', '', '', '', '2']]
+        labels, added = grow_forced_regions(grid, {})
+        self.assertEqual(labels[15], 4)
+        for cell in (6, 11, 12):
+            self.assertEqual(labels[cell], 6)
+        self.assertEqual(labels[8], 5)
+        self.assertNotIn(13, labels)
+        self.assertNotIn(17, labels)
+        self.assertGreater(added, 0)
+        self.assertEqual(grid[1][1], '')
+
+    def test_ambiguous_growth_stays_blank(self):
+        labels, added = grow_forced_regions([['', '', ''], ['', '2', ''], ['', '', '']], {})
+        self.assertEqual(labels, {4: 2})
+        self.assertEqual(added, 0)
+
+    def test_color_conflicts_are_resolved(self):
+        labels = {0: 4, 1: 13, 2: 22, 3: 6}
+        colors = region_colors(2, labels)
+        for first, second in ((4, 13), (4, 22), (13, 6), (22, 6)):
+            self.assertNotEqual(colors[first], colors[second])
+        self.assertEqual(colors[4], '#efa5a5')
+        self.assertEqual(colors[6], '#a9d8af')
     def test_connectivity_filters_lists_without_losing_valid_partner(self):
         # a=1 is invalid with b=1, but remains valid with b=2 or b=3.
         count, values, first = connectivity_candidates(

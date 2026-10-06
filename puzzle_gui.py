@@ -157,6 +157,88 @@ def connectivity_candidates(expressions, bounds):
     return count, values, first
 
 
+def region_completions(size, labels, number):
+    """All connected regions of exactly number cells containing its fixed cells."""
+    terminals = frozenset(cell for cell, value in labels.items() if value == number)
+    if not terminals or len(terminals) > number:
+        return []
+    allowed = {cell for cell in range(size * size) if cell not in labels or labels[cell] == number}
+    neighbors = {cell: {r*size+c for r, c in
+                        ((cell//size-1, cell%size), (cell//size+1, cell%size),
+                         (cell//size, cell%size-1), (cell//size, cell%size+1))
+                        if 0 <= r < size and 0 <= c < size and r*size+c in allowed}
+                 for cell in allowed}
+    seen, completed = set(), []
+    stack = [frozenset([min(terminals)])]
+    while stack:
+        region = stack.pop()
+        if region in seen:
+            continue
+        seen.add(region)
+        if len(terminals - region) > number - len(region):
+            continue
+        if len(region) == number:
+            if terminals <= region:
+                completed.append(region)
+            continue
+        frontier = set().union(*(neighbors[cell] for cell in region)) - region
+        for cell in frontier:
+            stack.append(region | {cell})
+    return completed
+
+
+def grow_forced_regions(expressions, variables):
+    passed, message = check_grid_connectivity(expressions, variables)
+    if not passed:
+        raise ValueError(message)
+    size = len(expressions)
+    labels = {r*size+c: int(evaluate(expression, variables))
+              for r, row in enumerate(expressions) for c, expression in enumerate(row)
+              if expression.strip()}
+    original = dict(labels)
+    while True:
+        forced = {}
+        for number in sorted(set(labels.values())):
+            options = region_completions(size, labels, number)
+            if not options:
+                raise ValueError(f"Region {number} has no connected completion of size {number}.")
+            mandatory = set.intersection(*(set(option) for option in options))
+            for cell in mandatory - labels.keys():
+                if cell in forced and forced[cell] != number:
+                    raise ValueError("Different regions require the same blank cell.")
+                forced[cell] = number
+        if not forced:
+            return labels, len(labels) - len(original)
+        labels.update(forced)
+
+
+def region_colors(size, labels):
+    """Greedy coloring of the region adjacency graph, with preferred colors."""
+    palette = ['#f6d797', '#cab5ec', '#9cd7ed', '#efa5a5', '#efc394', '#a9d8af',
+               '#e7afd4', '#b8c9ef', '#d9d79f']
+    adjacency = {number: set() for number in labels.values()}
+    for cell, number in labels.items():
+        row, column = divmod(cell, size)
+        for neighbor in (cell+1 if column+1 < size else -1,
+                         cell+size if row+1 < size else -1):
+            if neighbor in labels and labels[neighbor] != number:
+                adjacency[number].add(labels[neighbor])
+                adjacency[labels[neighbor]].add(number)
+    colors = {}
+    for number in sorted(adjacency):
+        used = {colors[neighbor] for neighbor in adjacency[number] if neighbor in colors}
+        preferred = palette[(number-1) % len(palette)]
+        choices = [preferred] + palette
+        color = next((color for color in choices if color not in used), None)
+        if color is None:
+            # A distinct fallback also handles grids with many touching regions.
+            color = f"#{(number * 2654435761) & 0xffffff:06x}"
+            while color in used:
+                color = f"#{(int(color[1:], 16)+1) & 0xffffff:06x}"
+        colors[number] = color
+    return colors
+
+
 def grid_name(value):
     if (not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]{0,63}", value)
             or value.upper() in {"CON", "PRN", "AUX", "NUL",
@@ -368,6 +450,9 @@ class PuzzleApp:
         self.search_revision = 0
         self.search_message = tk.StringVar(value="Set integer bounds, then compute valid values.")
         self.connectivity_message = tk.StringVar()
+        self.region_labels = {}
+        self.region_palette = {}
+        self.region_message = tk.StringVar()
         self.storage_error = tk.StringVar()
         self.load_state()
         style = ttk.Style(root)
@@ -448,6 +533,9 @@ class PuzzleApp:
         self.connectivity_button = ttk.Button(panel, text="Check connectivity", command=self.check_connectivity)
         self.connectivity_button.grid(row=4, column=0, sticky="ew", padx=(0, 10), pady=(12, 8))
         ttk.Label(panel, textvariable=self.connectivity_message, wraplength=230).grid(row=5, column=0, sticky="nw", padx=(0, 10))
+        self.region_button = ttk.Button(panel, text="Create regions", command=self.create_regions)
+        self.region_button.grid(row=6, column=0, sticky="ew", padx=(0, 10), pady=(12, 8))
+        ttk.Label(panel, textvariable=self.region_message, wraplength=230).grid(row=7, column=0, sticky="nw", padx=(0, 10))
         footer = ttk.Frame(layout)
         footer.grid(row=2, column=0, sticky="ew")
         options = ttk.Frame(footer)
@@ -510,6 +598,8 @@ class PuzzleApp:
             self.storage_error.set(f"Could not save grid: {error}")
 
     def settings_changed(self, *_):
+        if _:
+            self.clear_regions()
         self.connectivity_message.set("")
         self.refresh()
         self.save_state()
@@ -593,6 +683,7 @@ class PuzzleApp:
         self.refresh()
 
     def apply(self):
+        self.clear_regions()
         expression = self.formula.get().strip()
         x, y = self.selected
         self.expressions[y][x] = expression
@@ -652,6 +743,52 @@ class PuzzleApp:
             self.connectivity_message.set(message)
         self.root.after(50, poll)
 
+    def clear_regions(self):
+        self.region_labels = {}
+        self.region_palette = {}
+        self.region_message.set("")
+
+    def create_regions(self):
+        expressions = [row[:] for row in self.expressions]
+        try:
+            variables = {name: Fraction(value.get().strip()) for name, value in self.variables.items()}
+        except (ValueError, ZeroDivisionError):
+            self.region_message.set("Enter numeric candidate values first.")
+            return
+        self.region_button.configure(state="disabled")
+        self.region_message.set("Finding forced cells…")
+        results = Queue()
+        def work():
+            try:
+                results.put((grow_forced_regions(expressions, variables), None))
+            except Exception as error:
+                results.put((None, str(error)))
+        threading.Thread(target=work, daemon=True).start()
+        def poll():
+            try:
+                result, error = results.get_nowait()
+            except Empty:
+                self.root.after(50, poll)
+                return
+            self.region_button.configure(state="normal")
+            try:
+                current = {name: Fraction(value.get().strip()) for name, value in self.variables.items()}
+            except (ValueError, ZeroDivisionError):
+                current = None
+            if expressions != self.expressions or variables != current:
+                self.region_message.set("Grid or candidates changed. Create regions again.")
+                return
+            self.clear_regions()
+            if error:
+                self.region_message.set(error)
+                self.refresh()
+                return
+            self.region_labels, added = result
+            self.region_palette = region_colors(self.SIZE, self.region_labels)
+            self.region_message.set(f"Added {added} forced cells. Ambiguous cells remain blank.")
+            self.refresh()
+        self.root.after(50, poll)
+
     def refresh(self):
         filled, errors = 0, 0
         cells = []
@@ -687,6 +824,12 @@ class PuzzleApp:
                         if self.show_values.get():
                             text = "Error"
                 selected = (x, y) == self.selected
+                region = self.region_labels.get(y*self.SIZE+x)
+                if region is not None:
+                    color = self.region_palette[region]
+                    text = str(region)
+                    if not expression:
+                        detail = f"Forced cell in region {region}."
                 cells.append((x, y, text, color))
                 if selected:
                     selected_detail = detail
