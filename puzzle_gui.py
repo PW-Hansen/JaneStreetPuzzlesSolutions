@@ -536,6 +536,7 @@ class PuzzleEditor:
         self.area_labels = None
         self.analysis_cancel = None
         self.analysis_result = None
+        self.preview_index = 0
         self.selected = None
         self.fresh_entry = True
         self.mode = tk.StringVar(value="arc")
@@ -570,6 +571,20 @@ class PuzzleEditor:
         self.analysis_button.pack(side="left", padx=4)
         self.domain_text = tk.StringVar(value="Select a cell to view allowed arc configurations.")
         ttk.Label(analysis_controls, textvariable=self.domain_text).pack(side="left", padx=8)
+        preview_controls = ttk.Frame(root, padding=(8, 0, 8, 8))
+        preview_controls.pack(fill="x")
+        ttk.Label(preview_controls, text="Accepted state:").pack(side="left", padx=4)
+        self.previous_state_button = ttk.Button(preview_controls, text="Previous",
+                                               command=lambda: self.set_preview(self.preview_index - 1))
+        self.previous_state_button.pack(side="left", padx=4)
+        self.preview_choice = ttk.Combobox(preview_controls, state="readonly", width=28)
+        self.preview_choice.pack(side="left", padx=4)
+        self.preview_choice.bind("<<ComboboxSelected>>",
+                                 lambda event: self.set_preview(self.preview_choice.current()))
+        self.next_state_button = ttk.Button(preview_controls, text="Next",
+                                           command=lambda: self.set_preview(self.preview_index + 1))
+        self.next_state_button.pack(side="left", padx=4)
+        ttk.Label(preview_controls, text="Blue arcs are speculative; State 0 shows confirmed arcs.").pack(side="left", padx=8)
         ttk.Label(root, text="Green: click to toggle • Digits: select a cell and type • "
                   "Arcs: click to cycle through four curves, then no arc\n"
                   "Backspace edits a clue • Delete clears the current mode’s mark • "
@@ -631,6 +646,7 @@ class PuzzleEditor:
             self.state.pop("arc_domains", None)
         self.cancel_clue_analysis()
         self.analysis_result = None
+        self.preview_index = 0
         self.undo_stack.append(previous)
         self.redo_stack.clear()
         self.smooth_colors = None
@@ -681,6 +697,7 @@ class PuzzleEditor:
     def after_history(self):
         self.cancel_clue_analysis()
         self.analysis_result = None
+        self.preview_index = 0
         self.smooth_colors = None
         self.region_colors = None
         self.area_labels = None
@@ -690,6 +707,7 @@ class PuzzleEditor:
         self.save()
 
     def check_smooth_arcs(self):
+        self.preview_index = 0
         groups, self.smooth_colors, conflicts = smooth_arc_groups(self.state)
         self.draw()
         message = f"{len(set(groups.values()))} smooth arc pieces across {len(groups)} arcs."
@@ -727,6 +745,8 @@ class PuzzleEditor:
         snapshot, selected = copy.deepcopy(self.state), self.selected
         event = self.analysis_cancel = threading.Event()
         self.analysis_result = None
+        self.preview_index = 0
+        self.draw()
         messages = Queue()
         self.analysis_button.configure(text="Cancel analysis")
         self.status.set(f"Analyzing clue {clue} at ({r + 1}, {c + 1})…")
@@ -755,16 +775,22 @@ class PuzzleEditor:
                             self.status.set(f"Clue analysis failed: {value}")
                         else:
                             suffix = " Stopped early: more than 25 accepted states." if value.limit_reached else " Search complete."
+                            if value.branch_limit_reached:
+                                suffix = " Stopped early: more than 100,000 branches checked."
                             from clue_analysis import incorporate_analysis
                             previous = copy.deepcopy(self.state)
                             changes = incorporate_analysis(self.state, value)
                             self.commit(previous, preserve_domains=True)
                             self.analysis_result = value
+                            self.preview_index = 0
+                            self.draw()
                             if changes["removed"]:
                                 suffix += f" Removed {changes['removed']} configurations from the master list."
                             if changes["applied"]:
                                 suffix += " Applied the unique accepted state."
-                            if not value.accepted_states and not value.limit_reached and not value.cancelled:
+                            elif changes.get("forced"):
+                                suffix += f" Applied {changes['forced']} forced cell configurations."
+                            if not value.accepted_states and not value.limit_reached and not value.cancelled and not value.branch_limit_reached:
                                 suffix += " No configuration satisfies this clue under the current constraints."
                             self.status.set(f"Clue {clue}: {len(value.accepted_states)} accepted states; "
                                             f"{value.explored} branches checked.{suffix}")
@@ -775,7 +801,40 @@ class PuzzleEditor:
         threading.Thread(target=worker, daemon=True).start()
         self.root.after(100, poll)
 
+    def update_preview_controls(self):
+        if not hasattr(self, "preview_choice"):
+            return
+        result = self.analysis_result
+        count = len(result.accepted_states) if result is not None else 0
+        self.preview_index = max(0, min(self.preview_index, count))
+        self.preview_choice.configure(values=["State 0 — confirmed grid"] +
+                                      [f"State {i} — preview" for i in range(1, count + 1)])
+        self.preview_choice.current(self.preview_index)
+        self.previous_state_button.configure(state="normal" if self.preview_index > 0 else "disabled")
+        self.next_state_button.configure(state="normal" if self.preview_index < count else "disabled")
+
+    def set_preview(self, index):
+        result = self.analysis_result
+        count = len(result.accepted_states) if result is not None else 0
+        self.preview_index = max(0, min(index, count))
+        self.draw()
+
+    def preview_grid(self):
+        """Build a display-only state; never mutate saved cells or domains."""
+        result = self.analysis_result
+        index = getattr(self, "preview_index", 0)
+        if result is None or index == 0 or index > len(result.accepted_states):
+            return self.state, {}
+        display = copy.deepcopy(self.state)
+        speculative = {}
+        for r, c, orientation in result.accepted_states[index - 1]:
+            if orientation != self.state["cells"][r][c]["arc"]:
+                speculative[(r, c)] = "#1769aa"
+            display["cells"][r][c]["arc"] = orientation
+        return display, speculative
+
     def check_regions(self):
+        self.preview_index = 0
         regions, self.region_colors, invalid_arcs = determine_regions(self.state)
         self.region_colors = {fragment: color for fragment, color in self.region_colors.items()
                               if regions[fragment].has_valid_arc_separation()}
@@ -791,6 +850,7 @@ class PuzzleEditor:
                             f"{sum(region.determine_validity() for region in unique_regions)}/{count} regions are valid (integer area).")
 
     def compute_region_areas(self):
+        self.preview_index = 0
         regions, self.region_colors, invalid_arcs = determine_regions(self.state)
         self.region_colors = {fragment: color for fragment, color in self.region_colors.items()
                               if regions[fragment].has_valid_arc_separation()}
@@ -804,6 +864,7 @@ class PuzzleEditor:
                         f"{len(invalid_arcs)} arcs have both sides in one region. Blue labels show areas.")
 
     def clear_arc_colors(self):
+        self.preview_index = 0
         self.smooth_colors = None
         self.region_colors = None
         self.area_labels = None
@@ -811,6 +872,7 @@ class PuzzleEditor:
         self.status.set("Analysis colors cleared.")
 
     def compute_region_scores(self):
+        self.preview_index = 0
         regions, self.region_colors, _ = determine_regions(self.state)
         unique_regions = set(regions.values())
         for region in unique_regions:
@@ -822,14 +884,18 @@ class PuzzleEditor:
                         f"/{len(unique_regions)} regions. Score = area × smooth perimeter pieces.")
 
     def draw(self):
+        self.update_preview_controls()
         self.canvas.delete("all")
         rows, columns = self.state["rows"], self.state["columns"]
         self.size = max(36, min(80, (self.canvas.winfo_width() - 32) / columns,
                                 (self.canvas.winfo_height() - 32) / rows))
         size, margin = self.size, 16
         self.canvas.configure(scrollregion=(0, 0, columns * size + 32, rows * size + 32))
-        self.grid_image = ImageTk.PhotoImage(render_grid(self.state, size, self.smooth_colors,
-                                                        self.region_colors), master=self.canvas)
+        display, speculative = self.preview_grid()
+        previewing = getattr(self, "preview_index", 0) > 0
+        arc_colors = speculative if previewing else self.smooth_colors
+        self.grid_image = ImageTk.PhotoImage(render_grid(display, size, arc_colors,
+                                                        None if previewing else self.region_colors), master=self.canvas)
         self.canvas.create_image(0, 0, image=self.grid_image, anchor="nw")
         for r, row in enumerate(self.state["cells"]):
             for c, cell in enumerate(row):
@@ -840,7 +906,7 @@ class PuzzleEditor:
                 if self.selected == (r, c):
                     self.canvas.create_rectangle(x + 3, y + 3, x + size - 3, y + size - 3,
                                                  outline="#e89520", width=3)
-        for (r, c, x, y, width), area in self.area_labels or []:
+        for (r, c, x, y, width), area in ([] if previewing else self.area_labels or []):
             self.canvas.create_text(margin + (c + x) * size, margin + (r + y) * size,
                                     text=area, fill="#174377",
                                     font=("Segoe UI", max(7, min(11, int(size * .14)))),

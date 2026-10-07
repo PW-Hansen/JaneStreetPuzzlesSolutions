@@ -170,6 +170,90 @@ class ClueAnalysisTests(unittest.TestCase):
         editor.commit(before_edit)
         self.assertNotIn("arc_domains", editor.state)
 
+    def test_multiple_states_apply_shared_arcs_and_no_arc_only(self):
+        state = board(2, 2)
+        result = ClueAnalysis(accepted_states=[
+            ((0, 0, "tl"), (0, 1, "tr"), (1, 0, None), (1, 1, "br")),
+            ((0, 0, "tl"), (0, 1, "tr"), (1, 0, None), (1, 1, "bl")),
+        ])
+        changes = incorporate_analysis(state, result)
+        self.assertFalse(changes["applied"])
+        self.assertEqual(changes["forced"], 3)
+        self.assertEqual(state["cells"][0][0]["arc"], "tl")
+        self.assertEqual(state["cells"][0][1]["arc"], "tr")
+        self.assertEqual(state["arc_domains"][1][0], [None])
+        self.assertEqual(state["cells"][1][1]["arc"], None)
+        self.assertEqual(state["arc_domains"][1][1], ["br", "bl"])
+
+    def test_shared_config_absent_from_one_state_is_not_applied(self):
+        state = board(1, 2)
+        result = ClueAnalysis(accepted_states=[((0, 0, "tl"), (0, 1, "tr")),
+                                              ((0, 0, "tl"),)])
+        incorporate_analysis(state, result)
+        self.assertEqual(state["cells"][0][0]["arc"], "tl")
+        self.assertEqual(state["cells"][0][1]["arc"], None)
+        self.assertEqual(allowed_arc_configurations(state, 0, 1), ARC_CYCLE)
+
+    def test_previews_are_display_only_and_state_zero_is_confirmed(self):
+        editor = PuzzleEditor.__new__(PuzzleEditor)
+        editor.state = board(1, 2)
+        editor.state["cells"][0][0]["arc"] = "tl"
+        editor.analysis_result = ClueAnalysis(accepted_states=[((0, 0, "tl"), (0, 1, "tr")),
+                                                              ((0, 0, "tl"), (0, 1, "br"))])
+        original = copy.deepcopy(editor.state)
+        editor.draw = lambda: None
+        editor.set_preview(1)
+        display, colors = editor.preview_grid()
+        self.assertEqual(display["cells"][0][1]["arc"], "tr")
+        self.assertEqual(colors, {(0, 1): "#1769aa"})
+        editor.set_preview(2)
+        self.assertEqual(editor.preview_grid()[0]["cells"][0][1]["arc"], "br")
+        editor.set_preview(0)
+        self.assertIs(editor.preview_grid()[0], editor.state)
+        self.assertEqual(editor.preview_grid()[1], {})
+        self.assertEqual(editor.state, original)
+        editor.set_preview(-1)
+        self.assertEqual(editor.preview_index, 0)
+        editor.set_preview(99)
+        self.assertEqual(editor.preview_index, 2)
+
+    def test_branch_cutoff_keeps_only_conclusive_exclusions(self):
+        state = board(2, 2)
+        state["cells"][0][0]["number"] = 3
+        result = analyze_clue(state, (0, 0), branch_limit=100)
+        self.assertTrue(result.branch_limit_reached)
+        self.assertEqual(result.explored, 101)
+        self.assertEqual(result.proven_domains[(0, 0)], ("tr", "br", "bl"))
+        self.assertEqual(incorporate_analysis(state, result)["removed"], 2)
+        self.assertIsNone(state["cells"][0][0]["arc"])
+        other = board(2, 2)
+        other["cells"][0][0]["number"] = 3
+        partial = analyze_clue(other, (0, 0), branch_limit=150)
+        self.assertEqual(len(partial.accepted_states), 1)
+        self.assertFalse(incorporate_analysis(other, partial)["applied"])
+
+    def test_cutoff_proofs_keep_exhaustive_completions(self):
+        state = board(2, 2)
+        expected = exhaustive_local_states(state, (0, 0))
+        for clue in range(1, 21):
+            state["cells"][0][0]["number"] = clue
+            for limit in (0, 10, 50, 100, 150):
+                partial = analyze_clue(state, (0, 0), accepted_limit=10000, branch_limit=limit)
+                for accepted in expected.get(clue, set()):
+                    assignment = {(r, c): orientation for r, c, orientation in accepted}
+                    for cell, proven in partial.proven_domains.items():
+                        if cell in assignment:
+                            self.assertIn(assignment[cell], proven)
+                        else:
+                            self.assertEqual(set(proven), set(ARC_CYCLE))
+
+    def test_cutoff_singleton_proof_applies_forced_cell(self):
+        state = board(1, 1)
+        result = ClueAnalysis(branch_limit_reached=True, proven_domains={(0, 0): ("tr",)})
+        changes = incorporate_analysis(state, result)
+        self.assertEqual(changes["forced"], 1)
+        self.assertEqual(state["cells"][0][0]["arc"], "tr")
+
 
 if __name__ == "__main__":
     unittest.main()
