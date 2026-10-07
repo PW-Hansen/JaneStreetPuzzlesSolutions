@@ -591,6 +591,16 @@ class PuzzleEditor:
                                           command=self.analyze_selected_clue)
         self.analysis_button.pack(side="left", padx=4)
         ttk.Button(analysis_controls, text="Factorization", command=self.show_factorizations).pack(side="left", padx=4)
+        options = self.state.get("analysis_options", {})
+        self.simplify_arcs = tk.BooleanVar(value=options.get("simplify_arcs", True))
+        self.prioritize_cells = tk.BooleanVar(value=options.get("prioritize_cells", True))
+        self.check_other_clues = tk.BooleanVar(value=options.get("check_other_clues", True))
+        ttk.Checkbutton(analysis_controls, text="Simplify arcs", variable=self.simplify_arcs,
+                        command=self.save).pack(side="left", padx=8)
+        ttk.Checkbutton(analysis_controls, text="Prioritize cells", variable=self.prioritize_cells,
+                        command=self.save).pack(side="left", padx=8)
+        ttk.Checkbutton(analysis_controls, text="Check other clues", variable=self.check_other_clues,
+                        command=self.save).pack(side="left", padx=8)
         analysis_details = ttk.Frame(root, padding=(8, 0, 8, 8))
         analysis_details.pack(fill="x")
         self.domain_text = tk.StringVar(value="Select a cell to view allowed arc configurations.")
@@ -694,6 +704,10 @@ class PuzzleEditor:
         self.commit(previous)
 
     def save(self):
+        if hasattr(self, "simplify_arcs"):
+            self.state["analysis_options"] = {"simplify_arcs": self.simplify_arcs.get(),
+                                               "prioritize_cells": self.prioritize_cells.get(),
+                                               "check_other_clues": self.check_other_clues.get()}
         temporary = self.path.with_name(self.path.name + ".tmp")
         try:
             self.path.parent.mkdir(parents=True, exist_ok=True)
@@ -805,6 +819,9 @@ class PuzzleEditor:
         if hasattr(self, "factorization_text"):
             self.show_factorizations(update_status=False)
         snapshot, selected = copy.deepcopy(self.state), self.selected
+        simplify_nonclue = self.simplify_arcs.get()
+        prioritize_frontier = self.prioritize_cells.get()
+        check_other_clues = self.check_other_clues.get()
         event = self.analysis_cancel = threading.Event()
         self.analysis_started_at = perf_counter()
         self.update_analysis_time(0.0, "running")
@@ -821,6 +838,9 @@ class PuzzleEditor:
             started = perf_counter()
             try:
                 result = analyze_clue(snapshot, selected, stop_event=event,
+                                      simplify_nonclue=simplify_nonclue,
+                                      prioritize_frontier=prioritize_frontier,
+                                      check_other_clues=check_other_clues,
                                       progress=lambda visited, accepted: messages.put(("progress", (visited, accepted))))
                 result.elapsed_seconds = perf_counter() - started
                 messages.put(("done", result))
@@ -862,6 +882,10 @@ class PuzzleEditor:
                                 suffix += f" Applied {changes['forced']} forced cell configurations."
                             if value.factorization_pruned:
                                 suffix += f" Factorization bounds rejected {value.factorization_pruned} branches."
+                            if value.secondary_checks:
+                                suffix += (f" Other-clue checks: {value.secondary_checks}; "
+                                           f"rejected {value.secondary_pruned} branches; "
+                                           f"{value.secondary_cutoffs} checks exceeded 25 pending worklist states.")
                             if not value.accepted_states and not value.limit_reached and not value.cancelled:
                                 suffix += " No configuration satisfies this clue under the current constraints."
                             self.status.set(f"{engine_label} {clue}: {len(value.accepted_states)} accepted states; "

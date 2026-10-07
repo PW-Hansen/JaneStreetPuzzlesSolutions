@@ -3,11 +3,42 @@
 from collections import deque
 from dataclasses import dataclass, field
 from functools import lru_cache
+from fractions import Fraction
 
-from clue_analysis import (ClueAnalysis, PI_HIGH, PI_LOW, STEPS, fragment_for_edge,
+from clue_analysis import (ClueAnalysis, PI_HIGH, PI_LOW, STEPS, INSIDE_EDGES, fragment_for_edge,
                            compatible_factorizations, minimum_perimeter_pieces,
                            frontier_priorities, choose_frontier_cell)
 from puzzle_gui import Region, allowed_arc_configurations, arc_endpoints, clue_factorizations
+
+
+@dataclass(frozen=True)
+class SimplifiedArc:
+    """Region-facing adjacent edges, with the remaining concrete choices."""
+    edges: str
+    options: tuple
+
+
+def edge_side(orientation, edge):
+    if isinstance(orientation, SimplifiedArc):
+        return 0 if edge in orientation.edges else 1
+    return fragment_for_edge(orientation, edge)
+
+
+def simplified_choices(domain, incoming):
+    """Group arcs by the pair of edges reached from the incoming frontier."""
+    choices = [None] if None in domain else []
+    groups = {}
+    for orientation in domain:
+        if orientation is None:
+            continue
+        sides = {fragment_for_edge(orientation, edge) for edge in incoming}
+        if len(sides) != 1:
+            continue
+        side = next(iter(sides))
+        edges = ''.join(edge for edge in 'NESW'
+                        if fragment_for_edge(orientation, edge) == side)
+        groups.setdefault(edges, []).append(orientation)
+    return choices + [SimplifiedArc(edges, tuple(options)) for edges, options in groups.items()]
 
 
 @dataclass
@@ -18,15 +49,21 @@ class _Partial:
     corners: dict = field(default_factory=dict)
     sharp_corners: set = field(default_factory=set)
     counts: tuple = (0, 0, 0)
+    half_cells: int = 0
+    unresolved_corners: set = field(default_factory=set)
 
 
 def analyze_clue_incremental(state, selected, accepted_limit=25, stop_event=None,
-                             progress=None):
-    """Use the original branching order and bounds with incremental region data.
+                             progress=None, check_other_clues=True, worklist_limit=None,
+                             secondary_worklist_limit=25, simplify_nonclue=True,
+                             prioritize_frontier=True):
+    """Expand regions with grouped non-clue arcs, then validate concrete curves.
 
     Parent snapshots are read-only. Each branch adds only newly reached
     fragments, updates its frontier and area counts, and rechecks sharp joins
-    only at affected corners. Geometry is cached for this immutable search.
+    only at affected corners. Undecided non-clue curves with identical region
+    edges share one branch and contribute a half-cell during expansion. Fixed
+    curves and clue cells retain their concrete geometry. Geometry is cached.
     """
     r, c = selected
     rows, columns = state["rows"], state["columns"]
@@ -36,7 +73,8 @@ def analyze_clue_incremental(state, selected, accepted_limit=25, stop_event=None
     if target is None:
         raise ValueError("Select a cell containing a clue.")
     factorizations = tuple(clue_factorizations(state, selected))
-    priorities = frontier_priorities(state)
+    priorities = (frontier_priorities(state) if prioritize_frontier else
+                  {(r, c): 0 for r in range(rows) for c in range(columns)})
     domains = {(r, c): allowed_arc_configurations(state, r, c)
                for r in range(rows) for c in range(columns)}
     if any(not domain for domain in domains.values()):
@@ -46,11 +84,11 @@ def analyze_clue_incremental(state, selected, accepted_limit=25, stop_event=None
     @lru_cache(maxsize=None)
     def geometry(r, c, orientation, side):
         neighbors, endpoints = [], []
-        if orientation is not None:
+        if orientation is not None and not isinstance(orientation, SimplifiedArc):
             endpoints.extend((corner, tangent, True)
                              for corner, tangent in arc_endpoints(r, c, orientation))
         for edge, dr, dc, opposite in STEPS:
-            if fragment_for_edge(orientation, edge) != side:
+            if edge_side(orientation, edge) != side:
                 continue
             nr, nc = r + dr, c + dc
             if 0 <= nr < rows and 0 <= nc < columns:
@@ -75,7 +113,8 @@ def analyze_clue_incremental(state, selected, accepted_limit=25, stop_event=None
     def expand(parent, assigned, seed):
         partial = _Partial(set(parent.fragments), dict(parent.frontier),
                            set(parent.reached), dict(parent.corners),
-                           set(parent.sharp_corners), parent.counts)
+                           set(parent.sharp_corners), parent.counts,
+                           parent.half_cells, set(parent.unresolved_corners))
         counts = list(parent.counts)
         affected = set()
         queue = deque([seed])
@@ -91,7 +130,14 @@ def analyze_clue_incremental(state, selected, accepted_limit=25, stop_event=None
             partial.fragments.add((r, c, side))
             partial.reached.add((r, c))
             partial.frontier.pop((r, c), None)
-            counts[0 if orientation is None else 1 if side == 0 else 2] += 1
+            if isinstance(orientation, SimplifiedArc):
+                partial.half_cells += 1
+                # Tangents cannot be confirmed until the concrete arc is chosen.
+                representative = orientation.options[0]
+                partial.unresolved_corners.update(corner for corner, _ in
+                                                  arc_endpoints(r, c, representative))
+            else:
+                counts[0 if orientation is None else 1 if side == 0 else 2] += 1
             affected.update(((r, c), (r, c + 1), (r + 1, c), (r + 1, c + 1)))
             neighbors, endpoints = geometry(r, c, orientation, side)
             for corner, tangent, arc in endpoints:
@@ -99,12 +145,13 @@ def analyze_clue_incremental(state, selected, accepted_limit=25, stop_event=None
             for nr, nc, opposite in neighbors:
                 cell = (nr, nc)
                 if cell in assigned:
-                    queue.append((nr, nc, fragment_for_edge(assigned[cell], opposite)))
+                    queue.append((nr, nc, edge_side(assigned[cell], opposite)))
                 else:
                     partial.frontier[cell] = partial.frontier.get(cell, frozenset()) | {opposite}
         for corner in affected:
             entries = partial.corners.get(corner, ())
-            sharp = (len(entries) == 2 and any(arc for _, arc in entries)
+            sharp = (corner not in partial.unresolved_corners
+                     and len(entries) == 2 and any(arc for _, arc in entries)
                      and all(cell in partial.reached for cell in incident_cells(*corner))
                      and entries[0][0] != (-entries[1][0][0], -entries[1][0][1]))
             if sharp:
@@ -116,6 +163,27 @@ def analyze_clue_incremental(state, selected, accepted_limit=25, stop_event=None
 
     def minimum_area(partial):
         whole, inside, outside = partial.counts
+        if simplify_nonclue:
+            # Fixed arcs retain their proper quarter-disc/complement contribution.
+            coefficient = inside - outside
+            lower = (whole + outside + Fraction(partial.half_cells, 2)
+                     + coefficient * (PI_LOW if coefficient >= 0 else PI_HIGH) / 4)
+            for cell in partial.frontier:
+                domain = domains[cell]
+                if domain == (None,):
+                    lower += 1
+                elif state['cells'][cell[0]][cell[1]]['number'] is None and len(domain) > 1:
+                    lower += Fraction(1, 2) if any(arc is not None for arc in domain) else 1
+                else:
+                    lower += 1 - PI_HIGH / 4
+            # A concrete realization may exchange a simplified inside for an
+            # outside. Its eventual integer area balances *all* arc fragments;
+            # do not round the mixed approximation up past that balanced area.
+            balanced = whole + Fraction(inside + outside + partial.half_cells, 2)
+            balanced += sum(Fraction(1, 2) if any(arc is not None for arc in domains[cell])
+                            else 1 for cell in partial.frontier)
+            lower = min(lower, balanced)
+            return -(-lower.numerator // lower.denominator)
         count = len(partial.frontier)
         constant = whole + outside + count
         coefficient = inside - outside - count
@@ -130,6 +198,10 @@ def analyze_clue_incremental(state, selected, accepted_limit=25, stop_event=None
     while stack:
         if stop_event is not None and stop_event.is_set():
             result.cancelled = True
+            break
+        # Only secondary searches pass a worklist limit; main searches stay unlimited.
+        if worklist_limit is not None and len(stack) > worklist_limit:
+            result.worklist_limit_reached = True
             break
         assigned, parent, seed = stack.pop()
         result.explored += 1
@@ -149,7 +221,59 @@ def analyze_clue_incremental(state, selected, accepted_limit=25, stop_event=None
             result.score_pruned += 1
             result.factorization_pruned += 1
             continue
+        if check_other_clues:
+            other_clues = sorted({(r, c) for r, c, side in partial.fragments - parent.fragments
+                                  if (r, c) != selected and assigned[(r, c)] is not None
+                                  and state["cells"][r][c]["number"] is not None})
+            rejected = False
+            for other in other_clues:
+                secondary = check_secondary_clue(state, assigned, other, stop_event,
+                                                 secondary_worklist_limit,
+                                                 simplify_nonclue=simplify_nonclue,
+                                                 prioritize_frontier=prioritize_frontier)
+                result.secondary_checks += 1
+                result.secondary_branches += secondary.explored
+                if secondary.cancelled:
+                    result.cancelled = True
+                    break
+                if secondary.worklist_limit_reached:
+                    result.secondary_cutoffs += 1
+                elif not secondary.accepted_states:
+                    result.secondary_pruned += 1
+                    rejected = True
+                    break
+            if result.cancelled:
+                break
+            if rejected:
+                continue
         if not partial.frontier:
+            if simplify_nonclue:
+                whole, inside, outside = partial.counts
+                area = Fraction(2 * whole + inside + outside + partial.half_cells, 2)
+                if not any(a == area for a, _ in factorizations):
+                    result.area_pruned += 1
+                    result.factorization_pruned += 1
+                    continue
+                found = False
+                for signature in concrete_completions(state, assigned, partial.fragments,
+                                                       target, stop_event, worklist_limit, result):
+                    found = True
+                    if signature not in signatures:
+                        signatures.add(signature)
+                        result.accepted_states.append(signature)
+                        if len(result.accepted_states) > accepted_limit:
+                            result.limit_reached = True
+                            break
+                if stop_event is not None and stop_event.is_set():
+                    result.cancelled = True
+                    break
+                if result.limit_reached:
+                    break
+                if result.worklist_limit_reached:
+                    break
+                if not found:
+                    result.score_pruned += 1
+                continue
             # Only reached cells matter to this Region; copy just those cells.
             candidate = {**state, "cells": [list(row) for row in state["cells"]]}
             for r, c in partial.reached:
@@ -167,8 +291,86 @@ def analyze_clue_incremental(state, selected, accepted_limit=25, stop_event=None
                     break
             continue
         cell = choose_frontier_cell(partial.frontier, priorities)
-        for orientation in reversed(domains[cell]):
-            required = {fragment_for_edge(orientation, edge) for edge in partial.frontier[cell]}
+        choices = (simplified_choices(domains[cell], partial.frontier[cell])
+                   if simplify_nonclue and state['cells'][cell[0]][cell[1]]['number'] is None
+                   else domains[cell])
+        for orientation in reversed(choices):
+            required = {edge_side(orientation, edge) for edge in partial.frontier[cell]}
             if len(required) == 1:
                 stack.append((assigned | {cell: orientation}, partial, (*cell, next(iter(required)))))
     return result
+
+
+def concrete_completions(state, assigned, fragments, target, stop_event=None,
+                         worklist_limit=None, result=None):
+    """Yield concrete realizations with balanced exact area and the right score.
+
+    Topology remains unchanged: each choice exposes the same two region edges.
+    Prune the realization tree when inside/outside balance cannot be recovered.
+    """
+    reached = sorted((r, c, side) for r, c, side in fragments)
+    candidate = {**state, 'cells': [list(row) for row in state['cells']]}
+    options = []
+    for r, c, side in reached:
+        value = assigned[(r, c)]
+        choices = value.options if isinstance(value, SimplifiedArc) else (value,)
+        options.append(tuple((arc, 0 if arc is None else
+                              fragment_for_edge(arc, value.edges[0])
+                              if isinstance(value, SimplifiedArc) else side)
+                             for arc in choices))
+        candidate['cells'][r][c] = dict(state['cells'][r][c])
+    minimum, maximum = [0] * (len(options) + 1), [0] * (len(options) + 1)
+    for index in range(len(options) - 1, -1, -1):
+        contributions = [0 if arc is None else 1 if side == 0 else -1
+                         for arc, side in options[index]]
+        minimum[index] = minimum[index + 1] + min(contributions)
+        maximum[index] = maximum[index + 1] + max(contributions)
+
+    # Iterative DFS also supports long boundaries without a recursion limit.
+    stack = [(0, 0, ())]
+    while stack:
+        if stop_event is not None and stop_event.is_set():
+            return
+        if worklist_limit is not None and len(stack) > worklist_limit:
+            if result is not None:
+                result.worklist_limit_reached = True
+            return
+        index, balance, chosen = stack.pop()
+        if not minimum[index] <= -balance <= maximum[index]:
+            continue
+        if index < len(options):
+            for arc, side in reversed(options[index]):
+                contribution = 0 if arc is None else 1 if side == 0 else -1
+                stack.append((index + 1, balance + contribution, chosen + ((arc, side),)))
+            continue
+        concrete_fragments = set()
+        for (r, c, _), (arc, side) in zip(reached, chosen):
+            candidate['cells'][r][c]['arc'] = arc
+            concrete_fragments.add((r, c, side))
+        region = Region.from_fragments(0, concrete_fragments, candidate)
+        if region.determine_score(candidate) == target:
+            yield tuple((r, c, arc) for (r, c, _), (arc, _) in zip(reached, chosen))
+
+
+def check_secondary_clue(state, assigned, selected, stop_event=None, worklist_limit=25,
+                         simplify_nonclue=True, prioritize_frontier=True):
+    """Check another clue under branch-local decisions without changing the grid.
+
+    One acceptance is enough to establish local feasibility. Zero acceptances
+    mean contradiction only on exhaustion; a worklist cutoff is inconclusive.
+    Nested checks do not recursively launch more checks or apply deductions.
+    """
+    context = {**state, "cells": [list(row) for row in state["cells"]],
+               "arc_domains": [[list(allowed_arc_configurations(state, r, c))
+                                for c in range(state["columns"])] for r in range(state["rows"])]}
+    for (r, c), orientation in assigned.items():
+        if isinstance(orientation, SimplifiedArc):
+            context['arc_domains'][r][c] = list(orientation.options)
+        else:
+            context["cells"][r][c] = {**state["cells"][r][c], "arc": orientation}
+            context["arc_domains"][r][c] = [orientation]
+    return analyze_clue_incremental(context, selected, accepted_limit=0,
+                                    stop_event=stop_event, check_other_clues=False,
+                                    worklist_limit=worklist_limit,
+                                    simplify_nonclue=simplify_nonclue,
+                                    prioritize_frontier=prioritize_frontier)

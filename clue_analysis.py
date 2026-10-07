@@ -45,6 +45,11 @@ class ClueAnalysis:
     elapsed_seconds: float = field(default=0.0, compare=False)
     factorizations: tuple = ()
     factorization_pruned: int = 0
+    worklist_limit_reached: bool = False
+    secondary_checks: int = 0
+    secondary_branches: int = 0
+    secondary_pruned: int = 0
+    secondary_cutoffs: int = 0
 
 
 def fragment_for_edge(orientation, edge):
@@ -242,7 +247,7 @@ def incorporate_analysis(state, result):
     its unenumerated external configurations might all still be possible.
     """
     changes = {"removed": 0, "applied": False}
-    if result.limit_reached or result.cancelled:
+    if result.limit_reached or result.cancelled or result.worklist_limit_reached:
         return changes
     if not result.accepted_states:
         return changes
