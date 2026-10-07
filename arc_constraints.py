@@ -21,6 +21,43 @@ def make_arc_domain_propagator(state):
     compiled = _compile_rules(signature)
     def propagate(snapshot, assigned=None, domains=None):
         return propagate_arc_domains(snapshot, assigned, domains, _compiled=compiled)
+    def extend(domains, cell, value):
+        """Extend an already propagated parent without rescanning unrelated rules."""
+        rules, watchers = compiled
+        narrowed = _mask(domains[cell]) & _mask(value.options if hasattr(value, 'options') else (value,))
+        if not narrowed:
+            return None, ()
+        if _VALUES[narrowed] == domains[cell]:
+            return domains, ()
+        result = dict(domains)
+        result[cell] = _VALUES[narrowed]
+        changed = {cell}
+        queue = deque(watchers.get(cell, ()))
+        pending = set(queue)
+        while queue:
+            index = queue.popleft()
+            pending.remove(index)
+            source, trigger, target, allowed = rules[index]
+            source_mask, target_mask = _mask(result[source]), _mask(result[target])
+            if source_mask & trigger and not target_mask & allowed:
+                affected, narrowed = source, source_mask & ~trigger
+            elif source_mask == trigger:
+                affected, narrowed = target, target_mask & allowed
+            else:
+                continue
+            if not narrowed:
+                return None, ()
+            values = _VALUES[narrowed]
+            if values == result[affected]:
+                continue
+            result[affected] = values
+            changed.add(affected)
+            for next_rule in watchers[affected]:
+                if next_rule not in pending:
+                    pending.add(next_rule)
+                    queue.append(next_rule)
+        return result, changed
+    propagate.extend = extend
     return propagate
 
 

@@ -202,7 +202,8 @@ def analyze_clue_incremental(state, selected, accepted_limit=25, stop_event=None
         return max(rounded, whole + max(inside, outside))
 
     empty = _Partial()
-    stack = [(fixed | {selected: orientation}, empty, (*selected, 0), not simplify_nonclue)
+    stack = [(fixed | {selected: orientation}, empty, (*selected, 0), not simplify_nonclue,
+              domains, (selected, orientation))
              for orientation in reversed(domains[selected])]
     result, signatures = ClueAnalysis(factorizations=factorizations), set()
     while stack:
@@ -213,15 +214,19 @@ def analyze_clue_incremental(state, selected, accepted_limit=25, stop_event=None
         if worklist_limit is not None and len(stack) > worklist_limit:
             result.worklist_limit_reached = True
             break
-        assigned, parent, seed, regular = stack.pop()
+        assigned, parent, seed, regular, parent_domains, placement = stack.pop()
         extra_seeds = ()
-        branch_domains = propagate_arc_domains(state, assigned, domains) if state.get('arc_implications') else domains
+        if state.get('arc_implications'):
+            branch_domains, domain_changes = propagate_arc_domains.extend(parent_domains, *placement)
+        else:
+            branch_domains = domains
         if branch_domains is None:
             result.invalid_pruned += 1
             continue
         if state.get('arc_implications'):
             resolved = dict(assigned)
-            for cell, values in branch_domains.items():
+            for cell in domain_changes:
+                values = branch_domains[cell]
                 if len(values) == 1:
                     resolved[cell] = values[0]
                 elif isinstance(resolved.get(cell), SimplifiedArc):
@@ -276,7 +281,8 @@ def analyze_clue_incremental(state, selected, accepted_limit=25, stop_event=None
             cell = next(cell for cell in sorted(partial.reached)
                         if isinstance(assigned[cell], SimplifiedArc))
             for orientation in reversed(assigned[cell].options):
-                stack.append((assigned | {cell: orientation}, empty, (*selected, 0), True))
+                stack.append((assigned | {cell: orientation}, empty, (*selected, 0), True,
+                              branch_domains, (cell, orientation)))
             continue
         area = minimum_area(partial, regular)
         if not compatible_factorizations(factorizations, area, 1):
@@ -384,7 +390,7 @@ def analyze_clue_incremental(state, selected, accepted_limit=25, stop_event=None
             side = edge_side(orientation, next(iter(partial.frontier[cell])))
             # Reuse the forced-growth snapshot; the seed is already reached.
             stack.append((assigned | {cell: orientation}, lookahead[(cell, orientation)],
-                          (*cell, side), regular))
+                          (*cell, side), regular, branch_domains, (cell, orientation)))
     return result
 
 

@@ -3,13 +3,37 @@ import json
 import unittest
 import random
 
-from arc_constraints import propagate_arc_domains
+from arc_constraints import propagate_arc_domains, make_arc_domain_propagator
 from clue_analysis import ClueAnalysis, incorporate_analysis
 from incremental_analysis import analyze_clue_incremental, SimplifiedArc
 from puzzle_gui import blank_grid, validate_state, ARC_CYCLE
 
 
 class ArcConstraintTests(unittest.TestCase):
+    def test_incremental_domains_match_full_propagation_and_preserve_parent(self):
+        rng = random.Random(456)
+        state = self.board(2, 2)
+        cells = [(r, c) for r in range(2) for c in range(2)]
+        for _ in range(100):
+            state['arc_implications'] = [
+                {'if': [*rng.choice(cells), rng.choice(ARC_CYCLE)],
+                 'then': [*rng.choice(cells), rng.sample(list(ARC_CYCLE), rng.randint(1, 5))]}
+                for _ in range(8)]
+            propagate = make_arc_domain_propagator(state)
+            domains = propagate(state)
+            for cell in rng.sample(cells, len(cells)):
+                if domains is None:
+                    break
+                parent = copy.deepcopy(domains)
+                arc = rng.choice(domains[cell])
+                expected = propagate(state, {cell: arc}, domains)
+                actual, changes = propagate.extend(domains, cell, arc)
+                self.assertEqual(actual, expected)
+                self.assertEqual(domains, parent)
+                if actual is not None:
+                    self.assertEqual(set(changes), {key for key in domains if actual[key] != domains[key]})
+                domains = actual
+
     def test_queued_propagation_matches_full_pass_reference(self):
         rng = random.Random(123)
         state = self.board(2, 2)
