@@ -99,14 +99,13 @@ class SearchTimingTests(unittest.TestCase):
         editor.save = lambda: True
         editor.undo_stack, editor.redo_stack = [], []
         editor.analysis_button = SimpleNamespace(configure=lambda **kwargs: None)
-        editor.incremental_analysis_button = SimpleNamespace(configure=lambda **kwargs: None)
         times, statuses, callbacks = [], [], []
         editor.search_time_text = SimpleNamespace(set=times.append)
         editor.status = SimpleNamespace(set=statuses.append)
         editor.root = SimpleNamespace(after=lambda delay, callback: callbacks.append(callback))
         return editor, times, statuses, callbacks
 
-    def test_both_buttons_dispatch_their_own_engine_and_record_time(self):
+    def test_analysis_button_uses_incremental_engine_and_records_time(self):
         class ImmediateThread:
             def __init__(self, target, **kwargs):
                 self.target = target
@@ -114,21 +113,17 @@ class SearchTimingTests(unittest.TestCase):
             def start(self):
                 self.target()
 
-        for incremental in (False, True):
-            editor, times, statuses, callbacks = self.make_editor()
-            target = "incremental_analysis.analyze_clue_incremental" if incremental else "clue_analysis.analyze_clue"
-            with patch(target, return_value=ClueAnalysis(explored=7)) as engine, \
-                    patch("puzzle_gui.threading.Thread", ImmediateThread), \
-                    patch("puzzle_gui.perf_counter", side_effect=[10.0, 11.0, 13.0, 14.0]):
-                if incremental:
-                    editor.analyze_selected_clue_incremental()
-                else:
-                    editor.analyze_selected_clue()
-                callbacks.pop(0)()
-            engine.assert_called_once()
-            self.assertEqual(editor.analysis_result.elapsed_seconds, 2.0)
-            self.assertEqual(times[-1], "Search time: 2.00 s")
-            self.assertIn("7 branches checked in 2.00 s", statuses[-1])
+        editor, times, statuses, callbacks = self.make_editor()
+        with patch("incremental_analysis.analyze_clue_incremental", return_value=ClueAnalysis(explored=7)) as engine, \
+                patch("clue_analysis.analyze_clue", side_effect=AssertionError("Old engine used")), \
+                patch("puzzle_gui.threading.Thread", ImmediateThread), \
+                patch("puzzle_gui.perf_counter", side_effect=[10.0, 11.0, 13.0, 14.0]):
+            editor.analyze_selected_clue()
+            callbacks.pop(0)()
+        engine.assert_called_once()
+        self.assertEqual(editor.analysis_result.elapsed_seconds, 2.0)
+        self.assertEqual(times[-1], "Search time: 2.00 s")
+        self.assertIn("7 branches checked in 2.00 s", statuses[-1])
 
     def test_timer_updates_without_progress_and_abort_retains_elapsed_time(self):
         editor, times, statuses, callbacks = self.make_editor()

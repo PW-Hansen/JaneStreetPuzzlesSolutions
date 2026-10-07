@@ -572,16 +572,12 @@ class PuzzleEditor:
         self.analysis_button = ttk.Button(analysis_controls, text="Analyze selected clue",
                                           command=self.analyze_selected_clue)
         self.analysis_button.pack(side="left", padx=4)
+        analysis_details = ttk.Frame(root, padding=(8, 0, 8, 8))
+        analysis_details.pack(fill="x")
         self.domain_text = tk.StringVar(value="Select a cell to view allowed arc configurations.")
-        ttk.Label(analysis_controls, textvariable=self.domain_text).pack(side="left", padx=8)
-        incremental_controls = ttk.Frame(root, padding=(8, 0, 8, 8))
-        incremental_controls.pack(fill="x")
-        self.incremental_analysis_button = ttk.Button(
-            incremental_controls, text="Analyze selected clue (Incremental Expansion)",
-            command=self.analyze_selected_clue_incremental)
-        self.incremental_analysis_button.pack(side="left", padx=4)
+        ttk.Label(analysis_details, textvariable=self.domain_text).pack(side="left", padx=8)
         self.search_time_text = tk.StringVar(value="Search time: —")
-        ttk.Label(incremental_controls, textvariable=self.search_time_text).pack(side="left", padx=12)
+        ttk.Label(analysis_details, textvariable=self.search_time_text).pack(side="right", padx=12)
         preview_controls = ttk.Frame(root, padding=(8, 0, 8, 8))
         preview_controls.pack(fill="x")
         ttk.Label(preview_controls, text="Accepted state:").pack(side="left", padx=4)
@@ -740,8 +736,6 @@ class PuzzleEditor:
 
     def reset_analysis_buttons(self):
         self.analysis_button.configure(text="Analyze selected clue")
-        if hasattr(self, "incremental_analysis_button"):
-            self.incremental_analysis_button.configure(text="Analyze selected clue (Incremental Expansion)")
 
     def update_analysis_time(self, elapsed, outcome=""):
         self.analysis_elapsed_seconds = elapsed
@@ -755,12 +749,6 @@ class PuzzleEditor:
             self.status.set(f"Clue analysis aborted after {self.analysis_elapsed_seconds or 0:.2f} s. No deductions applied.")
 
     def analyze_selected_clue(self):
-        self._start_clue_analysis()
-
-    def analyze_selected_clue_incremental(self):
-        self._start_clue_analysis(incremental=True)
-
-    def _start_clue_analysis(self, incremental=False):
         if self.analysis_cancel is not None:
             self.cancel_clue_analysis()
             self.status.set(f"Clue analysis cancelled after {self.analysis_elapsed_seconds or 0:.2f} s.")
@@ -773,9 +761,7 @@ class PuzzleEditor:
         if clue is None:
             self.status.set("The selected cell has no clue. Select a numbered cell.")
             return
-        from clue_analysis import analyze_clue
-        if incremental:
-            from incremental_analysis import analyze_clue_incremental as analyze_clue
+        from incremental_analysis import analyze_clue_incremental as analyze_clue
         snapshot, selected = copy.deepcopy(self.state), self.selected
         event = self.analysis_cancel = threading.Event()
         self.analysis_started_at = perf_counter()
@@ -784,9 +770,8 @@ class PuzzleEditor:
         self.preview_index = 0
         self.draw()
         messages = Queue()
-        active_button = self.incremental_analysis_button if incremental else self.analysis_button
-        active_button.configure(text="Cancel analysis")
-        engine_label = "Incremental clue" if incremental else "Clue"
+        self.analysis_button.configure(text="Cancel analysis")
+        engine_label = "Clue"
         progress_counts = [0, 0]
         self.status.set(f"Analyzing clue {clue} at ({r + 1}, {c + 1})…")
 
