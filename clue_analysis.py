@@ -14,6 +14,25 @@ PI_LOW = Fraction("3.14159265358979323846264338327950288419716939937510")
 PI_HIGH = PI_LOW + Fraction(1, 10 ** 50)
 
 
+def frontier_priorities(state):
+    """One point per category, using orthogonal neighbors and outer borders."""
+    rows, columns = state["rows"], state["columns"]
+    priorities = {}
+    for r in range(rows):
+        for c in range(columns):
+            neighbors = [state["cells"][r + dr][c + dc] for _, dr, dc, _ in STEPS
+                         if 0 <= r + dr < rows and 0 <= c + dc < columns]
+            priorities[(r, c)] = (int(any(cell["green"] for cell in neighbors))
+                                  + int(any(cell["number"] is not None for cell in neighbors))
+                                  + int(r in (0, rows - 1) or c in (0, columns - 1)))
+    return priorities
+
+
+def choose_frontier_cell(frontier, priorities):
+    """Highest category score first; then required edge count and coordinates."""
+    return min(frontier, key=lambda cell: (-priorities[cell], -len(frontier[cell]), cell))
+
+
 @dataclass
 class ClueAnalysis:
     accepted_states: list = field(default_factory=list)
@@ -155,6 +174,7 @@ def analyze_clue(state, selected, accepted_limit=25, stop_event=None, progress=N
     if target is None:
         raise ValueError("Select a cell containing a clue.")
     factorizations = tuple(clue_factorizations(state, selected))
+    priorities = frontier_priorities(state)
     domains = {(r, c): allowed_arc_configurations(state, r, c)
                for r, row in enumerate(state["cells"]) for c, cell in enumerate(row)}
     if any(not domain for domain in domains.values()):
@@ -207,8 +227,7 @@ def analyze_clue(state, selected, accepted_limit=25, stop_event=None, progress=N
                     result.limit_reached = True
                     break
             continue
-        # Most constrained frontier first, with deterministic tie-breaking.
-        cell = min(frontier, key=lambda cell: (-len(frontier[cell]), cell))
+        cell = choose_frontier_cell(frontier, priorities)
         for orientation in reversed(domains[cell]):
             required_sides = {fragment_for_edge(orientation, edge) for edge in frontier[cell]}
             if len(required_sides) == 1:

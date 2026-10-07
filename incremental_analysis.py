@@ -5,7 +5,8 @@ from dataclasses import dataclass, field
 from functools import lru_cache
 
 from clue_analysis import (ClueAnalysis, PI_HIGH, PI_LOW, STEPS, fragment_for_edge,
-                           compatible_factorizations, minimum_perimeter_pieces)
+                           compatible_factorizations, minimum_perimeter_pieces,
+                           frontier_priorities, choose_frontier_cell)
 from puzzle_gui import Region, allowed_arc_configurations, arc_endpoints, clue_factorizations
 
 
@@ -35,6 +36,7 @@ def analyze_clue_incremental(state, selected, accepted_limit=25, stop_event=None
     if target is None:
         raise ValueError("Select a cell containing a clue.")
     factorizations = tuple(clue_factorizations(state, selected))
+    priorities = frontier_priorities(state)
     domains = {(r, c): allowed_arc_configurations(state, r, c)
                for r in range(rows) for c in range(columns)}
     if any(not domain for domain in domains.values()):
@@ -164,7 +166,7 @@ def analyze_clue_incremental(state, selected, accepted_limit=25, stop_event=None
                     result.limit_reached = True
                     break
             continue
-        cell = min(partial.frontier, key=lambda cell: (-len(partial.frontier[cell]), cell))
+        cell = choose_frontier_cell(partial.frontier, priorities)
         for orientation in reversed(domains[cell]):
             required = {fragment_for_edge(orientation, edge) for edge in partial.frontier[cell]}
             if len(required) == 1:
