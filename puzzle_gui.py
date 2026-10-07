@@ -566,7 +566,7 @@ class PuzzleEditor:
         root.geometry("850x850")
         toolbar = ttk.Frame(root, padding=8)
         toolbar.pack(fill="x")
-        for label, value in [("Select (Ctrl+0)", "select"), ("Green cells (Ctrl+1)", "green"), ("Digits (Ctrl+2)", "digit"), ("Arcs (Ctrl+3)", "arc")]:
+        for label, value in [("Select (Ctrl+0)", "select"), ("Green cells (Ctrl+1)", "green"), ("Digits (Ctrl+2)", "digit"), ("Arcs (Ctrl+3)", "arc"), ("Map (Ctrl+4)", "map")]:
             ttk.Radiobutton(toolbar, text=label, value=value, variable=self.mode,
                             command=self.mode_changed).pack(side="left", padx=5)
         self.undo_button = ttk.Button(toolbar, text="Undo", command=self.undo)
@@ -608,6 +608,16 @@ class PuzzleEditor:
         self.search_time_text = tk.StringVar(value="Search time: —")
         ttk.Label(analysis_details, textvariable=self.search_time_text).pack(side="right", padx=12)
         preview_controls = ttk.Frame(root, padding=(8, 0, 8, 8))
+        self.preview_controls = preview_controls
+        self.map_controls = ttk.Frame(root, padding=(8, 0, 8, 8))
+        ttk.Label(self.map_controls, text="Allowed in selected cell:").pack(side="left", padx=4)
+        self.map_options = {}
+        for orientation, label in zip(ARC_CYCLE, ('No arc', 'Top-left', 'Top-right', 'Bottom-right', 'Bottom-left')):
+            variable = tk.BooleanVar()
+            button = ttk.Checkbutton(self.map_controls, text=label, variable=variable,
+                                      command=lambda arc=orientation: self.toggle_domain(arc))
+            button.pack(side="left", padx=4)
+            self.map_options[orientation] = (variable, button)
         preview_controls.pack(fill="x")
         ttk.Label(preview_controls, text="Accepted state:").pack(side="left", padx=4)
         self.previous_state_button = ttk.Button(preview_controls, text="Previous",
@@ -650,7 +660,7 @@ class PuzzleEditor:
         root.bind("<Control-y>", lambda event: self.redo())
         root.bind("<Control-Shift-Z>", lambda event: self.redo())
         root.bind("<Control-s>", lambda event: self.save())
-        for number, mode in enumerate(("select", "green", "digit", "arc")):
+        for number, mode in enumerate(("select", "green", "digit", "arc", "map")):
             root.bind(f"<Control-Key-{number}>",
                       lambda event, chosen=mode: self.set_mode(chosen))
         root.bind("<Escape>", self.clear_selection)
@@ -664,6 +674,32 @@ class PuzzleEditor:
     def mode_changed(self):
         self.fresh_entry = True
         self.canvas.focus_set()
+        self.draw()
+
+    def toggle_domain(self, orientation):
+        if self.selected is None:
+            return
+        r, c = self.selected
+        cell = self.state['cells'][r][c]
+        if cell['green'] or cell['arc'] is not None:
+            self.status.set('Green cells and drawn arcs are fixed. Clear the marking before editing possibilities.')
+            self.draw()
+            return
+        previous = copy.deepcopy(self.state)
+        domains = self.state.setdefault('arc_domains',
+            [[list(ARC_CYCLE) for _ in range(self.state['columns'])] for _ in range(self.state['rows'])])
+        allowed = domains[r][c]
+        if orientation in allowed:
+            if len(allowed) == 1:
+                self.state = previous
+                self.status.set('Keep at least one possible configuration in each cell.')
+                self.draw()
+                return
+            allowed.remove(orientation)
+        else:
+            allowed.append(orientation)
+        domains[r][c] = [arc for arc in ARC_CYCLE if arc in allowed]
+        self.commit(previous, preserve_domains=True)
 
     def set_mode(self, mode):
         if mode != "select" and self.mode.get() == mode:
@@ -682,7 +718,7 @@ class PuzzleEditor:
         if previous == self.state:
             return
         if not preserve_domains:
-            # Deductions depend on clues, green cells, and manually fixed arcs.
+            # Clue/green edits change the puzzle; arc placements retain deductions.
             self.state.pop("arc_domains", None)
         self.cancel_clue_analysis()
         self.analysis_result = None
@@ -1000,27 +1036,61 @@ class PuzzleEditor:
         size, margin = self.size, 16
         self.canvas.configure(scrollregion=(0, 0, columns * size + 32, rows * size + 32))
         display, speculative = self.preview_grid()
+        map_mode = self.mode.get() == 'map'
+        if map_mode:
+            display = {**self.state, 'cells': [[{**cell, 'arc': None} for cell in row]
+                                               for row in self.state['cells']]}
         previewing = getattr(self, "preview_index", 0) > 0
         arc_colors = speculative if previewing else self.smooth_colors
         self.grid_image = ImageTk.PhotoImage(render_grid(display, size, arc_colors,
-                                                        None if previewing else self.region_colors), master=self.canvas)
+                                                        None if previewing or map_mode else self.region_colors), master=self.canvas)
         self.canvas.create_image(0, 0, image=self.grid_image, anchor="nw")
         for r, row in enumerate(self.state["cells"]):
             for c, cell in enumerate(row):
                 x, y = margin + c * size, margin + r * size
                 if cell["number"] is not None:
-                    self.canvas.create_text(x + size / 2, y + size / 2,
+                    self.canvas.create_text(x + size / 2, y + size * (.16 if map_mode else .5),
                         text=str(cell["number"]), font=("Segoe UI", max(10, int(size * .24)), "bold"))
+                if map_mode:
+                    allowed = allowed_arc_configurations(self.state, r, c)
+                    for arc, dx, dy in ((None, .5, .5), ('tl', .78, .27), ('tr', .22, .27),
+                                        ('br', .22, .76), ('bl', .78, .76)):
+                        cx, cy, radius = x + dx * size, y + dy * size, size * .12
+                        color = '#172b4d' if arc in allowed else '#c8c8c8'
+                        if arc is None:
+                            self.canvas.create_text(cx, cy, text='—', fill=color,
+                                                    font=('Segoe UI', max(9, int(size * .2)), 'bold'))
+                        else:
+                            start = {'tl': 0, 'tr': 90, 'br': 180, 'bl': 270}[arc]
+                            points = []
+                            for step in range(13):
+                                angle = math.radians(start + step * 7.5)
+                                points.extend((cx + radius * math.cos(angle), cy - radius * math.sin(angle)))
+                            self.canvas.create_line(*points, fill=color, width=2, smooth=True)
+                        if arc not in allowed:
+                            self.canvas.create_line(cx - radius, cy - radius, cx + radius, cy + radius,
+                                                    fill='#c84646', width=1)
                 if self.selected == (r, c):
                     self.canvas.create_rectangle(x + 3, y + 3, x + size - 3, y + size - 3,
                                                  outline="#e89520", width=3)
-        for (r, c, x, y, width), area in ([] if previewing else self.area_labels or []):
+        for (r, c, x, y, width), area in ([] if previewing or map_mode else self.area_labels or []):
             self.canvas.create_text(margin + (c + x) * size, margin + (r + y) * size,
                                     text=area, fill="#174377",
                                     font=("Segoe UI", max(7, min(11, int(size * .14)))),
                                     width=max(16, int(width * size)), justify="center")
         self.undo_button.configure(state="normal" if self.undo_stack else "disabled")
         self.redo_button.configure(state="normal" if self.redo_stack else "disabled")
+        if hasattr(self, 'map_controls'):
+            if map_mode:
+                self.map_controls.pack(fill='x', before=self.preview_controls)
+            else:
+                self.map_controls.pack_forget()
+            allowed = allowed_arc_configurations(self.state, *self.selected) if self.selected else ()
+            for arc, (variable, button) in self.map_options.items():
+                variable.set(arc in allowed)
+                fixed = self.selected and (self.state['cells'][self.selected[0]][self.selected[1]]['green']
+                                            or self.state['cells'][self.selected[0]][self.selected[1]]['arc'] is not None)
+                button.configure(state='disabled' if self.selected is None or fixed else 'normal')
         if hasattr(self, "domain_text"):
             if self.selected is None:
                 self.domain_text.set("Select a cell to view allowed arc configurations.")
@@ -1042,6 +1112,15 @@ class PuzzleEditor:
             return
         self.selected = (r, c)
         self.fresh_entry = True
+        if mode == 'map':
+            if erase:
+                dx, dy = (x % self.size) / self.size, (y % self.size) / self.size
+                orientation = (None if .33 <= dx <= .67 and .33 <= dy <= .67 else
+                               'tr' if dx < .5 and dy < .5 else 'tl' if dy < .5 else
+                               'br' if dx < .5 else 'bl')
+                self.toggle_domain(orientation)
+            self.draw()
+            return
         previous = copy.deepcopy(self.state)
         cell = self.state["cells"][r][c]
         if mode == "green":
@@ -1054,8 +1133,13 @@ class PuzzleEditor:
         elif mode == "arc" and erase:
             cell["arc"] = None
         elif mode == "arc" and not cell["green"]:
-            cell["arc"] = ARC_CYCLE[(ARC_CYCLE.index(cell["arc"]) + 1) % len(ARC_CYCLE)]
-        self.commit(previous)
+            domains = self.state.get('arc_domains')
+            allowed = domains[r][c] if domains is not None else ARC_CYCLE
+            # None clears the drawn mark; it does not add no-arc to the domain.
+            cycle = (None,) + tuple(arc for arc in ARC_CYCLE[1:] if arc in allowed)
+            index = cycle.index(cell['arc']) if cell['arc'] in cycle else 0
+            cell['arc'] = cycle[(index + 1) % len(cycle)]
+        self.commit(previous, preserve_domains=mode == 'arc')
         self.draw()
 
     def key(self, event):
@@ -1071,7 +1155,7 @@ class PuzzleEditor:
             self.fresh_entry = True
             self.draw()
             return "break"
-        if self.mode.get() == "select":
+        if self.mode.get() in ('select', 'map'):
             return "break"
         previous = copy.deepcopy(self.state)
         cell = self.state["cells"][r][c]
@@ -1087,7 +1171,7 @@ class PuzzleEditor:
                 prefix = "" if self.fresh_entry or cell["number"] is None else str(cell["number"])
                 cell["number"] = int(prefix + event.char)
                 self.fresh_entry = False
-        self.commit(previous)
+        self.commit(previous, preserve_domains=self.mode.get() == 'arc')
         return "break"
 
 
