@@ -170,7 +170,23 @@ class Region:
 
     @property
     def is_valid(self):
-        return not self.invalid_arcs
+        return self.determine_validity()
+
+    def invalidity_reasons(self):
+        """Return reasons this region fails arc-separation or area rules."""
+        reasons = []
+        both_sides = self.invalid_arcs or any(
+            side == 0 and (r, c, 1) in self.fragments
+            for r, c, side in self.fragments)
+        if both_sides:
+            reasons.append("The region contains both sides of an arc.")
+        if not self.is_integer:
+            reasons.append("The region has non-integer area: arc inside and outside counts differ.")
+        return tuple(reasons)
+
+    def determine_validity(self):
+        """Check region geometry and exact area; clue scores are not checked."""
+        return not self.invalidity_reasons()
 
     @property
     def constant(self):
@@ -582,7 +598,7 @@ class PuzzleEditor:
             self.status.set(f"{count} regions — INVALID: both sides of an arc reconnect in cells (row, column): {cells}.")
         else:
             self.status.set(f"{count} regions — every arc separates distinct regions. "
-                            f"{sum(region.is_integer for region in unique_regions)}/{count} regions have integer area.")
+                            f"{sum(region.determine_validity() for region in unique_regions)}/{count} regions are valid (integer area).")
 
     def compute_region_areas(self):
         regions, self.region_colors, invalid_arcs = determine_regions(self.state)

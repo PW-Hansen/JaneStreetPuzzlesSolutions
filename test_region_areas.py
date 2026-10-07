@@ -52,6 +52,24 @@ class RegionAreaTests(unittest.TestCase):
         region = regions[(1, 1, 0)]
         self.assertEqual((region.whole_cells, region.arc_insides, region.arc_outsides), (8, 1, 1))
 
+    def test_region_validity(self):
+        whole = Region.from_fragments(0, {(0, 0, 0)}, self.board(1, 1))
+        self.assertTrue(whole.determine_validity())
+        self.assertEqual(whole.invalidity_reasons(), ())
+        state = self.board(1, 1)
+        state["cells"][0][0]["arc"] = "tl"
+        inside = Region.from_fragments(0, {(0, 0, 0)}, state)
+        self.assertFalse(inside.determine_validity())
+        self.assertFalse(inside.is_valid)
+        self.assertEqual(len(inside.invalidity_reasons()), 1)
+        # Detect both sides from membership even without supplied invalid_arcs.
+        both = Region.from_fragments(0, {(0, 0, 0), (0, 0, 1)}, state)
+        self.assertTrue(both.is_integer)
+        self.assertFalse(both.determine_validity())
+        self.assertEqual(len(both.invalidity_reasons()), 1)
+        unbalanced_dangling = Region(0, both.fragments, 0, 2, 1)
+        self.assertEqual(len(unbalanced_dangling.invalidity_reasons()), 2)
+
     def test_conservation_all_small_boards(self):
         state = self.board(2, 2)
         for orientations in product((None, "tl", "tr", "br", "bl"), repeat=4):
