@@ -85,7 +85,65 @@ def smooth_arc_groups(state):
     return groups, colors, conflicts
 
 
-def render_grid(state, cell_size, arc_colors=None):
+def determine_regions(state):
+    """Connect cell fragments across full edges, never through a corner alone.
+
+    Fragment 0 is the quarter-disc (or an unsplit cell), fragment 1 its
+    complement. An arc is dangling exactly when its fragments reconnect.
+    """
+    parent = {}
+    for r, row in enumerate(state["cells"]):
+        for c, cell in enumerate(row):
+            for side in range(2 if cell["arc"] else 1):
+                parent[(r, c, side)] = (r, c, side)
+
+    def find(node):
+        while parent[node] != node:
+            parent[node] = parent[parent[node]]
+            node = parent[node]
+        return node
+
+    def edge_fragment(r, c, edge):
+        arc = state["cells"][r][c]["arc"]
+        inside_edges = {"tl": "NW", "tr": "NE", "br": "SE", "bl": "SW"}
+        return (r, c, 0 if arc is None or edge in inside_edges[arc] else 1)
+
+    for r, row in enumerate(state["cells"]):
+        for c, cell in enumerate(row):
+            if c + 1 < state["columns"]:
+                parent[find(edge_fragment(r, c, "E"))] = find(edge_fragment(r, c + 1, "W"))
+            if r + 1 < state["rows"]:
+                parent[find(edge_fragment(r, c, "S"))] = find(edge_fragment(r + 1, c, "N"))
+    roots, regions = {}, {}
+    for fragment in parent:
+        root = find(fragment)
+        regions[fragment] = roots.setdefault(root, len(roots))
+    adjacency = {region: set() for region in roots.values()}
+    invalid_arcs = []
+    for r, row in enumerate(state["cells"]):
+        for c, cell in enumerate(row):
+            if cell["arc"]:
+                a, b = regions[(r, c, 0)], regions[(r, c, 1)]
+                if a == b:
+                    invalid_arcs.append((r, c))
+                else:
+                    adjacency[a].add(b)
+                    adjacency[b].add(a)
+    palette = ["#f8d0d0", "#c9ddfa", "#f4dfb2", "#d9cdf4",
+               "#c7e9df", "#f3cde7", "#e4e9bc", "#cce8ef"]
+    assigned = {}
+    for region in sorted(adjacency, key=lambda n: (-len(adjacency[n]), n)):
+        used = {assigned[n] for n in adjacency[region] if n in assigned}
+        index = next(i for i in range(len(palette) + 1) if i not in used)
+        if index == len(palette):
+            rgb = colorsys.hsv_to_rgb((index * .61803398875) % 1, .22, .97)
+            palette.append("#" + "".join(f"{round(v * 255):02x}" for v in rgb))
+        assigned[region] = index
+    colors = {fragment: palette[assigned[region]] for fragment, region in regions.items()}
+    return regions, colors, invalid_arcs
+
+
+def render_grid(state, cell_size, arc_colors=None, region_colors=None):
     """Draw at four times the display resolution for smooth circular edges."""
     scale, margin = 4, 16
     rows, columns = state["rows"], state["columns"]
@@ -102,7 +160,24 @@ def render_grid(state, cell_size, arc_colors=None):
         for c, cell in enumerate(row):
             x, y = margin + c * cell_size, margin + r * cell_size
             painter.rectangle(box(x, y, x + cell_size, y + cell_size),
-                              fill="#c5e5c8" if cell["green"] else "white")
+                              fill=(region_colors[(r, c, 1 if cell["arc"] else 0)]
+                                    if region_colors is not None else
+                                    "#c5e5c8" if cell["green"] else "white"))
+            if region_colors is not None and cell["arc"]:
+                corner = cell["arc"]
+                cx = x + (corner in ("tr", "br")) * cell_size
+                cy = y + (corner in ("bl", "br")) * cell_size
+                start = {"tl": 0, "tr": 90, "br": 180, "bl": 270}[corner]
+                polygon = [(round(cx * scale), round(cy * scale))]
+                for step in range(129):
+                    angle = math.radians(start + 90 * step / 128)
+                    polygon.append((round((cx + cell_size * math.cos(angle)) * scale),
+                                    round((cy + cell_size * math.sin(angle)) * scale)))
+                painter.polygon(polygon, fill=region_colors[(r, c, 0)])
+            if region_colors is not None and cell["green"]:
+                # Preserve the puzzle's green-cell markings under the overlay.
+                painter.rectangle(box(x + 5, y + 5, x + 11, y + 11),
+                                  fill="#83bd8b", outline="#35683c", width=scale)
     for r in range(1, rows):
         y = margin + r * cell_size
         painter.line(box(margin, y, margin + columns * cell_size, y),
@@ -262,6 +337,7 @@ class PuzzleEditor:
                 load_error = str(exc)
         self.undo_stack, self.redo_stack = [], []
         self.smooth_colors = None
+        self.region_colors = None
         self.selected = None
         self.fresh_entry = True
         self.mode = tk.StringVar(value="arc")
@@ -288,6 +364,7 @@ class PuzzleEditor:
                         textvariable=variable).pack(side="left")
         ttk.Button(dimensions, text="Resize grid", command=self.resize).pack(side="left", padx=10)
         ttk.Button(dimensions, text="Check smooth arcs", command=self.check_smooth_arcs).pack(side="left", padx=4)
+        ttk.Button(dimensions, text="Determine regions", command=self.check_regions).pack(side="left", padx=4)
         ttk.Button(dimensions, text="Clear colors", command=self.clear_arc_colors).pack(side="left", padx=4)
         ttk.Label(root, text="Green: click to toggle • Digits: select a cell and type • "
                   "Arcs: click to cycle through four curves, then no arc\n"
@@ -346,6 +423,7 @@ class PuzzleEditor:
         self.undo_stack.append(previous)
         self.redo_stack.clear()
         self.smooth_colors = None
+        self.region_colors = None
         self.draw()
         self.save()
 
@@ -381,6 +459,7 @@ class PuzzleEditor:
 
     def after_history(self):
         self.smooth_colors = None
+        self.region_colors = None
         self.rows.set(str(self.state["rows"]))
         self.columns.set(str(self.state["columns"]))
         self.selected = None
@@ -419,10 +498,21 @@ class PuzzleEditor:
                         "its two ends cannot have different colors while keeping the chain one color.")
         self.status.set(message)
 
+    def check_regions(self):
+        regions, self.region_colors, invalid_arcs = determine_regions(self.state)
+        self.draw()
+        count = len(set(regions.values()))
+        if invalid_arcs:
+            cells = ", ".join(f"({r + 1}, {c + 1})" for r, c in invalid_arcs)
+            self.status.set(f"{count} regions — INVALID: both sides of an arc reconnect in cells (row, column): {cells}.")
+        else:
+            self.status.set(f"{count} regions — valid: every arc separates distinct regions.")
+
     def clear_arc_colors(self):
         self.smooth_colors = None
+        self.region_colors = None
         self.draw()
-        self.status.set("Arc colors cleared.")
+        self.status.set("Analysis colors cleared.")
 
     def draw(self):
         self.canvas.delete("all")
@@ -431,7 +521,8 @@ class PuzzleEditor:
                                 (self.canvas.winfo_height() - 32) / rows))
         size, margin = self.size, 16
         self.canvas.configure(scrollregion=(0, 0, columns * size + 32, rows * size + 32))
-        self.grid_image = ImageTk.PhotoImage(render_grid(self.state, size, self.smooth_colors), master=self.canvas)
+        self.grid_image = ImageTk.PhotoImage(render_grid(self.state, size, self.smooth_colors,
+                                                        self.region_colors), master=self.canvas)
         self.canvas.create_image(0, 0, image=self.grid_image, anchor="nw")
         for r, row in enumerate(self.state["cells"]):
             for c, cell in enumerate(row):
