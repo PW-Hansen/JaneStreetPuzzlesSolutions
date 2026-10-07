@@ -331,18 +331,32 @@ def analyze_clue_incremental(state, selected, accepted_limit=25, stop_event=None
                     break
             continue
         legal_choices = {}
+        lookahead = {}
         for cell, edges in partial.frontier.items():
             choices = (simplified_choices(domains[cell], edges)
                        if not regular and state['cells'][cell[0]][cell[1]]['number'] is None
                        else domains[cell])
-            legal_choices[cell] = tuple(arc for arc in choices
-                                        if len({edge_side(arc, edge) for edge in edges}) == 1)
+            viable = []
+            for arc in choices:
+                required = {edge_side(arc, edge) for edge in edges}
+                if len(required) != 1:
+                    continue
+                seed = (*cell, next(iter(required)))
+                # Count actual surviving placements, including forced green
+                # growth and conflicting clue/arc-side checks, for MRV.
+                grown = expand(partial, assigned | {cell: arc}, seed)
+                if grown is not None:
+                    viable.append(arc)
+                    lookahead[(cell, arc)] = grown
+            legal_choices[cell] = tuple(viable)
         cell = choose_frontier_cell(partial.frontier, priorities,
                                     prioritize_connections=prioritize_frontier,
                                     choice_counts={cell: len(choices) for cell, choices in legal_choices.items()})
         for orientation in reversed(legal_choices[cell]):
             side = edge_side(orientation, next(iter(partial.frontier[cell])))
-            stack.append((assigned | {cell: orientation}, partial, (*cell, side), regular))
+            # Reuse the forced-growth snapshot; the seed is already reached.
+            stack.append((assigned | {cell: orientation}, lookahead[(cell, orientation)],
+                          (*cell, side), regular))
     return result
 
 

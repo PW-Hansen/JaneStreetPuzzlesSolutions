@@ -79,7 +79,7 @@ class IncrementalAnalysisTests(unittest.TestCase):
         self.assertEqual(len(result.accepted_states), 2)
 
     def test_both_engines_continue_beyond_100000_until_manually_aborted(self):
-        state = board(4, 4)
+        state = board(5, 5)
         state["cells"][1][1]["number"] = 12
         for engine in (analyze_clue, analyze_clue_incremental):
             event = threading.Event()
@@ -89,7 +89,8 @@ class IncrementalAnalysisTests(unittest.TestCase):
                     event.set()
 
             options = {'simplify_nonclue': False} if engine is analyze_clue_incremental else {}
-            result = engine(state, (1, 1), stop_event=event, progress=progress, **options)
+            result = engine(state, (1, 1), stop_event=event, progress=progress,
+                            accepted_limit=10000, **options)
             self.assertGreater(result.explored, 100000)
             self.assertTrue(result.cancelled)
             self.assertFalse(result.limit_reached)
@@ -200,6 +201,27 @@ class SimplifiedArcTests(unittest.TestCase):
 
 
 class SecondaryClueTests(unittest.TestCase):
+    def test_45_green_reconnection_prioritizes_288_and_rejects_quickly(self):
+        state = board(9, 9)
+        state['cells'][6][7].update(number=45, arc='br')
+        state['cells'][7][8]['number'] = 288
+        for r, c in ((5, 7), (5, 8), (8, 8), (8, 6)):
+            state['cells'][r][c]['green'] = True
+        state['cells'][8][6]['number'] = 35
+        before = copy.deepcopy(state)
+        with patch('incremental_analysis.check_secondary_clue', wraps=check_secondary_clue) as secondary:
+            result = analyze_clue_incremental(state, (6, 7))
+        self.assertFalse(result.accepted_states)
+        self.assertFalse(result.limit_reached)
+        self.assertFalse(result.cancelled)
+        self.assertGreaterEqual(result.secondary_pruned, 2)
+        self.assertLess(result.explored, 50)
+        self.assertEqual(secondary.call_args_list[0].args[2], (7, 8))
+        first_assigned = secondary.call_args_list[0].args[1]
+        self.assertIn((6, 8), first_assigned)
+        self.assertNotIn((6, 6), first_assigned)
+        self.assertEqual(state, before)
+
     def test_green_growth_with_many_exits_skips_secondary_search(self):
         state = board(5, 5)
         state['cells'][2][2]['number'] = 25
