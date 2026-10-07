@@ -609,6 +609,10 @@ class PuzzleEditor:
                                           command=self.analyze_selected_clue)
         self.analysis_button.pack(side="left", padx=4)
         ttk.Button(analysis_controls, text="Factorization", command=self.show_factorizations).pack(side="left", padx=4)
+        local_controls = ttk.Frame(root, padding=(8, 0, 8, 6))
+        local_controls.pack(fill='x')
+        ttk.Button(local_controls, text='Scan local conditionals (3 cells)',
+                   command=self.scan_local_conditionals).pack(side='left', padx=4)
         options = self.state.get("analysis_options", {})
         self.simplify_arcs = tk.BooleanVar(value=options.get("simplify_arcs", True))
         self.prioritize_cells = tk.BooleanVar(value=options.get("prioritize_cells", True))
@@ -831,6 +835,23 @@ class PuzzleEditor:
                                     (expressions or "No positive integer factor pairs within the grid bounds."))
         if update_status:
             self.status.set("Factorizations satisfy arithmetic and grid bounds; geometric feasibility still requires analysis.")
+
+    def scan_local_conditionals(self):
+        from local_conditionals import scan_local_conditionals
+        self.cancel_clue_analysis()
+        previous = copy.deepcopy(self.state)
+        started = perf_counter()
+        try:
+            scanned, counts = scan_local_conditionals(previous, max_distance=3)
+        except ValueError as exc:
+            self.status.set(f'Local scan: {exc}')
+            return
+        self.state = scanned
+        self.commit(previous, preserve_domains=True)
+        self.draw()
+        self.status.set(f"Local scan: {counts['clues']} clues; {counts['pairs']} pairs checked; "
+                        f"{counts['implications']} conditional deductions recorded; "
+                        f"{counts['removed']} configurations removed in {perf_counter() - started:.2f} s.")
 
     def check_smooth_arcs(self):
         self.preview_index = 0
