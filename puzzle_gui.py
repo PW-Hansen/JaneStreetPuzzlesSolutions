@@ -353,7 +353,7 @@ def region_area_positions(state, regions):
     return {region: candidate[1] for region, candidate in candidates.items()}
 
 
-def render_grid(state, cell_size, arc_colors=None, region_colors=None, map_mode=False):
+def render_grid(state, cell_size, arc_colors=None, region_colors=None, map_mode=False, active_clue=None):
     """Draw at four times the display resolution for smooth circular edges."""
     scale, margin = 4, 16
     rows, columns = state["rows"], state["columns"]
@@ -432,6 +432,12 @@ def render_grid(state, cell_size, arc_colors=None, region_colors=None, map_mode=
             radius = cell_size * (.15 if map_mode else .23)
             painter.ellipse(box(cx - radius, cy - radius, cx + radius, cy + radius),
                             outline='#1769aa', width=2 * scale)
+    if active_clue is not None:
+        r, c = active_clue
+        cx, cy = margin + (c + .5) * cell_size, margin + (r + .5) * cell_size
+        radius = cell_size * .42
+        painter.ellipse(box(cx - radius, cy - radius, cx + radius, cy + radius),
+                        outline='#ef8c00', width=2 * scale)
     return image.resize((width, height), Image.Resampling.LANCZOS)
 
 
@@ -520,6 +526,26 @@ def choose_grid(root):
 def blank_grid(rows, columns):
     return [[{"green": False, "number": None, "arc": None}
              for _ in range(columns)] for _ in range(rows)]
+
+
+def ordered_clues(state):
+    from fractions import Fraction
+    rows, columns = state['rows'], state['columns']
+    ranked = []
+    for r, row in enumerate(state['cells']):
+        for c, cell in enumerate(row):
+            if cell['number'] is None:
+                continue
+            green = sum(state['cells'][nr][nc]['green']
+                        for nr, nc in ((r - 1, c), (r + 1, c), (r, c - 1), (r, c + 1))
+                        if 0 <= nr < rows and 0 <= nc < columns)
+            score = Fraction(cell['number']) * Fraction(3, 4) ** green
+            if cell['green']:
+                score *= Fraction(3, 4)
+            if r in (0, rows - 1) or c in (0, columns - 1):
+                score *= Fraction(1, 2)
+            ranked.append((score, r, c))
+    return [(r, c) for _, r, c in sorted(ranked)]
 
 
 def save_accepted_states(state, selected, result):
@@ -686,6 +712,9 @@ class PuzzleEditor:
                    command=self.scan_local_conditionals).pack(side='left', padx=4)
         ttk.Button(local_controls, text='Wipe local conditionals',
                    command=self.wipe_local_conditionals).pack(side='left', padx=4)
+        self.analyze_all_button = ttk.Button(local_controls, text='Analyze all clues',
+                                             command=self.analyze_all_clues)
+        self.analyze_all_button.pack(side='left', padx=4)
         options = self.state.get("analysis_options", {})
         self.simplify_arcs = tk.BooleanVar(value=options.get("simplify_arcs", True))
         self.prioritize_cells = tk.BooleanVar(value=options.get("prioritize_cells", True))
@@ -703,6 +732,8 @@ class PuzzleEditor:
         ttk.Label(analysis_details, textvariable=self.domain_text).pack(side="left", padx=8)
         self.search_time_text = tk.StringVar(value="Search time: —")
         ttk.Label(analysis_details, textvariable=self.search_time_text).pack(side="right", padx=12)
+        self.batch_time_text = tk.StringVar(value='Total analysis time: —')
+        ttk.Label(analysis_details, textvariable=self.batch_time_text).pack(side='right', padx=8)
         preview_controls = ttk.Frame(root, padding=(8, 0, 8, 8))
         self.preview_controls = preview_controls
         self.map_controls = ttk.Frame(root, padding=(8, 0, 8, 8))
@@ -955,7 +986,7 @@ class PuzzleEditor:
             scanned, counts = scan_local_conditionals(previous, max_distance=3)
         except ValueError as exc:
             self.status.set(f'Local scan: {exc}')
-            return
+            return False
         self.state = scanned
         self.commit(previous, preserve_domains=True)
         self.draw()
@@ -963,6 +994,7 @@ class PuzzleEditor:
                         f"{counts['implications']} conditional deductions recorded; "
                         f"{counts['removed']} configurations removed in {perf_counter() - started:.2f} s; "
                         f"{counts['cutoffs']} checks inconclusive.")
+        return True
 
     def check_smooth_arcs(self):
         self.preview_index = 0
@@ -975,6 +1007,8 @@ class PuzzleEditor:
         self.status.set(message)
 
     def cancel_clue_analysis(self):
+        if not getattr(self, '_batch_applying', False):
+            self.stop_batch_analysis()
         event = getattr(self, "analysis_cancel", None)
         if event is not None:
             event.set()
@@ -984,9 +1018,86 @@ class PuzzleEditor:
                 self.update_analysis_time(perf_counter() - started, "cancelled")
             self.analysis_started_at = None
             self.reset_analysis_buttons()
+            if hasattr(self, 'canvas'):
+                self.draw()
 
     def reset_analysis_buttons(self):
         self.analysis_button.configure(text="Analyze selected clue")
+
+    def stop_batch_analysis(self):
+        if getattr(self, 'batch_token', None) is not None and getattr(self, 'batch_started_at', None) is not None:
+            self.update_batch_time(perf_counter() - self.batch_started_at)
+            self.batch_started_at = None
+        self.batch_token = None
+        self.batch_clues = []
+        if hasattr(self, 'analyze_all_button'):
+            self.analyze_all_button.configure(text='Analyze all clues')
+
+    def analyze_all_clues(self):
+        if getattr(self, 'batch_token', None) is not None:
+            self.abort_clue_analysis()
+            return
+        self.cancel_clue_analysis()
+        started = perf_counter()
+        self.update_batch_time(0.0)
+        if not self.scan_local_conditionals():
+            self.update_batch_time(perf_counter() - started)
+            return
+        self.batch_clues = ordered_clues(self.state)
+        if not self.batch_clues:
+            self.update_batch_time(perf_counter() - started)
+            self.status.set('No clues to analyze.')
+            return
+        self.batch_token = object()
+        self.batch_started_at = started
+        self.batch_total = len(self.batch_clues)
+        self.batch_completed = 0
+        self.batch_pass = 1
+        self.batch_pass_arcs = {(r, c, cell['arc']) for r, row in enumerate(self.state['cells'])
+                                for c, cell in enumerate(row) if cell['arc'] is not None}
+        if hasattr(self, 'analyze_all_button'):
+            self.analyze_all_button.configure(text='Stop analyzing all clues')
+        self.poll_batch_time(self.batch_token)
+        self.next_batch_clue(self.batch_token)
+
+    def update_batch_time(self, elapsed):
+        self.batch_elapsed_seconds = elapsed
+        if hasattr(self, 'batch_time_text'):
+            self.batch_time_text.set(f'Total analysis time: {elapsed:.2f} s')
+
+    def poll_batch_time(self, token):
+        if getattr(self, 'batch_token', None) is not token:
+            return
+        self.update_batch_time(perf_counter() - self.batch_started_at)
+        self.root.after(100, lambda: self.poll_batch_time(token))
+
+    def next_batch_clue(self, token):
+        if getattr(self, 'batch_token', None) is not token:
+            return
+        if not self.batch_clues:
+            regions = set(determine_regions(self.state)[0].values())
+            complete = all(region.verify(self.state) for region in regions)
+            arcs = {(r, c, cell['arc']) for r, row in enumerate(self.state['cells'])
+                    for c, cell in enumerate(row) if cell['arc'] is not None}
+            if complete or not arcs - self.batch_pass_arcs:
+                passes = self.batch_pass
+                self.stop_batch_analysis()
+                outcome = 'Puzzle verified complete.' if complete else 'No new arcs placed in the last pass.'
+                self.status.set(f'Finished after {passes} passes. {outcome}')
+                return
+            self.batch_pass += 1
+            self.batch_pass_arcs = arcs
+            self.batch_clues = ordered_clues(self.state)
+            self.batch_completed = 0
+        self.selected = self.batch_clues.pop(0)
+        self.load_saved_clue(self.selected)
+        self.analyze_selected_clue()
+
+    def batch_clue_finished(self):
+        token = getattr(self, 'batch_token', None)
+        if token is not None:
+            self.batch_completed += 1
+            self.root.after(0, lambda: self.next_batch_clue(token))
 
     def update_analysis_time(self, elapsed, outcome=""):
         self.analysis_elapsed_seconds = elapsed
@@ -995,9 +1106,9 @@ class PuzzleEditor:
             self.search_time_text.set(f"Search time: {elapsed:.2f} s{suffix}")
 
     def abort_clue_analysis(self):
-        if self.analysis_cancel is not None:
+        if self.analysis_cancel is not None or getattr(self, 'batch_token', None) is not None:
             self.cancel_clue_analysis()
-            self.status.set(f"Clue analysis aborted after {self.analysis_elapsed_seconds or 0:.2f} s. No deductions applied.")
+            self.status.set(f"Clue analysis aborted after {self.analysis_elapsed_seconds or 0:.2f} s. Completed deductions preserved.")
 
     def analyze_selected_clue(self):
         if self.analysis_cancel is not None:
@@ -1020,6 +1131,7 @@ class PuzzleEditor:
         prioritize_frontier = self.prioritize_cells.get()
         check_other_clues = self.check_other_clues.get()
         event = self.analysis_cancel = threading.Event()
+        self.active_clue = selected
         self.analysis_started_at = perf_counter()
         self.update_analysis_time(0.0, "running")
         self.analysis_result = None
@@ -1030,6 +1142,9 @@ class PuzzleEditor:
         engine_label = "Clue"
         progress_counts = [0, 0]
         self.status.set(f"Analyzing clue {clue} at ({r + 1}, {c + 1})…")
+        if getattr(self, 'batch_token', None) is not None:
+            self.status.set(f'Pass {self.batch_pass}: analyzing clue {self.batch_completed + 1}/{self.batch_total}: '
+                            f'{clue} at ({r + 1}, {c + 1})…')
 
         def worker():
             started = perf_counter()
@@ -1058,9 +1173,11 @@ class PuzzleEditor:
                         self.analysis_cancel = None
                         self.analysis_started_at = None
                         self.reset_analysis_buttons()
+                        self.draw()
                         elapsed = value[1] if kind == "error" else value.elapsed_seconds
                         self.update_analysis_time(elapsed, "failed" if kind == "error" else "")
                         if kind == "error":
+                            self.stop_batch_analysis()
                             self.status.set(f"Clue analysis failed after {elapsed:.2f} s: {value[0]}")
                         else:
                             suffix = " Stopped early: more than 25 accepted states." if value.limit_reached else " Search complete."
@@ -1071,6 +1188,7 @@ class PuzzleEditor:
                                 changes = incorporate_analysis(updated, value)
                                 save_accepted_states(updated, selected, value)
                             except ValueError as exc:
+                                self.stop_batch_analysis()
                                 self.analysis_result = value
                                 self.preview_index = 0
                                 self.draw()
@@ -1078,7 +1196,11 @@ class PuzzleEditor:
                                                 f'could not apply deductions: {exc}')
                                 return
                             self.state = updated
-                            self.commit(previous, preserve_domains=True)
+                            self._batch_applying = True
+                            try:
+                                self.commit(previous, preserve_domains=True)
+                            finally:
+                                self._batch_applying = False
                             self.analysis_result = value
                             self.preview_index = 0
                             self.draw()
@@ -1101,6 +1223,7 @@ class PuzzleEditor:
                                 suffix += " No configuration satisfies this clue under the current constraints."
                             self.status.set(f"{engine_label} {clue}: {len(value.accepted_states)} accepted states; "
                                             f"{value.explored} branches checked in {elapsed:.2f} s.{suffix}")
+                            self.batch_clue_finished()
                         return
             except Empty:
                 visited, accepted = progress_counts
@@ -1244,7 +1367,10 @@ class PuzzleEditor:
         arc_colors = speculative if previewing else self.smooth_colors
         self.grid_image = ImageTk.PhotoImage(render_grid(display, size, arc_colors,
                                                         None if previewing or map_mode else self.region_colors,
-                                                        map_mode=map_mode), master=self.canvas)
+                                                        map_mode=map_mode,
+                                                        active_clue=(getattr(self, 'active_clue', None)
+                                                                     if self.analysis_cancel is not None else None)),
+                                               master=self.canvas)
         self.canvas.create_image(0, 0, image=self.grid_image, anchor="nw")
         for r, row in enumerate(self.state["cells"]):
             for c, cell in enumerate(row):
