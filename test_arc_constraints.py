@@ -11,6 +11,20 @@ from puzzle_gui import blank_grid, validate_state, ARC_CYCLE
 
 
 class ArcConstraintTests(unittest.TestCase):
+    def test_optional_source_hypotheses_respect_existing_conditional_context(self):
+        state = self.board(1, 3)
+        state['cells'][0][0]['number'] = 3
+        state['arc_implications'] = [{'if': [0, 2, 'tl'], 'then': [0, 1, ['br']]}]
+        # The first local region omits the source, but cannot coexist with
+        # source=tl: its target=tl would violate the existing conditional.
+        result = ClueAnalysis(accepted_states=[((0, 0, None), (0, 1, 'tl')),
+                                              ((0, 0, 'br'), (0, 1, 'br'), (0, 2, 'tr'))],
+                              source_clue=(0, 0))
+        incorporate_analysis(state, result)
+        propagated = propagate_arc_domains(state, {(0, 2): 'tl'})
+        self.assertTrue(propagated is None or propagated[(0, 1)] == ('br',))
+        validate_state(json.loads(json.dumps(state)))
+
     def test_grouped_triggers_propagate_from_a_multi_option_domain(self):
         state = self.board(1, 3)
         state['arc_implications'] = [

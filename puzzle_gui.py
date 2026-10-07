@@ -1066,8 +1066,18 @@ class PuzzleEditor:
                             suffix = " Stopped early: more than 25 accepted states." if value.limit_reached else " Search complete."
                             from clue_analysis import incorporate_analysis
                             previous = copy.deepcopy(self.state)
-                            changes = incorporate_analysis(self.state, value)
-                            save_accepted_states(self.state, selected, value)
+                            updated = copy.deepcopy(self.state)
+                            try:
+                                changes = incorporate_analysis(updated, value)
+                                save_accepted_states(updated, selected, value)
+                            except ValueError as exc:
+                                self.analysis_result = value
+                                self.preview_index = 0
+                                self.draw()
+                                self.status.set(f'Clue {clue}: {len(value.accepted_states)} accepted states; '
+                                                f'could not apply deductions: {exc}')
+                                return
+                            self.state = updated
                             self.commit(previous, preserve_domains=True)
                             self.analysis_result = value
                             self.preview_index = 0

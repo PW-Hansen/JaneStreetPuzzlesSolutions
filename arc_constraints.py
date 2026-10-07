@@ -136,13 +136,17 @@ def learn_arc_implications(state, assignments, mandatory, source_clue=None):
     added = 0
     touched = set().union(*(set(values) for values in assignments))
     baseline = {cell: set(allowed_arc_configurations(state, *cell)) for cell in touched}
+    context_propagate = make_arc_domain_propagator(state)
+    context_domains = context_propagate(state)
     for source in sorted(touched):
         for trigger in ARC_CYCLE:
             if trigger not in baseline[source]:
                 continue
             # A cell outside a local region is unenumerated, not empty. Such
             # a state remains possible under every allowed source orientation.
-            subset = [values for values in assignments if source not in values or values[source] == trigger]
+            subset = [values for values in assignments
+                      if (source not in values or values[source] == trigger)
+                      and context_propagate(state, values | {source: trigger}, context_domains) is not None]
             if not subset:
                 continue
             for target in sorted(touched - {source}):
