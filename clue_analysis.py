@@ -189,6 +189,10 @@ def analyze_clue(state, selected, accepted_limit=25, stop_event=None, progress=N
     priorities = frontier_priorities(state)
     domains = {(r, c): allowed_arc_configurations(state, r, c)
                for r, row in enumerate(state["cells"]) for c, cell in enumerate(row)}
+    from arc_constraints import propagate_arc_domains
+    domains = propagate_arc_domains(state, domains=domains)
+    if domains is None:
+        return ClueAnalysis(invalid_pruned=1, factorizations=factorizations)
     if any(not domain for domain in domains.values()):
         return ClueAnalysis(invalid_pruned=1, factorizations=factorizations)
     fixed = {cell: domain[0] for cell, domain in domains.items() if len(domain) == 1}
@@ -200,6 +204,12 @@ def analyze_clue(state, selected, accepted_limit=25, stop_event=None, progress=N
             result.cancelled = True
             break
         assigned = stack.pop()
+        branch_domains = propagate_arc_domains(state, assigned, domains) if state.get('arc_implications') else domains
+        if branch_domains is None:
+            result.invalid_pruned += 1
+            continue
+        if state.get('arc_implications'):
+            assigned.update({cell: values[0] for cell, values in branch_domains.items() if len(values) == 1})
         result.explored += 1
         if progress and result.explored % 256 == 0:
             progress(result.explored, len(result.accepted_states))
@@ -240,9 +250,9 @@ def analyze_clue(state, selected, accepted_limit=25, stop_event=None, progress=N
                     break
             continue
         choice_counts = {cell: sum(len({fragment_for_edge(arc, edge) for edge in edges}) == 1
-                                   for arc in domains[cell]) for cell, edges in frontier.items()}
+                                   for arc in branch_domains[cell]) for cell, edges in frontier.items()}
         cell = choose_frontier_cell(frontier, priorities, choice_counts=choice_counts)
-        for orientation in reversed(domains[cell]):
+        for orientation in reversed(branch_domains[cell]):
             required_sides = {fragment_for_edge(orientation, edge) for edge in frontier[cell]}
             if len(required_sides) == 1:
                 stack.append(assigned | {cell: orientation})
@@ -278,6 +288,10 @@ def incorporate_analysis(state, result):
                 state["cells"][r][c]["arc"] = orientation
                 changes["forced"] = changes.get("forced", 0) + 1
     state["arc_domains"] = domains
+    from arc_constraints import learn_arc_implications
+    learned = learn_arc_implications(state, assignments, mandatory)
+    if learned:
+        changes['implications'] = learned
     if len(assignments) == 1:
         for (r, c), orientation in assignments[0].items():
             state["cells"][r][c]["arc"] = orientation

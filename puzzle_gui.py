@@ -535,6 +535,24 @@ def validate_state(state):
                     raise ValueError("Invalid arc master-list entry.")
                 if not allowed_arc_configurations(state, r, c):
                     raise ValueError("Arc master list contradicts the cell markings.")
+    rules = state.get('arc_implications', [])
+    if not isinstance(rules, list):
+        raise ValueError('Conditional arc deductions must be a list.')
+    for rule in rules:
+        if not isinstance(rule, dict) or set(rule) != {'if', 'then'}:
+            raise ValueError('Invalid conditional arc deduction.')
+        source, target = rule['if'], rule['then']
+        if (not isinstance(source, list) or not isinstance(target, list) or len(source) != 3 or len(target) != 3
+            or any(not isinstance(v, int) or isinstance(v, bool) for v in source[:2] + target[:2])
+            or not (0 <= source[0] < rows and 0 <= source[1] < columns
+                    and 0 <= target[0] < rows and 0 <= target[1] < columns)
+            or source[2] not in ARC_CYCLE or not isinstance(target[2], list) or not target[2]
+            or any(arc not in ARC_CYCLE for arc in target[2])):
+            raise ValueError('Invalid conditional arc deduction.')
+    if rules:
+        from arc_constraints import propagate_arc_domains
+        if propagate_arc_domains(state) is None:
+            raise ValueError('Conditional deductions contradict the current markings or master list.')
     return state
 
 
@@ -604,6 +622,9 @@ class PuzzleEditor:
         analysis_details = ttk.Frame(root, padding=(8, 0, 8, 8))
         analysis_details.pack(fill="x")
         self.domain_text = tk.StringVar(value="Select a cell to view allowed arc configurations.")
+        self.implication_text = tk.StringVar()
+        ttk.Label(root, textvariable=self.implication_text, wraplength=800,
+                  padding=(12, 0, 12, 4)).pack(fill='x')
         ttk.Label(analysis_details, textvariable=self.domain_text).pack(side="left", padx=8)
         self.search_time_text = tk.StringVar(value="Search time: —")
         ttk.Label(analysis_details, textvariable=self.search_time_text).pack(side="right", padx=12)
@@ -699,6 +720,12 @@ class PuzzleEditor:
         else:
             allowed.append(orientation)
         domains[r][c] = [arc for arc in ARC_CYCLE if arc in allowed]
+        from arc_constraints import propagate_arc_domains
+        if propagate_arc_domains(self.state) is None:
+            self.state = previous
+            self.status.set('This edit conflicts with a recorded conditional deduction.')
+            self.draw()
+            return
         self.commit(previous, preserve_domains=True)
 
     def set_mode(self, mode):
@@ -720,6 +747,7 @@ class PuzzleEditor:
         if not preserve_domains:
             # Clue/green edits change the puzzle; arc placements retain deductions.
             self.state.pop("arc_domains", None)
+            self.state.pop('arc_implications', None)
         self.cancel_clue_analysis()
         self.analysis_result = None
         self.preview_index = 0
@@ -734,6 +762,7 @@ class PuzzleEditor:
     def reset_arcs(self):
         previous = copy.deepcopy(self.state)
         self.state.pop("arc_domains", None)
+        self.state.pop('arc_implications', None)
         for row in self.state["cells"]:
             for cell in row:
                 cell["arc"] = None
@@ -912,6 +941,8 @@ class PuzzleEditor:
                             self.draw()
                             if changes["removed"]:
                                 suffix += f" Removed {changes['removed']} configurations from the master list."
+                            if changes.get('implications'):
+                                suffix += f" Recorded {changes['implications']} conditional deductions."
                             if changes["applied"]:
                                 suffix += " Applied the unique accepted state."
                             elif changes.get("forced"):
@@ -1031,6 +1062,8 @@ class PuzzleEditor:
                 self.show_factorizations(update_status=False)
         self.canvas.delete("all")
         rows, columns = self.state["rows"], self.state["columns"]
+        from arc_constraints import propagate_arc_domains
+        effective_domains = propagate_arc_domains(self.state)
         self.size = max(36, min(80, (self.canvas.winfo_width() - 32) / columns,
                                 (self.canvas.winfo_height() - 32) / rows))
         size, margin = self.size, 16
@@ -1052,7 +1085,7 @@ class PuzzleEditor:
                     self.canvas.create_text(x + size / 2, y + size * (.16 if map_mode else .5),
                         text=str(cell["number"]), font=("Segoe UI", max(10, int(size * .24)), "bold"))
                 if map_mode:
-                    allowed = allowed_arc_configurations(self.state, r, c)
+                    allowed = effective_domains[(r, c)] if effective_domains is not None else ()
                     for arc, dx, dy in ((None, .5, .5), ('tl', .78, .27), ('tr', .22, .27),
                                         ('br', .22, .76), ('bl', .78, .76)):
                         cx, cy, radius = x + dx * size, y + dy * size, size * .12
@@ -1085,7 +1118,7 @@ class PuzzleEditor:
                 self.map_controls.pack(fill='x', before=self.preview_controls)
             else:
                 self.map_controls.pack_forget()
-            allowed = allowed_arc_configurations(self.state, *self.selected) if self.selected else ()
+            allowed = effective_domains[self.selected] if self.selected and effective_domains is not None else ()
             for arc, (variable, button) in self.map_options.items():
                 variable.set(arc in allowed)
                 fixed = self.selected and (self.state['cells'][self.selected[0]][self.selected[1]]['green']
@@ -1098,8 +1131,18 @@ class PuzzleEditor:
                 r, c = self.selected
                 names = {None: "no arc", "tl": "top-left", "tr": "top-right",
                          "br": "bottom-right", "bl": "bottom-left"}
-                allowed = allowed_arc_configurations(self.state, r, c)
+                allowed = effective_domains[(r, c)] if effective_domains is not None else ()
                 self.domain_text.set(f"({r + 1}, {c + 1}) allowed: " + ", ".join(names[o] for o in allowed))
+        if hasattr(self, 'implication_text'):
+            names = {None: 'no arc', 'tl': 'top-left', 'tr': 'top-right', 'br': 'bottom-right', 'bl': 'bottom-left'}
+            descriptions = []
+            for rule in self.state.get('arc_implications', []):
+                r, c, arc = rule['if']
+                nr, nc, allowed = rule['then']
+                if self.selected in ((r, c), (nr, nc)):
+                    descriptions.append(f"If r{r + 1}c{c + 1} is {names[arc]}, r{nr + 1}c{nc + 1} must be "
+                                        + ' or '.join(names[value] for value in allowed))
+            self.implication_text.set('\n'.join(descriptions))
 
     def click(self, event, erase=False):
         mode = self.mode.get()
@@ -1135,6 +1178,16 @@ class PuzzleEditor:
         elif mode == "arc" and not cell["green"]:
             domains = self.state.get('arc_domains')
             allowed = domains[r][c] if domains is not None else ARC_CYCLE
+            from arc_constraints import propagate_arc_domains
+            effective = propagate_arc_domains(self.state)
+            if effective is not None:
+                # Test alternatives without the currently drawn arc pinning the
+                # source cell; retained master domains and implications still apply.
+                unmarked = {**self.state, 'cells': [list(row) for row in self.state['cells']]}
+                unmarked['cells'][r][c] = {**cell, 'arc': None}
+                effective = propagate_arc_domains(unmarked)
+                if effective is not None:
+                    allowed = effective[(r, c)]
             # None clears the drawn mark; it does not add no-arc to the domain.
             cycle = (None,) + tuple(arc for arc in ARC_CYCLE[1:] if arc in allowed)
             index = cycle.index(cell['arc']) if cell['arc'] in cycle else 0

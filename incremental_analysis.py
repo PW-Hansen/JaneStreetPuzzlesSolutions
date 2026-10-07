@@ -9,6 +9,7 @@ from clue_analysis import (ClueAnalysis, PI_HIGH, PI_LOW, STEPS, INSIDE_EDGES, f
                            compatible_factorizations, minimum_perimeter_pieces,
                            frontier_priorities, choose_frontier_cell)
 from puzzle_gui import Region, allowed_arc_configurations, arc_endpoints, clue_factorizations
+from arc_constraints import propagate_arc_domains
 
 
 @dataclass(frozen=True)
@@ -80,6 +81,9 @@ def analyze_clue_incremental(state, selected, accepted_limit=25, stop_event=None
                   {(r, c): 0 for r in range(rows) for c in range(columns)})
     domains = {(r, c): allowed_arc_configurations(state, r, c)
                for r in range(rows) for c in range(columns)}
+    domains = propagate_arc_domains(state, domains=domains)
+    if domains is None:
+        return ClueAnalysis(invalid_pruned=1, factorizations=factorizations)
     if any(not domain for domain in domains.values()):
         return ClueAnalysis(invalid_pruned=1, factorizations=factorizations)
     fixed = {cell: domain[0] for cell, domain in domains.items() if len(domain) == 1}
@@ -209,6 +213,20 @@ def analyze_clue_incremental(state, selected, accepted_limit=25, stop_event=None
             result.worklist_limit_reached = True
             break
         assigned, parent, seed, regular = stack.pop()
+        branch_domains = propagate_arc_domains(state, assigned, domains) if state.get('arc_implications') else domains
+        if branch_domains is None:
+            result.invalid_pruned += 1
+            continue
+        if state.get('arc_implications'):
+            resolved = dict(assigned)
+            for cell, values in branch_domains.items():
+                if len(values) == 1:
+                    resolved[cell] = values[0]
+                elif isinstance(resolved.get(cell), SimplifiedArc):
+                    value = resolved[cell]
+                    resolved[cell] = SimplifiedArc(value.edges, tuple(arc for arc in value.options if arc in values))
+            if resolved != assigned:
+                assigned, parent, seed = resolved, empty, (*selected, 0)
         result.explored += 1
         if progress and result.explored % 256 == 0:
             progress(result.explored, len(result.accepted_states))
@@ -333,9 +351,9 @@ def analyze_clue_incremental(state, selected, accepted_limit=25, stop_event=None
         legal_choices = {}
         lookahead = {}
         for cell, edges in partial.frontier.items():
-            choices = (simplified_choices(domains[cell], edges)
+            choices = (simplified_choices(branch_domains[cell], edges)
                        if not regular and state['cells'][cell[0]][cell[1]]['number'] is None
-                       else domains[cell])
+                       else branch_domains[cell])
             viable = []
             for arc in choices:
                 required = {edge_side(arc, edge) for edge in edges}
@@ -518,6 +536,9 @@ def concrete_completions(state, assigned, fragments, target, stop_event=None,
             candidate['cells'][r][c]['arc'] = arc
             concrete_fragments.add((r, c, side))
         region = Region.from_fragments(0, concrete_fragments, candidate)
+        if state.get('arc_implications') and propagate_arc_domains(state, assigned | {
+            (r, c): arc for (r, c, _), (arc, _) in zip(reached, chosen)}) is None:
+            continue
         if region.determine_score(candidate) == target:
             yield tuple((r, c, arc) for (r, c, _), (arc, _) in zip(reached, chosen))
 
@@ -581,6 +602,11 @@ class SecondarySearchCache:
             return ClueAnalysis(cancelled=True), False
         restrictions = {cell: frozenset(value.options if isinstance(value, SimplifiedArc) else (value,))
                         for cell, value in assigned.items()}
+        if self.state.get('arc_implications'):
+            propagated = propagate_arc_domains(self.state, assigned)
+            if propagated is None:
+                return ClueAnalysis(), False
+            restrictions.update({cell: frozenset(values) for cell, values in propagated.items()})
         key = (selected, frozenset(restrictions.items()))
         if key in self.memo:
             self.memo.move_to_end(key)
