@@ -16,14 +16,21 @@ class ImmediateThread:
 
 
 class BatchAnalysisTests(unittest.TestCase):
-    def test_order_uses_each_green_neighbor_and_edge_once(self):
+    def test_order_uses_nearby_grouped_conditionals_instead_of_green_and_edges(self):
         state = {'rows': 4, 'columns': 5, 'cells': blank_grid(4, 5)}
         for r, c, number in [(0, 0, 9), (2, 3, 15), (2, 2, 21), (0, 4, 17)]:
             state['cells'][r][c]['number'] = number
         for r, c in [(0, 1), (1, 0), (3, 3)]:
             state['cells'][r][c]['green'] = True
-        # Adjusted scores: 2.53125, 8.5, 11.25, 21. Corners get one edge factor.
-        self.assertEqual(ordered_clues(state), [(0, 0), (0, 4), (2, 3), (2, 2)])
+        self.assertEqual(ordered_clues(state), [(0, 0), (2, 3), (0, 4), (2, 2)])
+        state['arc_implications'] = [{'if': [2, 2, arc], 'then': [3, 2, ['tl']]}
+                                     for arc in ('tl', 'tr', 'br', 'bl')]
+        # Four equivalent triggers form one conditional, and endpoints in
+        # the same neighborhood count once: 21 * .8 = 16.8.
+        self.assertEqual(ordered_clues(state), [(0, 0), (2, 3), (2, 2), (0, 4)])
+        state['arc_implications'].append({'if': [3, 2, 'br'], 'then': [3, 1, ['tl']]})
+        state['arc_implications'].append({'if': [1, 2, 'br'], 'then': [0, 2, ['tl']]})
+        self.assertEqual(ordered_clues(state), [(0, 0), (2, 2), (2, 3), (0, 4)])
 
     def editor(self):
         editor = PuzzleEditor.__new__(PuzzleEditor)
@@ -97,6 +104,27 @@ class BatchAnalysisTests(unittest.TestCase):
         worker.assert_not_called()
         self.assertIsNone(editor.batch_token)
         self.assertEqual(callbacks, [])
+
+    def test_remaining_clues_are_reranked_after_each_result(self):
+        editor, callbacks = self.editor()
+        editor.state = {'rows': 1, 'columns': 7, 'cells': blank_grid(1, 7)}
+        for c, number in [(0, 1), (3, 10), (6, 11)]:
+            editor.state['cells'][0][c]['number'] = number
+        seen = []
+        def engine(state, selected, **kwargs):
+            seen.append(selected)
+            return ClueAnalysis(source_clue=selected)
+        def incorporate(state, result):
+            if result.source_clue == (0, 0):
+                state['arc_implications'] = [{'if': [0, 6, 'tl'], 'then': [0, 5, ['tr']]}]
+            return {'removed': 0, 'applied': False}
+        with patch('puzzle_gui.threading.Thread', ImmediateThread), \
+                patch('incremental_analysis.analyze_clue_incremental', side_effect=engine), \
+                patch('clue_analysis.incorporate_analysis', side_effect=incorporate):
+            editor.analyze_all_clues()
+            while callbacks:
+                callbacks.pop(0)()
+        self.assertEqual(seen, [(0, 0), (0, 6), (0, 3)])
 
     def test_abort_stops_current_worker_and_prevents_next_clue(self):
         editor, callbacks = self.editor()

@@ -530,20 +530,18 @@ def blank_grid(rows, columns):
 
 def ordered_clues(state):
     from fractions import Fraction
-    rows, columns = state['rows'], state['columns']
+    # Equivalent trigger orientations are one grouped conditional, matching
+    # the display and propagation rather than inflating their importance.
+    conditionals = {(tuple(rule['if'][:2]), tuple(rule['then'][:2]), frozenset(rule['then'][2]))
+                    for rule in state.get('arc_implications', [])}
     ranked = []
     for r, row in enumerate(state['cells']):
         for c, cell in enumerate(row):
             if cell['number'] is None:
                 continue
-            green = sum(state['cells'][nr][nc]['green']
-                        for nr, nc in ((r - 1, c), (r + 1, c), (r, c - 1), (r, c + 1))
-                        if 0 <= nr < rows and 0 <= nc < columns)
-            score = Fraction(cell['number']) * Fraction(3, 4) ** green
-            if cell['green']:
-                score *= Fraction(3, 4)
-            if r in (0, rows - 1) or c in (0, columns - 1):
-                score *= Fraction(1, 2)
+            nearby = {(r, c), (r - 1, c), (r + 1, c), (r, c - 1), (r, c + 1)}
+            count = sum(source in nearby or target in nearby for source, target, _ in conditionals)
+            score = Fraction(cell['number']) * Fraction(4, 5) ** count
             ranked.append((score, r, c))
     return [(r, c) for _, r, c in sorted(ranked)]
 
@@ -1089,6 +1087,8 @@ class PuzzleEditor:
             self.batch_pass_arcs = arcs
             self.batch_clues = ordered_clues(self.state)
             self.batch_completed = 0
+        remaining = set(self.batch_clues)
+        self.batch_clues = [cell for cell in ordered_clues(self.state) if cell in remaining]
         self.selected = self.batch_clues.pop(0)
         self.load_saved_clue(self.selected)
         self.analyze_selected_clue()
@@ -1148,6 +1148,7 @@ class PuzzleEditor:
 
         def worker():
             started = perf_counter()
+            print(f'Starting analysis of clue {clue} at r{selected[0] + 1}c{selected[1] + 1}', flush=True)
             try:
                 result = analyze_clue(snapshot, selected, stop_event=event,
                                       simplify_nonclue=simplify_nonclue,
@@ -1155,9 +1156,15 @@ class PuzzleEditor:
                                       check_other_clues=check_other_clues,
                                       progress=lambda visited, accepted: messages.put(("progress", (visited, accepted))))
                 result.elapsed_seconds = perf_counter() - started
+                outcome = ' (aborted)' if result.cancelled else ' (stopped early)' if result.limit_reached or result.worklist_limit_reached else ''
+                print(f'Clue {clue} at r{selected[0] + 1}c{selected[1] + 1}: '
+                      f'{result.elapsed_seconds:.2f} seconds{outcome}', flush=True)
                 messages.put(("done", result))
             except Exception as exc:
-                messages.put(("error", (str(exc), perf_counter() - started)))
+                elapsed = perf_counter() - started
+                print(f'Clue {clue} at r{selected[0] + 1}c{selected[1] + 1}: '
+                      f'{elapsed:.2f} seconds (failed: {exc})', flush=True)
+                messages.put(("error", (str(exc), elapsed)))
 
         def poll():
             if self.analysis_cancel is not event:
