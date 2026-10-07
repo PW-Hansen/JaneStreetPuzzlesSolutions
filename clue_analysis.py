@@ -112,7 +112,7 @@ def area_lower_bound(state, assigned, fragments, frontier):
     return max(rounded, whole + max(inside, outside))
 
 
-def minimum_perimeter_pieces(confirmed_sharp_joins):
+def minimum_perimeter_pieces(confirmed_sharp_joins, confirmed_quarter_turns=0):
     """A valid integer-area region cannot have just one sharp perimeter join.
 
     Quarter-circle turning contributes the same pi/4 coefficient as area.
@@ -121,7 +121,12 @@ def minimum_perimeter_pieces(confirmed_sharp_joins):
     this, even allowing smooth holes. Thus any confirmed sharp join rules out
     a one-piece perimeter; separate open chains are still not counted.
     """
-    return max(2, confirmed_sharp_joins) if confirmed_sharp_joins else 1
+    # Balanced quarter-disc contributions give zero net smooth turning for
+    # integer area. Total boundary turning is a multiple of a full turn, so
+    # an odd number of 90-degree joins needs another 90-degree join. Cusps
+    # contribute 180 degrees and do not change this parity.
+    required = confirmed_sharp_joins + confirmed_quarter_turns % 2
+    return max(2, required) if confirmed_sharp_joins else 1
 
 
 def compatible_factorizations(factorizations, minimum_area, minimum_pieces):
@@ -136,7 +141,7 @@ def confirmed_smooth_piece_bound(state, assigned, fragments):
     A corner is resolved only when all incident in-grid cells are decided
     and already reached by this region (so no extra boundary can arrive later).
     With exactly two known perimeter endpoints, a nonmatching tangent pair
-    involving an arc is a forced sharp join. Such joins cannot disappear as
+    is a forced sharp join, including bends at grid corners. Such joins cannot disappear as
     the region grows, even if its open smooth chains wrap around and merge.
     """
     corners = {}
@@ -157,9 +162,9 @@ def confirmed_smooth_piece_bound(state, assigned, fragments):
             if on_border and fragment_for_edge(orientation, edge) == side:
                 for corner, tangent in endpoints:
                     corners.setdefault(corner, []).append((tangent, False))
-    sharp = 0
+    sharp = quarter_turns = 0
     for (vr, vc), entries in corners.items():
-        if len(entries) != 2 or not any(arc for _, arc in entries):
+        if len(entries) != 2:
             continue
         incident = [(r, c) for r in (vr - 1, vr) for c in (vc - 1, vc)
                     if 0 <= r < state["rows"] and 0 <= c < state["columns"]]
@@ -169,7 +174,8 @@ def confirmed_smooth_piece_bound(state, assigned, fragments):
         a, b = entries[0][0], entries[1][0]
         if a != (-b[0], -b[1]):
             sharp += 1
-    return minimum_perimeter_pieces(sharp)
+            quarter_turns += a[0] * b[0] + a[1] * b[1] == 0
+    return minimum_perimeter_pieces(sharp, quarter_turns)
 
 
 def analyze_clue(state, selected, accepted_limit=25, stop_event=None, progress=None):

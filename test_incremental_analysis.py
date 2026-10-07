@@ -5,13 +5,13 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from clue_analysis import ClueAnalysis, analyze_clue
+from clue_analysis import ClueAnalysis, analyze_clue, minimum_perimeter_pieces, compatible_factorizations
 from incremental_analysis import (analyze_clue_incremental, check_secondary_clue,
                                   simplified_choices, SimplifiedArc, concrete_completions)
 from incremental_analysis import (_Partial, partial_curve_feasible, SecondarySearchCache,
                                   secondary_clue_constrained)
 from incremental_analysis import enclosed_perimeter_capacity
-from puzzle_gui import PuzzleEditor, blank_grid
+from puzzle_gui import PuzzleEditor, blank_grid, ARC_CYCLE
 
 
 def board(rows, columns):
@@ -97,6 +97,25 @@ class IncrementalAnalysisTests(unittest.TestCase):
 
 
 class SimplifiedArcTests(unittest.TestCase):
+    def test_confirmed_bend_bound_distinguishes_cusps_and_quarter_turns(self):
+        self.assertEqual(minimum_perimeter_pieces(3, 3), 4)
+        self.assertEqual(minimum_perimeter_pieces(3, 2), 3)
+        self.assertFalse(compatible_factorizations(((1, 21), (3, 7), (7, 3), (21, 1)),
+                                                   4, minimum_perimeter_pieces(3, 3)))
+
+    def test_21_with_three_grid_bends_and_area_above_three_prunes_before_growth(self):
+        state = board(2, 4)
+        state['cells'][0][0]['number'] = 21
+        state['arc_domains'] = [[[None] for _ in range(4)],
+                                [[None], list(ARC_CYCLE), list(ARC_CYCLE), list(ARC_CYCLE)]]
+        # The five forced whole cells touch three 90-degree grid corners.
+        # Area 7 would require three pieces, but parity requires at least four.
+        result = analyze_clue_incremental(state, (0, 0), check_other_clues=False)
+        self.assertEqual(result.explored, 1)
+        self.assertEqual(result.score_pruned, 1)
+        self.assertEqual(result.factorization_pruned, 1)
+        self.assertFalse(result.accepted_states)
+
     def test_enclosed_capacity_counts_arcs_and_distinct_grid_sides(self):
         state = board(3, 3)
         assigned = {(0, 0): None, (0, 1): None,

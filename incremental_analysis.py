@@ -52,6 +52,7 @@ class _Partial:
     counts: tuple = (0, 0, 0)
     half_cells: int = 0
     unresolved_corners: set = field(default_factory=set)
+    quarter_turn_corners: set = field(default_factory=set)
 
 
 def analyze_clue_incremental(state, selected, accepted_limit=25, stop_event=None,
@@ -124,7 +125,8 @@ def analyze_clue_incremental(state, selected, accepted_limit=25, stop_event=None
         partial = _Partial(set(parent.fragments), dict(parent.frontier),
                            set(parent.reached), dict(parent.corners),
                            set(parent.sharp_corners), parent.counts,
-                           parent.half_cells, set(parent.unresolved_corners))
+                           parent.half_cells, set(parent.unresolved_corners),
+                           set(parent.quarter_turn_corners))
         counts = list(parent.counts)
         affected = set()
         queue = deque([seed, *extra_seeds])
@@ -161,13 +163,19 @@ def analyze_clue_incremental(state, selected, accepted_limit=25, stop_event=None
         for corner in affected:
             entries = partial.corners.get(corner, ())
             sharp = (corner not in partial.unresolved_corners
-                     and len(entries) == 2 and any(arc for _, arc in entries)
+                     and len(entries) == 2
                      and all(cell in partial.reached for cell in incident_cells(*corner))
                      and entries[0][0] != (-entries[1][0][0], -entries[1][0][1]))
             if sharp:
                 partial.sharp_corners.add(corner)
+                a, b = entries[0][0], entries[1][0]
+                if a[0] * b[0] + a[1] * b[1] == 0:
+                    partial.quarter_turn_corners.add(corner)
+                else:
+                    partial.quarter_turn_corners.discard(corner)
             else:
                 partial.sharp_corners.discard(corner)
+                partial.quarter_turn_corners.discard(corner)
         partial.counts = tuple(counts)
         return partial
 
@@ -289,7 +297,7 @@ def analyze_clue_incremental(state, selected, accepted_limit=25, stop_event=None
             result.area_pruned += 1
             result.factorization_pruned += 1
             continue
-        pieces = minimum_perimeter_pieces(len(partial.sharp_corners))
+        pieces = minimum_perimeter_pieces(len(partial.sharp_corners), len(partial.quarter_turn_corners))
         if not compatible_factorizations(factorizations, area, pieces):
             result.score_pruned += 1
             result.factorization_pruned += 1
