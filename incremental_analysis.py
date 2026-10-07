@@ -1,6 +1,6 @@
 """Alternate clue search that extends an existing region rather than reflooding."""
 
-from collections import deque
+from collections import deque, OrderedDict
 from dataclasses import dataclass, field
 from functools import lru_cache
 from fractions import Fraction
@@ -83,6 +83,8 @@ def analyze_clue_incremental(state, selected, accepted_limit=25, stop_event=None
     if any(not domain for domain in domains.values()):
         return ClueAnalysis(invalid_pruned=1, factorizations=factorizations)
     fixed = {cell: domain[0] for cell, domain in domains.items() if len(domain) == 1}
+    secondary_cache = SecondarySearchCache(state, stop_event, secondary_worklist_limit,
+                                            prioritize_frontier)
 
     @lru_cache(maxsize=None)
     def geometry(r, c, orientation, side):
@@ -215,6 +217,13 @@ def analyze_clue_incremental(state, selected, accepted_limit=25, stop_event=None
             result.invalid_pruned += 1
             continue
         whole, inside, outside = partial.counts
+        if not partial.frontier:
+            enclosed_area = Fraction(2 * whole + inside + outside + partial.half_cells, 2)
+            capacity = enclosed_perimeter_capacity(state, assigned, partial.fragments)
+            if enclosed_area > 0 and Fraction(target, 1) / enclosed_area > capacity:
+                result.perimeter_capacity_pruned += 1
+                result.score_pruned += 1
+                continue
         coefficient = inside - outside
         current_area = (whole + outside + Fraction(partial.half_cells, 2)
                         + coefficient * (PI_LOW if coefficient >= 0 else PI_HIGH) / 4)
@@ -252,17 +261,18 @@ def analyze_clue_incremental(state, selected, accepted_limit=25, stop_event=None
             result.factorization_pruned += 1
             continue
         if check_other_clues:
-            other_clues = sorted({(r, c) for r, c, side in partial.fragments - parent.fragments
+            other_clues = sorted({(r, c) for r, c, side in partial.fragments
                                   if (r, c) != selected and assigned[(r, c)] is not None
                                   and state["cells"][r][c]["number"] is not None})
             rejected = False
             for other in other_clues:
-                secondary = check_secondary_clue(state, assigned, other, stop_event,
-                                                 secondary_worklist_limit,
-                                                 simplify_nonclue=simplify_nonclue,
-                                                 prioritize_frontier=prioritize_frontier)
+                if not secondary_clue_constrained(state, assigned, other, domains):
+                    continue
+                secondary, cached = secondary_cache.check(assigned, other)
                 result.secondary_checks += 1
-                result.secondary_branches += secondary.explored
+                result.secondary_cache_hits += cached
+                if not cached:
+                    result.secondary_branches += secondary.explored
                 if secondary.cancelled:
                     result.cancelled = True
                     break
@@ -320,16 +330,34 @@ def analyze_clue_incremental(state, selected, accepted_limit=25, stop_event=None
                     result.limit_reached = True
                     break
             continue
+        legal_choices = {}
+        for cell, edges in partial.frontier.items():
+            choices = (simplified_choices(domains[cell], edges)
+                       if not regular and state['cells'][cell[0]][cell[1]]['number'] is None
+                       else domains[cell])
+            legal_choices[cell] = tuple(arc for arc in choices
+                                        if len({edge_side(arc, edge) for edge in edges}) == 1)
         cell = choose_frontier_cell(partial.frontier, priorities,
-                                    prioritize_connections=prioritize_frontier)
-        choices = (simplified_choices(domains[cell], partial.frontier[cell])
-                   if not regular and state['cells'][cell[0]][cell[1]]['number'] is None
-                   else domains[cell])
-        for orientation in reversed(choices):
-            required = {edge_side(orientation, edge) for edge in partial.frontier[cell]}
-            if len(required) == 1:
-                stack.append((assigned | {cell: orientation}, partial, (*cell, next(iter(required))), regular))
+                                    prioritize_connections=prioritize_frontier,
+                                    choice_counts={cell: len(choices) for cell, choices in legal_choices.items()})
+        for orientation in reversed(legal_choices[cell]):
+            side = edge_side(orientation, next(iter(partial.frontier[cell])))
+            stack.append((assigned | {cell: orientation}, partial, (*cell, side), regular))
     return result
+
+
+def enclosed_perimeter_capacity(state, assigned, fragments):
+    """Arc count plus distinct outer-grid sides touched by this region."""
+    arcs, borders = set(), set()
+    for r, c, side in fragments:
+        orientation = assigned[(r, c)]
+        if orientation is not None:
+            arcs.add((r, c))
+        for edge, on_border in (('N', r == 0), ('S', r == state['rows'] - 1),
+                                ('W', c == 0), ('E', c == state['columns'] - 1)):
+            if on_border and edge_side(orientation, edge) == side:
+                borders.add(edge)
+    return len(arcs) + len(borders)
 
 
 def partial_curve_feasible(partial, assigned, incident_cells, max_pieces, stop_event=None,
@@ -478,6 +506,88 @@ def concrete_completions(state, assigned, fragments, target, stop_event=None,
         region = Region.from_fragments(0, concrete_fragments, candidate)
         if region.determine_score(candidate) == target:
             yield tuple((r, c, arc) for (r, c, _), (arc, _) in zip(reached, chosen))
+
+
+def secondary_clue_constrained(state, assigned, selected, domains=None, frontier_limit=2):
+    """Probe forced growth; avoid a search while the other clue has a wide frontier.
+
+    No branching or area/perimeter analysis is done here. Closed regions and
+    obvious contradictions are checked, as are regions with at most two unknown
+    frontier cells. Probe from scratch so green chains expose all their exits.
+    """
+    rows, columns = state['rows'], state['columns']
+    if domains is None:
+        domains = {(r, c): allowed_arc_configurations(state, r, c)
+                   for r in range(rows) for c in range(columns)}
+    decided = {cell: domain[0] for cell, domain in domains.items() if len(domain) == 1}
+    decided.update(assigned)
+    if selected not in decided:
+        return False
+    target = state['cells'][selected[0]][selected[1]]['number']
+    queue = deque([(*selected, 0)])
+    fragments, frontier = set(), {}
+    while queue:
+        r, c, side = queue.popleft()
+        if (r, c, side) in fragments:
+            continue
+        orientation = decided[(r, c)]
+        if orientation is not None and (r, c, 1 - side) in fragments:
+            return True
+        if side == 0 and state['cells'][r][c]['number'] not in (None, target):
+            return True
+        fragments.add((r, c, side))
+        for edge, dr, dc, opposite in STEPS:
+            if edge_side(orientation, edge) != side:
+                continue
+            nr, nc = r + dr, c + dc
+            if not (0 <= nr < rows and 0 <= nc < columns):
+                continue
+            cell = (nr, nc)
+            if cell in decided:
+                queue.append((nr, nc, edge_side(decided[cell], opposite)))
+            else:
+                frontier[cell] = frontier.get(cell, frozenset()) | {opposite}
+    for cell, edges in frontier.items():
+        if not any(len({fragment_for_edge(arc, edge) for edge in edges}) == 1
+                   for arc in domains[cell]):
+            return True
+    return len(frontier) <= frontier_limit
+
+
+class SecondarySearchCache:
+    """Run-local bounded memoization and reusable concrete feasibility witnesses."""
+    def __init__(self, state, stop_event=None, worklist_limit=25, prioritize_frontier=True):
+        self.state, self.stop_event = state, stop_event
+        self.worklist_limit, self.prioritize_frontier = worklist_limit, prioritize_frontier
+        self.memo = OrderedDict()
+        self.witnesses = {}
+
+    def check(self, assigned, selected):
+        if self.stop_event is not None and self.stop_event.is_set():
+            return ClueAnalysis(cancelled=True), False
+        restrictions = {cell: frozenset(value.options if isinstance(value, SimplifiedArc) else (value,))
+                        for cell, value in assigned.items()}
+        key = (selected, frozenset(restrictions.items()))
+        if key in self.memo:
+            self.memo.move_to_end(key)
+            return self.memo[key], True
+        for witness in self.witnesses.get(selected, ()):
+            if all((r, c) not in restrictions or arc in restrictions[(r, c)]
+                   for r, c, arc in witness):
+                return ClueAnalysis(accepted_states=[witness]), True
+        result = check_secondary_clue(self.state, assigned, selected, self.stop_event,
+                                      self.worklist_limit, simplify_nonclue=True,
+                                      prioritize_frontier=self.prioritize_frontier)
+        if not result.cancelled:
+            self.memo[key] = result
+            if len(self.memo) > 4096:
+                self.memo.popitem(last=False)
+            if result.accepted_states:
+                witnesses = self.witnesses.setdefault(selected, [])
+                witnesses.append(result.accepted_states[0])
+                if len(witnesses) > 256:
+                    del witnesses[0]
+        return result, False
 
 
 def check_secondary_clue(state, assigned, selected, stop_event=None, worklist_limit=25,

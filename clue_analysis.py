@@ -28,11 +28,13 @@ def frontier_priorities(state):
     return priorities
 
 
-def choose_frontier_cell(frontier, priorities, prioritize_connections=True):
+def choose_frontier_cell(frontier, priorities, prioritize_connections=True, choice_counts=None):
     """Add +2 once when a frontier cell connects through multiple edges."""
     def score(cell):
         return priorities[cell] + 2 * (prioritize_connections and len(frontier[cell]) >= 2)
-    return min(frontier, key=lambda cell: (-score(cell), -len(frontier[cell]), cell))
+    return min(frontier, key=lambda cell: (
+        choice_counts[cell] if choice_counts is not None else -len(frontier[cell]),
+        -score(cell), -len(frontier[cell]), cell))
 
 
 @dataclass
@@ -53,6 +55,8 @@ class ClueAnalysis:
     secondary_pruned: int = 0
     secondary_cutoffs: int = 0
     regular_switches: int = 0
+    secondary_cache_hits: int = 0
+    perimeter_capacity_pruned: int = 0
 
 
 def fragment_for_edge(orientation, edge):
@@ -235,7 +239,9 @@ def analyze_clue(state, selected, accepted_limit=25, stop_event=None, progress=N
                     result.limit_reached = True
                     break
             continue
-        cell = choose_frontier_cell(frontier, priorities)
+        choice_counts = {cell: sum(len({fragment_for_edge(arc, edge) for edge in edges}) == 1
+                                   for arc in domains[cell]) for cell, edges in frontier.items()}
+        cell = choose_frontier_cell(frontier, priorities, choice_counts=choice_counts)
         for orientation in reversed(domains[cell]):
             required_sides = {fragment_for_edge(orientation, edge) for edge in frontier[cell]}
             if len(required_sides) == 1:

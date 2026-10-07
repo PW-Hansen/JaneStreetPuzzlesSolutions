@@ -884,6 +884,7 @@ class PuzzleEditor:
                                 suffix += f" Factorization bounds rejected {value.factorization_pruned} branches."
                             if value.secondary_checks:
                                 suffix += (f" Other-clue checks: {value.secondary_checks}; "
+                                           f"{value.secondary_cache_hits} reused from cache; "
                                            f"rejected {value.secondary_pruned} branches; "
                                            f"{value.secondary_cutoffs} checks exceeded 25 pending worklist states.")
                             if not value.accepted_states and not value.limit_reached and not value.cancelled:

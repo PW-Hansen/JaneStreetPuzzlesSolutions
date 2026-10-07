@@ -8,7 +8,9 @@ from unittest.mock import patch
 from clue_analysis import ClueAnalysis, analyze_clue
 from incremental_analysis import (analyze_clue_incremental, check_secondary_clue,
                                   simplified_choices, SimplifiedArc, concrete_completions)
-from incremental_analysis import _Partial, partial_curve_feasible
+from incremental_analysis import (_Partial, partial_curve_feasible, SecondarySearchCache,
+                                  secondary_clue_constrained)
+from incremental_analysis import enclosed_perimeter_capacity
 from puzzle_gui import PuzzleEditor, blank_grid
 
 
@@ -19,9 +21,12 @@ def board(rows, columns):
 class IncrementalAnalysisTests(unittest.TestCase):
     def compare(self, state, selected, **kwargs):
         before = copy.deepcopy(state)
-        self.assertEqual(analyze_clue_incremental(state, selected, check_other_clues=False,
-                                                simplify_nonclue=False, **kwargs),
-                         analyze_clue(state, selected, **kwargs))
+        actual = analyze_clue_incremental(state, selected, check_other_clues=False,
+                                          simplify_nonclue=False, **kwargs)
+        expected = analyze_clue(state, selected, **kwargs)
+        self.assertEqual(actual.accepted_states, expected.accepted_states)
+        self.assertEqual((actual.cancelled, actual.limit_reached, actual.factorizations),
+                         (expected.cancelled, expected.limit_reached, expected.factorizations))
         self.assertEqual(state, before)
 
     def test_tiny_board_parity(self):
@@ -91,6 +96,27 @@ class IncrementalAnalysisTests(unittest.TestCase):
 
 
 class SimplifiedArcTests(unittest.TestCase):
+    def test_enclosed_capacity_counts_arcs_and_distinct_grid_sides(self):
+        state = board(3, 3)
+        assigned = {(0, 0): None, (0, 1): None,
+                    (1, 0): 'tl', (1, 1): SimplifiedArc('NW', ('tl', 'br'))}
+        fragments = {(r, c, 0) for r, c in assigned}
+        # Two arc cells, north edge once and west edge once.
+        self.assertEqual(enclosed_perimeter_capacity(state, assigned, fragments), 4)
+        # A corner cell's outside fragment touches south/east of the cell,
+        # so it does not touch the north/west grid borders.
+        self.assertEqual(enclosed_perimeter_capacity(state, {(0, 0): 'tl'}, {(0, 0, 1)}), 1)
+
+    def test_enclosed_capacity_rejects_before_full_perimeter_validation(self):
+        state = board(2, 2)
+        state['cells'][0][0]['number'] = 20
+        state['arc_domains'] = [[[None] for _ in range(2)] for _ in range(2)]
+        with patch('puzzle_gui.Region.determine_score', side_effect=AssertionError('Perimeter checked')):
+            result = analyze_clue_incremental(state, (0, 0))
+        self.assertEqual(result.perimeter_capacity_pruned, 1)
+        self.assertEqual(result.area_pruned, 0)
+        self.assertFalse(result.accepted_states)
+
     def test_partial_curve_choices_must_be_consistent_across_corners(self):
         partial = _Partial(reached={(0, 0)},
                            corners={(0, 1): (((0, -1), True),),
@@ -174,6 +200,62 @@ class SimplifiedArcTests(unittest.TestCase):
 
 
 class SecondaryClueTests(unittest.TestCase):
+    def test_green_growth_with_many_exits_skips_secondary_search(self):
+        state = board(5, 5)
+        state['cells'][2][2]['number'] = 25
+        state['cells'][1][2]['green'] = True
+        state['cells'][2][3]['green'] = True
+        self.assertFalse(secondary_clue_constrained(state, {(2, 2): 'tr'}, (2, 2)))
+        # Resolving those exits makes the same clue worth checking later.
+        assigned = {(r, c): None for r in range(5) for c in range(5)}
+        assigned[(2, 2)] = 'tr'
+        self.assertTrue(secondary_clue_constrained(state, assigned, (2, 2)))
+
+    def test_narrow_frontier_triggers_secondary_check(self):
+        state = board(2, 2)
+        state['cells'][0][0]['number'] = 3
+        self.assertTrue(secondary_clue_constrained(state, {(0, 0): 'tr'}, (0, 0)))
+
+    def test_secondary_cache_reuses_identical_contradiction(self):
+        cache = SecondarySearchCache(board(2, 2))
+        with patch('incremental_analysis.check_secondary_clue', return_value=ClueAnalysis()) as engine:
+            self.assertFalse(cache.check({(0, 0): 'tl'}, (1, 1))[1])
+            result, hit = cache.check({(0, 0): 'tl'}, (1, 1))
+            self.assertTrue(hit)
+            self.assertFalse(result.accepted_states)
+            engine.assert_called_once()
+            self.assertTrue(engine.call_args.kwargs['simplify_nonclue'])
+
+    def test_secondary_cache_reuses_witness_only_when_compatible(self):
+        cache = SecondarySearchCache(board(2, 2))
+        witness = ((0, 0, 'tl'), (0, 1, 'br'))
+        with patch('incremental_analysis.check_secondary_clue',
+                   return_value=ClueAnalysis(accepted_states=[witness])) as engine:
+            cache.check({(0, 0): 'tl'}, (0, 0))
+            result, hit = cache.check({(0, 0): SimplifiedArc('NW', ('tl', 'br')),
+                                      (1, 1): None}, (0, 0))
+            self.assertTrue(hit)
+            self.assertEqual(result.accepted_states, [witness])
+            engine.assert_called_once()
+            self.assertFalse(cache.check({(0, 0): 'br'}, (0, 0))[1])
+            self.assertEqual(engine.call_count, 2)
+
+    def test_secondary_cache_keeps_cutoffs_inconclusive_and_does_not_cache_abort(self):
+        cache = SecondarySearchCache(board(2, 2))
+        with patch('incremental_analysis.check_secondary_clue',
+                   return_value=ClueAnalysis(worklist_limit_reached=True)) as engine:
+            cache.check({}, (0, 0))
+            result, hit = cache.check({}, (0, 0))
+            self.assertTrue(hit)
+            self.assertTrue(result.worklist_limit_reached)
+            engine.assert_called_once()
+        cache = SecondarySearchCache(board(2, 2))
+        with patch('incremental_analysis.check_secondary_clue',
+                   return_value=ClueAnalysis(cancelled=True)) as engine:
+            cache.check({}, (0, 0))
+            self.assertFalse(cache.check({}, (0, 0))[1])
+            self.assertEqual(engine.call_count, 2)
+
     def test_secondary_search_inherits_disabled_settings(self):
         state = board(2, 2)
         state['cells'][0][0]['number'] = 3
