@@ -7,6 +7,7 @@ import json
 import math
 import os
 import re
+from dataclasses import dataclass
 from pathlib import Path
 import tkinter as tk
 from tkinter import messagebox, simpledialog, ttk
@@ -141,6 +142,84 @@ def determine_regions(state):
         assigned[region] = index
     colors = {fragment: palette[assigned[region]] for fragment, region in regions.items()}
     return regions, colors, invalid_arcs
+
+
+@dataclass(frozen=True)
+class RegionArea:
+    """Exact area: whole_cells + arc_outsides + (insides - outsides) * pi/4."""
+
+    whole_cells: int = 0
+    arc_insides: int = 0
+    arc_outsides: int = 0
+
+    @property
+    def constant(self):
+        return self.whole_cells + self.arc_outsides
+
+    @property
+    def pi_quarters(self):
+        return self.arc_insides - self.arc_outsides
+
+    @property
+    def is_integer(self):
+        return self.arc_insides == self.arc_outsides
+
+    @property
+    def integer_area(self):
+        return self.constant if self.is_integer else None
+
+    def __str__(self):
+        if self.is_integer:
+            return str(self.constant)
+        coefficient = abs(self.pi_quarters)
+        term = "π/4" if coefficient == 1 else f"{coefficient}π/4"
+        if self.constant == 0:
+            return term if self.pi_quarters > 0 else f"−{term}"
+        sign = "+" if self.pi_quarters > 0 else "−"
+        return f"{self.constant} {sign} {term}"
+
+
+def determine_region_areas(state, regions=None):
+    """Return region IDs mapped to exact cell-fragment counts, without floats.
+
+    By default determine connectivity first. Passing an existing fragment-to-
+    region mapping avoids repeating that work. Dangling-arc validity remains
+    separate: a region may have integer area while containing both arc sides.
+    """
+    if regions is None:
+        regions = determine_regions(state)[0]
+    counts = {}
+    for (r, c, side), region in regions.items():
+        tally = counts.setdefault(region, [0, 0, 0])
+        if state["cells"][r][c]["arc"] is None:
+            tally[0] += 1
+        elif side == 0:
+            tally[1] += 1
+        else:
+            tally[2] += 1
+    return {region: RegionArea(*tally) for region, tally in counts.items()}
+
+
+def region_area_positions(state, regions):
+    """Choose one interior label anchor per region, preferring roomy cells."""
+    candidates = {}
+    for (r, c, side), region in regions.items():
+        cell = state["cells"][r][c]
+        arc = cell["arc"]
+        if arc is None:
+            x, y, width, priority = .5, .5, .85, 3
+            if cell["number"] is not None:
+                y = .78
+        else:
+            # Reflect points from a top-left-centered quarter circle.
+            offset = .30 if side == 0 else .86
+            x = 1 - offset if arc in ("tr", "br") else offset
+            y = 1 - offset if arc in ("bl", "br") else offset
+            width, priority = (.55, 2) if side == 0 else (.26, 1)
+        rank = (priority, cell["number"] is None)
+        if region not in candidates or rank > candidates[region][0]:
+            candidates[region] = (rank, (r, c, x, y, width))
+    return {region: candidate[1] for region, candidate in candidates.items()}
 
 
 def render_grid(state, cell_size, arc_colors=None, region_colors=None):
@@ -338,6 +417,7 @@ class PuzzleEditor:
         self.undo_stack, self.redo_stack = [], []
         self.smooth_colors = None
         self.region_colors = None
+        self.area_labels = None
         self.selected = None
         self.fresh_entry = True
         self.mode = tk.StringVar(value="arc")
@@ -359,6 +439,7 @@ class PuzzleEditor:
         ttk.Label(dimensions, text=f"{self.state['rows']}x{self.state['columns']} grid").pack(side="left", padx=(4, 12))
         ttk.Button(dimensions, text="Check smooth arcs", command=self.check_smooth_arcs).pack(side="left", padx=4)
         ttk.Button(dimensions, text="Determine regions", command=self.check_regions).pack(side="left", padx=4)
+        ttk.Button(dimensions, text="Compute region areas", command=self.compute_region_areas).pack(side="left", padx=4)
         ttk.Button(dimensions, text="Clear colors", command=self.clear_arc_colors).pack(side="left", padx=4)
         ttk.Label(root, text="Green: click to toggle • Digits: select a cell and type • "
                   "Arcs: click to cycle through four curves, then no arc\n"
@@ -418,6 +499,7 @@ class PuzzleEditor:
         self.redo_stack.clear()
         self.smooth_colors = None
         self.region_colors = None
+        self.area_labels = None
         self.draw()
         self.save()
 
@@ -454,6 +536,7 @@ class PuzzleEditor:
     def after_history(self):
         self.smooth_colors = None
         self.region_colors = None
+        self.area_labels = None
         self.selected = None
         self.fresh_entry = True
         self.draw()
@@ -470,17 +553,30 @@ class PuzzleEditor:
 
     def check_regions(self):
         regions, self.region_colors, invalid_arcs = determine_regions(self.state)
+        areas = determine_region_areas(self.state, regions)
         self.draw()
         count = len(set(regions.values()))
         if invalid_arcs:
             cells = ", ".join(f"({r + 1}, {c + 1})" for r, c in invalid_arcs)
             self.status.set(f"{count} regions — INVALID: both sides of an arc reconnect in cells (row, column): {cells}.")
         else:
-            self.status.set(f"{count} regions — valid: every arc separates distinct regions.")
+            self.status.set(f"{count} regions — every arc separates distinct regions. "
+                            f"{sum(area.is_integer for area in areas.values())}/{count} regions have integer area.")
+
+    def compute_region_areas(self):
+        regions, self.region_colors, invalid_arcs = determine_regions(self.state)
+        areas = determine_region_areas(self.state, regions)
+        self.area_labels = [(position, str(areas[region]))
+                            for region, position in region_area_positions(self.state, regions).items()]
+        self.draw()
+        self.status.set(f"Areas computed for {len(areas)} regions; "
+                        f"{sum(area.is_integer for area in areas.values())} have integer area. "
+                        f"{len(invalid_arcs)} arcs have both sides in one region. Blue labels show areas.")
 
     def clear_arc_colors(self):
         self.smooth_colors = None
         self.region_colors = None
+        self.area_labels = None
         self.draw()
         self.status.set("Analysis colors cleared.")
 
@@ -503,6 +599,11 @@ class PuzzleEditor:
                 if self.selected == (r, c):
                     self.canvas.create_rectangle(x + 3, y + 3, x + size - 3, y + size - 3,
                                                  outline="#e89520", width=3)
+        for (r, c, x, y, width), area in self.area_labels or []:
+            self.canvas.create_text(margin + (c + x) * size, margin + (r + y) * size,
+                                    text=area, fill="#174377",
+                                    font=("Segoe UI", max(7, min(11, int(size * .14)))),
+                                    width=max(16, int(width * size)), justify="center")
         self.undo_button.configure(state="normal" if self.undo_stack else "disabled")
         self.redo_button.configure(state="normal" if self.redo_stack else "disabled")
 
