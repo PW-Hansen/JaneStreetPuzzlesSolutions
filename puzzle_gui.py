@@ -1,4 +1,4 @@
-"""A persistent editor for the Jane Street arc puzzle (no solving logic)."""
+"""A persistent Jane Street arc puzzle editor with clue-local region analysis."""
 
 import argparse
 import copy
@@ -7,6 +7,8 @@ import json
 import math
 import os
 import re
+import threading
+from queue import Empty, Queue
 from dataclasses import dataclass, field
 from pathlib import Path
 import tkinter as tk
@@ -18,6 +20,18 @@ from PIL import Image, ImageDraw, ImageTk
 DEFAULT_STATE = Path(__file__).with_name("puzzle_state.json")
 DATA_DIRECTORY = Path(__file__).resolve().parent / "grids"
 ARC_CYCLE = (None, "tl", "tr", "br", "bl")
+
+
+def allowed_arc_configurations(state, row, column):
+    """Intersect the persistent master domain with explicit puzzle markings."""
+    cell = state["cells"][row][column]
+    domains = state.get("arc_domains")
+    allowed = domains[row][column] if domains is not None else ARC_CYCLE
+    if cell["green"]:
+        return (None,) if None in allowed else ()
+    if cell["arc"] is not None:
+        return (cell["arc"],) if cell["arc"] in allowed else ()
+    return tuple(orientation for orientation in ARC_CYCLE if orientation in allowed)
 
 
 def arc_endpoints(row, column, orientation):
@@ -489,6 +503,19 @@ def validate_state(state):
                 raise ValueError("Invalid arc orientation.")
             if cell["green"] and cell["arc"] is not None:
                 raise ValueError("Green cells cannot contain arcs.")
+    domains = state.get("arc_domains")
+    if domains is not None:
+        if (not isinstance(domains, list) or len(domains) != rows
+                or any(not isinstance(row, list) or len(row) != columns for row in domains)):
+            raise ValueError("Arc master list does not match the grid dimensions.")
+        for r, row in enumerate(domains):
+            for c, domain in enumerate(row):
+                if (not isinstance(domain, list) or not domain
+                        or any(orientation not in ARC_CYCLE for orientation in domain)
+                        or len(set(domain)) != len(domain)):
+                    raise ValueError("Invalid arc master-list entry.")
+                if not allowed_arc_configurations(state, r, c):
+                    raise ValueError("Arc master list contradicts the cell markings.")
     return state
 
 
@@ -507,6 +534,8 @@ class PuzzleEditor:
         self.smooth_colors = None
         self.region_colors = None
         self.area_labels = None
+        self.analysis_cancel = None
+        self.analysis_result = None
         self.selected = None
         self.fresh_entry = True
         self.mode = tk.StringVar(value="arc")
@@ -532,6 +561,13 @@ class PuzzleEditor:
         ttk.Button(dimensions, text="Compute region areas", command=self.compute_region_areas).pack(side="left", padx=4)
         ttk.Button(dimensions, text="Compute scores", command=self.compute_region_scores).pack(side="left", padx=4)
         ttk.Button(dimensions, text="Clear colors", command=self.clear_arc_colors).pack(side="left", padx=4)
+        analysis_controls = ttk.Frame(root, padding=(8, 0, 8, 8))
+        analysis_controls.pack(fill="x")
+        self.analysis_button = ttk.Button(analysis_controls, text="Analyze selected clue",
+                                          command=self.analyze_selected_clue)
+        self.analysis_button.pack(side="left", padx=4)
+        self.domain_text = tk.StringVar(value="Select a cell to view allowed arc configurations.")
+        ttk.Label(analysis_controls, textvariable=self.domain_text).pack(side="left", padx=8)
         ttk.Label(root, text="Green: click to toggle • Digits: select a cell and type • "
                   "Arcs: click to cycle through four curves, then no arc\n"
                   "Backspace edits a clue • Delete clears the current mode’s mark • "
@@ -583,9 +619,14 @@ class PuzzleEditor:
         self.draw()
         return "break"
 
-    def commit(self, previous):
+    def commit(self, previous, preserve_domains=False):
         if previous == self.state:
             return
+        if not preserve_domains:
+            # Deductions depend on clues, green cells, and manually fixed arcs.
+            self.state.pop("arc_domains", None)
+        self.cancel_clue_analysis()
+        self.analysis_result = None
         self.undo_stack.append(previous)
         self.redo_stack.clear()
         self.smooth_colors = None
@@ -596,6 +637,7 @@ class PuzzleEditor:
 
     def reset_arcs(self):
         previous = copy.deepcopy(self.state)
+        self.state.pop("arc_domains", None)
         for row in self.state["cells"]:
             for cell in row:
                 cell["arc"] = None
@@ -615,6 +657,7 @@ class PuzzleEditor:
 
     def close(self):
         # Every edit is already saved; closing an untouched invalid file preserves it.
+        self.cancel_clue_analysis()
         self.root.destroy()
 
     def undo(self):
@@ -632,6 +675,8 @@ class PuzzleEditor:
         return "break"
 
     def after_history(self):
+        self.cancel_clue_analysis()
+        self.analysis_result = None
         self.smooth_colors = None
         self.region_colors = None
         self.area_labels = None
@@ -648,6 +693,78 @@ class PuzzleEditor:
             message += (f" {len(conflicts)} sharp self-joins: a smooth chain returns to itself; "
                         "its two ends cannot have different colors while keeping the chain one color.")
         self.status.set(message)
+
+    def cancel_clue_analysis(self):
+        event = getattr(self, "analysis_cancel", None)
+        if event is not None:
+            event.set()
+            self.analysis_cancel = None
+            self.analysis_button.configure(text="Analyze selected clue")
+
+    def analyze_selected_clue(self):
+        if self.analysis_cancel is not None:
+            self.cancel_clue_analysis()
+            self.status.set("Clue analysis cancelled.")
+            return
+        if self.selected is None:
+            self.status.set("Select a clue cell first, then click Analyze selected clue.")
+            return
+        r, c = self.selected
+        clue = self.state["cells"][r][c]["number"]
+        if clue is None:
+            self.status.set("The selected cell has no clue. Select a numbered cell.")
+            return
+        from clue_analysis import analyze_clue
+        snapshot, selected = copy.deepcopy(self.state), self.selected
+        event = self.analysis_cancel = threading.Event()
+        self.analysis_result = None
+        messages = Queue()
+        self.analysis_button.configure(text="Cancel analysis")
+        self.status.set(f"Analyzing clue {clue} at ({r + 1}, {c + 1})…")
+
+        def worker():
+            try:
+                result = analyze_clue(snapshot, selected, stop_event=event,
+                                      progress=lambda visited, accepted: messages.put(("progress", (visited, accepted))))
+                messages.put(("done", result))
+            except Exception as exc:
+                messages.put(("error", str(exc)))
+
+        def poll():
+            if self.analysis_cancel is not event:
+                return
+            try:
+                while True:
+                    kind, value = messages.get_nowait()
+                    if kind == "progress":
+                        visited, accepted = value
+                        self.status.set(f"Clue {clue}: {accepted} accepted states; {visited} branches checked…")
+                    else:
+                        self.analysis_cancel = None
+                        self.analysis_button.configure(text="Analyze selected clue")
+                        if kind == "error":
+                            self.status.set(f"Clue analysis failed: {value}")
+                        else:
+                            suffix = " Stopped early: more than 25 accepted states." if value.limit_reached else " Search complete."
+                            from clue_analysis import incorporate_analysis
+                            previous = copy.deepcopy(self.state)
+                            changes = incorporate_analysis(self.state, value)
+                            self.commit(previous, preserve_domains=True)
+                            self.analysis_result = value
+                            if changes["removed"]:
+                                suffix += f" Removed {changes['removed']} configurations from the master list."
+                            if changes["applied"]:
+                                suffix += " Applied the unique accepted state."
+                            if not value.accepted_states and not value.limit_reached and not value.cancelled:
+                                suffix += " No configuration satisfies this clue under the current constraints."
+                            self.status.set(f"Clue {clue}: {len(value.accepted_states)} accepted states; "
+                                            f"{value.explored} branches checked.{suffix}")
+                        return
+            except Empty:
+                self.root.after(100, poll)
+
+        threading.Thread(target=worker, daemon=True).start()
+        self.root.after(100, poll)
 
     def check_regions(self):
         regions, self.region_colors, invalid_arcs = determine_regions(self.state)
@@ -721,6 +838,15 @@ class PuzzleEditor:
                                     width=max(16, int(width * size)), justify="center")
         self.undo_button.configure(state="normal" if self.undo_stack else "disabled")
         self.redo_button.configure(state="normal" if self.redo_stack else "disabled")
+        if hasattr(self, "domain_text"):
+            if self.selected is None:
+                self.domain_text.set("Select a cell to view allowed arc configurations.")
+            else:
+                r, c = self.selected
+                names = {None: "no arc", "tl": "top-left", "tr": "top-right",
+                         "br": "bottom-right", "bl": "bottom-left"}
+                allowed = allowed_arc_configurations(self.state, r, c)
+                self.domain_text.set(f"({r + 1}, {c + 1}) allowed: " + ", ".join(names[o] for o in allowed))
 
     def click(self, event, erase=False):
         self.canvas.focus_set()
