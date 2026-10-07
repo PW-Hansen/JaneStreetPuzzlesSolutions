@@ -2,17 +2,143 @@
 
 import argparse
 import copy
+import colorsys
 import json
+import math
 import os
 import re
 from pathlib import Path
 import tkinter as tk
 from tkinter import messagebox, simpledialog, ttk
 
+from PIL import Image, ImageDraw, ImageTk
+
 
 DEFAULT_STATE = Path(__file__).with_name("puzzle_state.json")
 DATA_DIRECTORY = Path(__file__).resolve().parent / "grids"
 ARC_CYCLE = (None, "tl", "tr", "br", "bl")
+
+
+def arc_endpoints(row, column, orientation):
+    """Return exact grid corners and tangent vectors pointing into the arc."""
+    return {
+        "tl": (((row, column + 1), (0, 1)), ((row + 1, column), (1, 0))),
+        "tr": (((row, column), (0, 1)), ((row + 1, column + 1), (-1, 0))),
+        "br": (((row, column + 1), (-1, 0)), ((row + 1, column), (0, -1))),
+        "bl": (((row, column), (1, 0)), ((row + 1, column + 1), (0, -1))),
+    }[orientation]
+
+
+def smooth_arc_groups(state):
+    """Join arcs only when their inward tangents at a shared corner oppose."""
+    corners, parent = {}, {}
+    for r, row in enumerate(state["cells"]):
+        for c, cell in enumerate(row):
+            if cell["arc"] is None:
+                continue
+            arc = (r, c)
+            parent[arc] = arc
+            for corner, tangent in arc_endpoints(r, c, cell["arc"]):
+                corners.setdefault(corner, []).append((arc, tangent))
+
+    def find(arc):
+        while parent[arc] != arc:
+            parent[arc] = parent[parent[arc]]
+            arc = parent[arc]
+        return arc
+
+    for entries in corners.values():
+        for i, (first, tangent) in enumerate(entries):
+            for second, other in entries[i + 1:]:
+                if tangent == (-other[0], -other[1]):
+                    parent[find(second)] = find(first)
+    roots = {}
+    groups = {}
+    for arc in parent:
+        root = find(arc)
+        groups[arc] = roots.setdefault(root, len(roots))
+    neighbors = {group: set() for group in roots.values()}
+    conflicts = set()
+    for corner, entries in corners.items():
+        for i, (first, tangent) in enumerate(entries):
+            for second, other in entries[i + 1:]:
+                if tangent == (-other[0], -other[1]):
+                    continue
+                a, b = groups[first], groups[second]
+                if a == b:
+                    # A smooth chain can return to its own end with a sharp join.
+                    conflicts.add(corner)
+                else:
+                    neighbors[a].add(b)
+                    neighbors[b].add(a)
+    palette = ["#d62728", "#1769aa", "#8b35b5", "#008577", "#b56300",
+               "#c1277b", "#596a15", "#5646a5"]
+    assigned = {}
+    for group in sorted(neighbors, key=lambda g: (-len(neighbors[g]), g)):
+        forbidden = {assigned[n] for n in neighbors[group] if n in assigned}
+        index = next(i for i in range(len(palette) + 1) if i not in forbidden)
+        if index == len(palette):
+            rgb = colorsys.hsv_to_rgb((index * .61803398875) % 1, .8, .65)
+            palette.append("#" + "".join(f"{round(v * 255):02x}" for v in rgb))
+        assigned[group] = index
+    colors = {arc: palette[assigned[group]] for arc, group in groups.items()}
+    return groups, colors, conflicts
+
+
+def render_grid(state, cell_size, arc_colors=None):
+    """Draw at four times the display resolution for smooth circular edges."""
+    scale, margin = 4, 16
+    rows, columns = state["rows"], state["columns"]
+    width = round(columns * cell_size + 2 * margin)
+    height = round(rows * cell_size + 2 * margin)
+    image = Image.new("RGB", (width * scale, height * scale), "#e9edf1")
+    painter = ImageDraw.Draw(image)
+
+    def box(x0, y0, x1, y1):
+        return tuple(round(v * scale) for v in (x0, y0, x1, y1))
+
+    # Paint all backgrounds first so neighboring cells cannot cover arc ends.
+    for r, row in enumerate(state["cells"]):
+        for c, cell in enumerate(row):
+            x, y = margin + c * cell_size, margin + r * cell_size
+            painter.rectangle(box(x, y, x + cell_size, y + cell_size),
+                              fill="#c5e5c8" if cell["green"] else "white")
+    for r in range(1, rows):
+        y = margin + r * cell_size
+        painter.line(box(margin, y, margin + columns * cell_size, y),
+                     fill="#89939e", width=scale)
+    for c in range(1, columns):
+        x = margin + c * cell_size
+        painter.line(box(x, margin, x, margin + rows * cell_size),
+                     fill="#89939e", width=scale)
+    for r, row in enumerate(state["cells"]):
+        for c, cell in enumerate(row):
+            corner = cell["arc"]
+            if corner is None:
+                continue
+            cx = margin + (c + (corner in ("tr", "br"))) * cell_size
+            cy = margin + (r + (corner in ("bl", "br"))) * cell_size
+            start = {"tl": 0, "tr": 90, "br": 180, "bl": 270}[corner]
+            color = (arc_colors or {}).get((r, c), "black")
+            # Pillow's arc stroke lies inside its bounding ellipse, shifting
+            # endpoints for different centers. A centered polyline keeps the
+            # radius and shared grid-corner endpoints exact.
+            points = []
+            for step in range(129):
+                angle = math.radians(start + 90 * step / 128)
+                points.append((round((cx + cell_size * math.cos(angle)) * scale),
+                               round((cy + cell_size * math.sin(angle)) * scale)))
+            painter.line(points, fill=color, width=3 * scale, joint="curve")
+            radius = 1.5 * scale
+            for px, py in (points[0], points[-1]):
+                painter.ellipse((px - radius, py - radius, px + radius, py + radius),
+                                fill=color)
+    painter.line([ (round(x * scale), round(y * scale)) for x, y in
+                  ((margin, margin), (margin + columns * cell_size, margin),
+                   (margin + columns * cell_size, margin + rows * cell_size),
+                   (margin, margin + rows * cell_size), (margin, margin))],
+                 fill="black", width=4 * scale, joint="curve")
+    return image.resize((width, height), Image.Resampling.LANCZOS)
 
 
 def grid_name(value):
@@ -135,6 +261,7 @@ class PuzzleEditor:
             except (ValueError, KeyError, TypeError, OSError) as exc:
                 load_error = str(exc)
         self.undo_stack, self.redo_stack = [], []
+        self.smooth_colors = None
         self.selected = None
         self.fresh_entry = True
         self.mode = tk.StringVar(value="arc")
@@ -160,6 +287,8 @@ class PuzzleEditor:
             ttk.Spinbox(dimensions, from_=1, to=50, width=4,
                         textvariable=variable).pack(side="left")
         ttk.Button(dimensions, text="Resize grid", command=self.resize).pack(side="left", padx=10)
+        ttk.Button(dimensions, text="Check smooth arcs", command=self.check_smooth_arcs).pack(side="left", padx=4)
+        ttk.Button(dimensions, text="Clear colors", command=self.clear_arc_colors).pack(side="left", padx=4)
         ttk.Label(root, text="Green: click to toggle • Digits: select a cell and type • "
                   "Arcs: click to cycle through four curves, then no arc\n"
                   "Backspace edits a clue • Delete clears the current mode’s mark • "
@@ -216,6 +345,7 @@ class PuzzleEditor:
             return
         self.undo_stack.append(previous)
         self.redo_stack.clear()
+        self.smooth_colors = None
         self.draw()
         self.save()
 
@@ -250,6 +380,7 @@ class PuzzleEditor:
         return "break"
 
     def after_history(self):
+        self.smooth_colors = None
         self.rows.set(str(self.state["rows"]))
         self.columns.set(str(self.state["columns"]))
         self.selected = None
@@ -279,6 +410,20 @@ class PuzzleEditor:
         self.selected = None
         self.commit(previous)
 
+    def check_smooth_arcs(self):
+        groups, self.smooth_colors, conflicts = smooth_arc_groups(self.state)
+        self.draw()
+        message = f"{len(set(groups.values()))} smooth arc pieces across {len(groups)} arcs."
+        if conflicts:
+            message += (f" {len(conflicts)} sharp self-joins: a smooth chain returns to itself; "
+                        "its two ends cannot have different colors while keeping the chain one color.")
+        self.status.set(message)
+
+    def clear_arc_colors(self):
+        self.smooth_colors = None
+        self.draw()
+        self.status.set("Arc colors cleared.")
+
     def draw(self):
         self.canvas.delete("all")
         rows, columns = self.state["rows"], self.state["columns"]
@@ -286,27 +431,17 @@ class PuzzleEditor:
                                 (self.canvas.winfo_height() - 32) / rows))
         size, margin = self.size, 16
         self.canvas.configure(scrollregion=(0, 0, columns * size + 32, rows * size + 32))
+        self.grid_image = ImageTk.PhotoImage(render_grid(self.state, size, self.smooth_colors), master=self.canvas)
+        self.canvas.create_image(0, 0, image=self.grid_image, anchor="nw")
         for r, row in enumerate(self.state["cells"]):
             for c, cell in enumerate(row):
                 x, y = margin + c * size, margin + r * size
-                self.canvas.create_rectangle(x, y, x + size, y + size,
-                    fill="#c5e5c8" if cell["green"] else "white", outline="#89939e")
-                if cell["arc"]:
-                    corner = cell["arc"]
-                    cx = x + (size if corner in ("tr", "br") else 0)
-                    cy = y + (size if corner in ("bl", "br") else 0)
-                    start = {"tl": 270, "tr": 180, "br": 90, "bl": 0}[corner]
-                    self.canvas.create_arc(cx - size, cy - size, cx + size, cy + size,
-                                           start=start, extent=90, style=tk.ARC,
-                                           outline="black", width=3)
                 if cell["number"] is not None:
                     self.canvas.create_text(x + size / 2, y + size / 2,
                         text=str(cell["number"]), font=("Segoe UI", max(10, int(size * .24)), "bold"))
                 if self.selected == (r, c):
                     self.canvas.create_rectangle(x + 3, y + 3, x + size - 3, y + size - 3,
                                                  outline="#e89520", width=3)
-        self.canvas.create_rectangle(margin, margin, margin + columns * size,
-                                     margin + rows * size, outline="black", width=4)
         self.undo_button.configure(state="normal" if self.undo_stack else "disabled")
         self.redo_button.configure(state="normal" if self.redo_stack else "disabled")
 
