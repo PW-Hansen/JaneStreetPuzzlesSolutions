@@ -174,13 +174,16 @@ class Region:
     def is_valid(self):
         return self.determine_validity()
 
+    def has_valid_arc_separation(self):
+        """Check only that the region does not contain both sides of an arc."""
+        return not self.invalid_arcs and not any(
+            side == 0 and (r, c, 1) in self.fragments
+            for r, c, side in self.fragments)
+
     def invalidity_reasons(self):
         """Return reasons this region fails arc-separation or area rules."""
         reasons = []
-        both_sides = self.invalid_arcs or any(
-            side == 0 and (r, c, 1) in self.fragments
-            for r, c, side in self.fragments)
-        if both_sides:
+        if not self.has_valid_arc_separation():
             reasons.append("The region contains both sides of an arc.")
         if not self.is_integer:
             reasons.append("The region has non-integer area: arc inside and outside counts differ.")
@@ -326,8 +329,7 @@ def render_grid(state, cell_size, arc_colors=None, region_colors=None):
         for c, cell in enumerate(row):
             x, y = margin + c * cell_size, margin + r * cell_size
             painter.rectangle(box(x, y, x + cell_size, y + cell_size),
-                              fill=(region_colors[(r, c, 1 if cell["arc"] else 0)]
-                                    if region_colors is not None else
+                              fill=(region_colors or {}).get((r, c, 1 if cell["arc"] else 0),
                                     "#c5e5c8" if cell["green"] else "white"))
             if region_colors is not None and cell["arc"]:
                 corner = cell["arc"]
@@ -339,8 +341,8 @@ def render_grid(state, cell_size, arc_colors=None, region_colors=None):
                     angle = math.radians(start + 90 * step / 128)
                     polygon.append((round((cx + cell_size * math.cos(angle)) * scale),
                                     round((cy + cell_size * math.sin(angle)) * scale)))
-                painter.polygon(polygon, fill=region_colors[(r, c, 0)])
-            if region_colors is not None and cell["green"]:
+                painter.polygon(polygon, fill=region_colors.get((r, c, 0), "white"))
+            if region_colors is not None and (r, c, 0) in region_colors and cell["green"]:
                 # Preserve the puzzle's green-cell markings under the overlay.
                 painter.rectangle(box(x + 5, y + 5, x + 11, y + 11),
                                   fill="#83bd8b", outline="#35683c", width=scale)
@@ -641,6 +643,9 @@ class PuzzleEditor:
 
     def check_regions(self):
         regions, self.region_colors, invalid_arcs = determine_regions(self.state)
+        self.region_colors = {fragment: color for fragment, color in self.region_colors.items()
+                              if regions[fragment].has_valid_arc_separation()}
+        self.area_labels = None
         unique_regions = set(regions.values())
         self.draw()
         count = len(unique_regions)
@@ -653,9 +658,12 @@ class PuzzleEditor:
 
     def compute_region_areas(self):
         regions, self.region_colors, invalid_arcs = determine_regions(self.state)
+        self.region_colors = {fragment: color for fragment, color in self.region_colors.items()
+                              if regions[fragment].has_valid_arc_separation()}
         unique_regions = set(regions.values())
         self.area_labels = [(position, str(region.area))
-                            for region, position in region_area_positions(self.state, regions).items()]
+                            for region, position in region_area_positions(self.state, regions).items()
+                            if region.has_valid_arc_separation()]
         self.draw()
         self.status.set(f"Areas computed for {len(unique_regions)} regions; "
                         f"{sum(region.is_integer for region in unique_regions)} have integer area. "
