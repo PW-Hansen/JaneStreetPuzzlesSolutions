@@ -35,6 +35,24 @@ def allowed_arc_configurations(state, row, column):
     return tuple(orientation for orientation in ARC_CYCLE if orientation in allowed)
 
 
+def clue_factorizations(state, selected):
+    """Ordered area/perimeter factor pairs within conservative grid bounds.
+
+    These are arithmetic candidates, not a claim that each pair is realizable.
+    No factoring loop depends on the magnitude of the clue (only grid area).
+    """
+    r, c = selected
+    clue = state["cells"][r][c]["number"]
+    if clue is None or clue <= 0:
+        return []
+    max_area = state["rows"] * state["columns"]
+    possible_arcs = sum(any(arc is not None for arc in allowed_arc_configurations(state, r, c))
+                        for r in range(state["rows"]) for c in range(state["columns"]))
+    max_pieces = possible_arcs + 2 * state["rows"] + 2 * state["columns"]
+    return [(area, clue // area) for area in range(1, min(clue, max_area) + 1)
+            if clue % area == 0 and clue // area <= max_pieces]
+
+
 def arc_endpoints(row, column, orientation):
     """Return exact grid corners and tangent vectors pointing into the arc."""
     return {
@@ -572,6 +590,7 @@ class PuzzleEditor:
         self.analysis_button = ttk.Button(analysis_controls, text="Analyze selected clue",
                                           command=self.analyze_selected_clue)
         self.analysis_button.pack(side="left", padx=4)
+        ttk.Button(analysis_controls, text="Factorization", command=self.show_factorizations).pack(side="left", padx=4)
         analysis_details = ttk.Frame(root, padding=(8, 0, 8, 8))
         analysis_details.pack(fill="x")
         self.domain_text = tk.StringVar(value="Select a cell to view allowed arc configurations.")
@@ -592,6 +611,10 @@ class PuzzleEditor:
                                            command=lambda: self.set_preview(self.preview_index + 1))
         self.next_state_button.pack(side="left", padx=4)
         ttk.Label(preview_controls, text="Blue arcs are speculative; State 0 shows confirmed arcs.").pack(side="left", padx=8)
+        self.factorization_text = tk.StringVar()
+        self.factorization_selection = None
+        ttk.Label(root, textvariable=self.factorization_text, wraplength=800,
+                  padding=(12, 0, 12, 4)).pack(fill="x")
         ttk.Label(root, text="Green: click to toggle • Digits: select a cell and type • "
                   "Arcs: click to cycle through four curves, then no arc\n"
                   "Backspace edits a clue • Delete clears the current mode’s mark • "
@@ -712,6 +735,23 @@ class PuzzleEditor:
         self.fresh_entry = True
         self.draw()
         self.save()
+
+    def show_factorizations(self, update_status=True):
+        if self.selected is None:
+            self.status.set("Select a numbered clue cell first.")
+            return
+        r, c = self.selected
+        clue = self.state["cells"][r][c]["number"]
+        if clue is None:
+            self.status.set("The selected cell has no clue.")
+            return
+        pairs = clue_factorizations(self.state, self.selected)
+        self.factorization_selection = (self.selected, clue)
+        expressions = "  •  ".join(f"{area} × {pieces}" for area, pieces in pairs)
+        self.factorization_text.set(f"Clue {clue} — area × smooth perimeter pieces: " +
+                                    (expressions or "No positive integer factor pairs within the grid bounds."))
+        if update_status:
+            self.status.set("Factorizations satisfy arithmetic and grid bounds; geometric feasibility still requires analysis.")
 
     def check_smooth_arcs(self):
         self.preview_index = 0
@@ -916,6 +956,14 @@ class PuzzleEditor:
 
     def draw(self):
         self.update_preview_controls()
+        if hasattr(self, "factorization_text") and self.factorization_selection is not None:
+            selected, clue = self.factorization_selection
+            if self.selected != selected or self.state["cells"][selected[0]][selected[1]]["number"] != clue:
+                self.factorization_text.set("")
+                self.factorization_selection = None
+            else:
+                # Keep grid-bound candidates current after master-list changes.
+                self.show_factorizations(update_status=False)
         self.canvas.delete("all")
         rows, columns = self.state["rows"], self.state["columns"]
         self.size = max(36, min(80, (self.canvas.winfo_width() - 32) / columns,
