@@ -28,9 +28,11 @@ def frontier_priorities(state):
     return priorities
 
 
-def choose_frontier_cell(frontier, priorities):
-    """Highest category score first; then required edge count and coordinates."""
-    return min(frontier, key=lambda cell: (-priorities[cell], -len(frontier[cell]), cell))
+def choose_frontier_cell(frontier, priorities, prioritize_connections=True):
+    """Add +2 once when a frontier cell connects through multiple edges."""
+    def score(cell):
+        return priorities[cell] + 2 * (prioritize_connections and len(frontier[cell]) >= 2)
+    return min(frontier, key=lambda cell: (-score(cell), -len(frontier[cell]), cell))
 
 
 @dataclass

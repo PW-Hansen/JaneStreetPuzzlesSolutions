@@ -320,7 +320,8 @@ def analyze_clue_incremental(state, selected, accepted_limit=25, stop_event=None
                     result.limit_reached = True
                     break
             continue
-        cell = choose_frontier_cell(partial.frontier, priorities)
+        cell = choose_frontier_cell(partial.frontier, priorities,
+                                    prioritize_connections=prioritize_frontier)
         choices = (simplified_choices(domains[cell], partial.frontier[cell])
                    if not regular and state['cells'][cell[0]][cell[1]]['number'] is None
                    else domains[cell])
