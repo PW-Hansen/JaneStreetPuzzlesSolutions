@@ -640,7 +640,7 @@ class PuzzleEditor:
         self.preview_index = 0
         self.selected = None
         self.fresh_entry = True
-        self.mode = tk.StringVar(value="arc")
+        self.mode = tk.StringVar(value="select")
         self.status = tk.StringVar()
         root.title(f"Jane Street — Arc Puzzle Editor — {name or path.stem}")
         root.geometry("1110x850")
