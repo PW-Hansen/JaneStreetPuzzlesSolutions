@@ -765,6 +765,15 @@ class PuzzleEditor:
     def commit(self, previous, preserve_domains=False):
         if previous == self.state:
             return
+        if preserve_domains and self.state.get('arc_implications'):
+            from arc_constraints import apply_arc_deductions
+            try:
+                apply_arc_deductions(self.state)
+            except ValueError as exc:
+                self.state = previous
+                self.status.set(str(exc))
+                self.draw()
+                return
         if not preserve_domains:
             # Clue/green edits change the puzzle; arc placements retain deductions.
             self.state.pop("arc_domains", None)
@@ -1173,15 +1182,8 @@ class PuzzleEditor:
                 allowed = effective_domains[(r, c)] if effective_domains is not None else ()
                 self.domain_text.set(f"({r + 1}, {c + 1}) allowed: " + ", ".join(names[o] for o in allowed))
         if hasattr(self, 'implication_text'):
-            names = {None: 'no arc', 'tl': 'top-left', 'tr': 'top-right', 'br': 'bottom-right', 'bl': 'bottom-left'}
-            descriptions = []
-            for rule in self.state.get('arc_implications', []):
-                r, c, arc = rule['if']
-                nr, nc, allowed = rule['then']
-                if self.selected in ((r, c), (nr, nc)):
-                    descriptions.append(f"If r{r + 1}c{c + 1} is {names[arc]}, r{nr + 1}c{nc + 1} must be "
-                                        + ' or '.join(names[value] for value in allowed))
-            self.implication_text.set('\n'.join(descriptions))
+            from arc_constraints import describe_arc_implications
+            self.implication_text.set(describe_arc_implications(self.state, self.selected))
 
     def click(self, event, erase=False):
         mode = self.mode.get()

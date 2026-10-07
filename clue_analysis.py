@@ -57,6 +57,7 @@ class ClueAnalysis:
     regular_switches: int = 0
     secondary_cache_hits: int = 0
     perimeter_capacity_pruned: int = 0
+    source_clue: tuple | None = field(default=None, compare=False)
 
 
 def fragment_for_edge(orientation, edge):
@@ -204,7 +205,7 @@ def analyze_clue(state, selected, accepted_limit=25, stop_event=None, progress=N
     fixed = {cell: domain[0] for cell, domain in domains.items() if len(domain) == 1}
     choices = domains[selected]
     stack = [fixed | {selected: orientation} for orientation in reversed(choices)]
-    result, signatures = ClueAnalysis(factorizations=factorizations), set()
+    result, signatures = ClueAnalysis(factorizations=factorizations, source_clue=selected), set()
     while stack:
         if stop_event is not None and stop_event.is_set():
             result.cancelled = True
@@ -295,9 +296,13 @@ def incorporate_analysis(state, result):
                 changes["forced"] = changes.get("forced", 0) + 1
     state["arc_domains"] = domains
     from arc_constraints import learn_arc_implications
-    learned = learn_arc_implications(state, assignments, mandatory)
+    learned = learn_arc_implications(state, assignments, mandatory, result.source_clue)
     if learned:
         changes['implications'] = learned
+        from arc_constraints import apply_arc_deductions
+        forced = apply_arc_deductions(state)
+        if forced:
+            changes['forced'] = changes.get('forced', 0) + forced
     if len(assignments) == 1:
         for (r, c), orientation in assignments[0].items():
             state["cells"][r][c]["arc"] = orientation

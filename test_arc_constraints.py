@@ -3,13 +3,40 @@ import json
 import unittest
 import random
 
-from arc_constraints import propagate_arc_domains, make_arc_domain_propagator
+from arc_constraints import (propagate_arc_domains, make_arc_domain_propagator,
+                             apply_arc_deductions, describe_arc_implications)
 from clue_analysis import ClueAnalysis, incorporate_analysis
 from incremental_analysis import analyze_clue_incremental, SimplifiedArc
 from puzzle_gui import blank_grid, validate_state, ARC_CYCLE
 
 
 class ArcConstraintTests(unittest.TestCase):
+    def test_grouped_triggers_propagate_from_a_multi_option_domain(self):
+        state = self.board(1, 3)
+        state['arc_implications'] = [
+            {'if': [0, 0, arc], 'then': [0, 1, ['br']]}
+            for arc in ARC_CYCLE[1:]]
+        state['arc_implications'].append({'if': [0, 1, 'br'], 'then': [0, 2, ['tl']]})
+        domains = {(0, 0): ('tl', 'tr'), (0, 1): ARC_CYCLE, (0, 2): ARC_CYCLE}
+        propagated = propagate_arc_domains(state, domains=domains)
+        self.assertEqual(propagated[(0, 1)], ('br',))
+        self.assertEqual(propagated[(0, 2)], ('tl',))
+        # The inverse of the grouped condition excludes every arc trigger.
+        reverse = propagate_arc_domains(state, {(0, 1): 'tl'})
+        self.assertEqual(reverse[(0, 0)], (None,))
+
+    def test_root_rule_filter_preserves_descendant_cascades(self):
+        state = self.board(1, 3)
+        state['arc_implications'] = [{'if': [0, 0, 'tl'], 'then': [0, 1, ['br']]},
+                                     {'if': [0, 1, 'br'], 'then': [0, 2, ['tl', 'tr']]}]
+        root = propagate_arc_domains(state, domains={(0, 0): ARC_CYCLE,
+                (0, 1): ARC_CYCLE, (0, 2): ('tl', 'tr')})
+        propagate = make_arc_domain_propagator(state)
+        propagate.restrict(root)
+        for arc in ARC_CYCLE:
+            actual, _ = propagate.extend(root, (0, 0), arc)
+            self.assertEqual(actual, propagate_arc_domains(state, {(0, 0): arc}, root))
+
     def test_incremental_domains_match_full_propagation_and_preserve_parent(self):
         rng = random.Random(456)
         state = self.board(2, 2)
@@ -89,15 +116,51 @@ class ArcConstraintTests(unittest.TestCase):
         self.assertEqual(propagate_arc_domains(saved, {(1, 5): 'tl'})[(0, 6)], ('br',))
         self.assertIsNone(propagate_arc_domains(saved, {(1, 5): 'tl', (0, 6): 'tl'}))
 
-    def test_optional_cells_and_partial_searches_do_not_learn(self):
+    def test_optional_cells_are_wildcards_and_partial_searches_do_not_learn(self):
         state = self.board()
         states = [((1, 5, 'tl'), (0, 6, 'br')), ((1, 5, 'br'),)]
         incorporate_analysis(state, ClueAnalysis(accepted_states=states))
-        self.assertNotIn('arc_implications', state)
+        # The state omitting the target permits every target configuration.
+        self.assertEqual(set(propagate_arc_domains(state, {(1, 5): 'br'})[(0, 6)]), set(ARC_CYCLE))
+        self.assertEqual(propagate_arc_domains(state, {(0, 6): 'tl'})[(1, 5)], ('br',))
         for flag in ('limit_reached', 'cancelled', 'worklist_limit_reached'):
             state = self.board()
             incorporate_analysis(state, ClueAnalysis(accepted_states=states, **{flag: True}))
             self.assertNotIn('arc_implications', state)
+
+    def test_three_21_states_learn_optional_cell_and_apply_remaining_shared_arcs(self):
+        accepted = [
+            ((0, 0, None), (0, 1, None), (0, 2, 'bl'), (1, 0, None), (1, 1, None),
+             (1, 2, 'tl'), (2, 0, None), (2, 1, 'br'), (3, 0, 'br')),
+            ((1, 0, 'bl'), (2, 0, None), (2, 1, 'tr'), (2, 2, 'tl'), (2, 3, 'bl'),
+             (3, 0, 'tr'), (3, 1, None), (3, 2, None), (3, 3, 'tl'), (4, 1, 'bl'), (4, 2, 'br')),
+            ((1, 0, 'bl'), (2, 0, None), (2, 1, 'tr'), (3, 0, 'tr'), (3, 1, None),
+             (3, 2, 'bl'), (4, 1, 'bl'), (4, 2, None), (4, 3, 'tr'), (5, 2, 'tr'), (5, 3, 'br'))]
+        state = self.board(9, 9)
+        incorporate_analysis(state, ClueAnalysis(accepted_states=accepted, source_clue=(1, 0)))
+        descriptions = describe_arc_implications(state, (3, 1))
+        self.assertIn('anything other than no arc, r2c1 must be no arc', descriptions)
+        self.assertLessEqual(len(descriptions.splitlines()), 2)
+        saved = validate_state(json.loads(json.dumps(state)))
+        # Merely excluding empty at r4c2 selects the first region, even though
+        # that region does not contain r4c2 and says nothing about its arc.
+        nonempty = copy.deepcopy(saved)
+        nonempty['arc_domains'][3][1].remove(None)
+        apply_arc_deductions(nonempty)
+        for r, c, arc in accepted[0]:
+            self.assertEqual(nonempty['arc_domains'][r][c], [arc])
+            self.assertEqual(nonempty['cells'][r][c]['arc'], arc)
+        for arc, remaining in [('br', accepted[:1]), ('tr', accepted[1:])]:
+            branch = copy.deepcopy(saved)
+            branch['cells'][2][1]['arc'] = arc
+            apply_arc_deductions(branch)
+            shared = set(remaining[0]).intersection(*(set(values) for values in remaining[1:]))
+            for r, c, forced in shared:
+                self.assertEqual(branch['arc_domains'][r][c], [forced])
+                self.assertEqual(branch['cells'][r][c]['arc'], forced)
+            if arc == 'tr':
+                self.assertEqual(branch['arc_domains'][3][2], [None, 'bl'])
+                self.assertEqual(branch['cells'][3][2]['arc'], None)
 
     def test_chain_propagation_and_reverse_elimination(self):
         state = self.board()

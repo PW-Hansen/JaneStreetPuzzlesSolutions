@@ -88,6 +88,7 @@ def analyze_clue_incremental(state, selected, accepted_limit=25, stop_event=None
         return ClueAnalysis(invalid_pruned=1, factorizations=factorizations)
     if any(not domain for domain in domains.values()):
         return ClueAnalysis(invalid_pruned=1, factorizations=factorizations)
+    propagate_arc_domains.restrict(domains)
     fixed = {cell: domain[0] for cell, domain in domains.items() if len(domain) == 1}
     secondary_cache = SecondarySearchCache(state, stop_event, secondary_worklist_limit,
                                             prioritize_frontier)
@@ -213,7 +214,7 @@ def analyze_clue_incremental(state, selected, accepted_limit=25, stop_event=None
     stack = [(fixed | {selected: orientation}, empty, (*selected, 0), not simplify_nonclue,
               domains, (selected, orientation))
              for orientation in reversed(domains[selected])]
-    result, signatures = ClueAnalysis(factorizations=factorizations), set()
+    result, signatures = ClueAnalysis(factorizations=factorizations, source_clue=selected), set()
     while stack:
         if stop_event is not None and stop_event.is_set():
             result.cancelled = True
