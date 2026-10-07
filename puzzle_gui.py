@@ -164,6 +164,8 @@ class Region:
     arc_outsides: int = 0
     invalid_arcs: frozenset[tuple[int, int]] = frozenset()
     area: int | str = field(init=False)
+    smooth_pieces: int | None = field(init=False, default=None, compare=False)
+    score: int | None = field(init=False, default=None, compare=False)
 
     def __post_init__(self):
         object.__setattr__(self, "area", self.determine_area())
@@ -214,6 +216,54 @@ class Region:
             return term if self.pi_quarters > 0 else f"−{term}"
         sign = "+" if self.pi_quarters > 0 else "−"
         return f"{self.constant} {sign} {term}"
+
+    def determine_smooth_pieces(self, state):
+        """Count smooth connected pieces of this region's entire perimeter."""
+        boundary = []
+        for r, c, side in sorted(self.fragments):
+            cell = state["cells"][r][c]
+            arc = cell["arc"]
+            if arc and (r, c, 1 - side) not in self.fragments:
+                boundary.append(arc_endpoints(r, c, arc))
+            inside_edges = {"tl": "NW", "tr": "NE", "br": "SE", "bl": "SW"}
+            for edge, on_border, endpoints in (
+                ("N", r == 0, (((r, c), (1, 0)), ((r, c + 1), (-1, 0)))),
+                ("S", r == state["rows"] - 1,
+                 (((r + 1, c), (1, 0)), ((r + 1, c + 1), (-1, 0)))),
+                ("W", c == 0, (((r, c), (0, 1)), ((r + 1, c), (0, -1)))),
+                ("E", c == state["columns"] - 1,
+                 (((r, c + 1), (0, 1)), ((r + 1, c + 1), (0, -1)))),
+            ):
+                owner = 0 if arc is None or edge in inside_edges[arc] else 1
+                if on_border and side == owner:
+                    boundary.append(endpoints)
+        parent = list(range(len(boundary)))
+
+        def find(index):
+            while parent[index] != index:
+                parent[index] = parent[parent[index]]
+                index = parent[index]
+            return index
+
+        corners = {}
+        for index, endpoints in enumerate(boundary):
+            for corner, tangent in endpoints:
+                corners.setdefault(corner, []).append((index, tangent))
+        for entries in corners.values():
+            for i, (first, tangent) in enumerate(entries):
+                for second, other in entries[i + 1:]:
+                    if tangent == (-other[0], -other[1]):
+                        parent[find(second)] = find(first)
+        pieces = len({find(index) for index in range(len(boundary))})
+        object.__setattr__(self, "smooth_pieces", pieces)
+        return pieces
+
+    def determine_score(self, state):
+        """Store area times smooth perimeter pieces; invalid regions have no score."""
+        pieces = self.determine_smooth_pieces(state)
+        score = self.area * pieces if self.determine_validity() else None
+        object.__setattr__(self, "score", score)
+        return score
 
     @classmethod
     def from_fragments(cls, region_id, fragments, state, invalid_arcs=()):
@@ -477,6 +527,7 @@ class PuzzleEditor:
         ttk.Button(dimensions, text="Check smooth arcs", command=self.check_smooth_arcs).pack(side="left", padx=4)
         ttk.Button(dimensions, text="Determine regions", command=self.check_regions).pack(side="left", padx=4)
         ttk.Button(dimensions, text="Compute region areas", command=self.compute_region_areas).pack(side="left", padx=4)
+        ttk.Button(dimensions, text="Compute scores", command=self.compute_region_scores).pack(side="left", padx=4)
         ttk.Button(dimensions, text="Clear colors", command=self.clear_arc_colors).pack(side="left", padx=4)
         ttk.Label(root, text="Green: click to toggle • Digits: select a cell and type • "
                   "Arcs: click to cycle through four curves, then no arc\n"
@@ -616,6 +667,17 @@ class PuzzleEditor:
         self.area_labels = None
         self.draw()
         self.status.set("Analysis colors cleared.")
+
+    def compute_region_scores(self):
+        regions, self.region_colors, _ = determine_regions(self.state)
+        unique_regions = set(regions.values())
+        for region in unique_regions:
+            region.determine_score(self.state)
+        self.area_labels = [(position, f"S: {region.score}" if region.score is not None else "Invalid")
+                            for region, position in region_area_positions(self.state, regions).items()]
+        self.draw()
+        self.status.set(f"Scores computed for {sum(region.score is not None for region in unique_regions)}"
+                        f"/{len(unique_regions)} regions. Score = area × smooth perimeter pieces.")
 
     def draw(self):
         self.canvas.delete("all")

@@ -85,6 +85,40 @@ class RegionAreaTests(unittest.TestCase):
             self.assertEqual(sum(region.arc_insides for region in objects), arc_count)
             self.assertEqual(sum(region.arc_outsides for region in objects), arc_count)
 
+    def test_rectangle_score_includes_four_straight_pieces(self):
+        state = self.board(3, 4)
+        region = next(iter(determine_regions(state)[0].values()))
+        self.assertEqual(region.determine_score(state), 48)
+        self.assertEqual(region.smooth_pieces, 4)
+        self.assertEqual(region.score, 48)
+
+    def test_closed_circle_and_outer_corner_pieces(self):
+        state = self.board(2, 2)
+        for r, c, arc in [(0, 0, "br"), (0, 1, "bl"), (1, 0, "tr"), (1, 1, "tl")]:
+            state["cells"][r][c]["arc"] = arc
+        regions = set(determine_regions(state)[0].values())
+        circle = next(region for region in regions if region.arc_insides == 4)
+        self.assertEqual(circle.determine_smooth_pieces(state), 1)
+        self.assertIsNone(circle.determine_score(state))  # Area is π.
+        for corner in regions - {circle}:
+            self.assertEqual(corner.determine_smooth_pieces(state), 3)
+
+    def test_arc_smoothly_joins_outer_border(self):
+        state = self.board(1, 2)
+        state["cells"][0][1]["arc"] = "tl"
+        mapping = determine_regions(state)[0]
+        # The arc's bottom endpoint continues left along cell 1's bottom border.
+        region = mapping[(0, 1, 0)]
+        self.assertEqual(region.determine_smooth_pieces(state), 3)
+        self.assertIsNone(region.determine_score(state))
+
+    def test_invalid_dangling_region_has_no_score(self):
+        state = self.board(3, 3)
+        state["cells"][1][1]["arc"] = "tl"
+        region = next(iter(determine_regions(state)[0].values()))
+        self.assertEqual(region.determine_smooth_pieces(state), 4)
+        self.assertIsNone(region.determine_score(state))
+
 
 if __name__ == "__main__":
     unittest.main()
