@@ -7,7 +7,7 @@ import json
 import math
 import os
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 import tkinter as tk
 from tkinter import messagebox, simpledialog, ttk
@@ -141,16 +141,36 @@ def determine_regions(state):
             palette.append("#" + "".join(f"{round(v * 255):02x}" for v in rgb))
         assigned[region] = index
     colors = {fragment: palette[assigned[region]] for fragment, region in regions.items()}
-    return regions, colors, invalid_arcs
+    fragments_by_region = {region: set() for region in adjacency}
+    invalid_by_region = {region: set() for region in adjacency}
+    for fragment, region in regions.items():
+        fragments_by_region[region].add(fragment)
+    for r, c in invalid_arcs:
+        invalid_by_region[regions[(r, c, 0)]].add((r, c))
+    objects = {region: Region.from_fragments(region, fragments, state,
+                                            invalid_by_region[region])
+               for region, fragments in fragments_by_region.items()}
+    return {fragment: objects[region] for fragment, region in regions.items()}, colors, invalid_arcs
 
 
 @dataclass(frozen=True)
-class RegionArea:
-    """Exact area: whole_cells + arc_outsides + (insides - outsides) * pi/4."""
+class Region:
+    """A connected region that computes and stores its exact area value."""
 
+    id: int
+    fragments: frozenset[tuple[int, int, int]]
     whole_cells: int = 0
     arc_insides: int = 0
     arc_outsides: int = 0
+    invalid_arcs: frozenset[tuple[int, int]] = frozenset()
+    area: int | str = field(init=False)
+
+    def __post_init__(self):
+        object.__setattr__(self, "area", self.determine_area())
+
+    @property
+    def is_valid(self):
+        return not self.invalid_arcs
 
     @property
     def constant(self):
@@ -166,11 +186,12 @@ class RegionArea:
 
     @property
     def integer_area(self):
-        return self.constant if self.is_integer else None
+        return self.area if self.is_integer else None
 
-    def __str__(self):
+    def determine_area(self):
+        """Return an integer or an exact symbolic string, never a float."""
         if self.is_integer:
-            return str(self.constant)
+            return self.constant
         coefficient = abs(self.pi_quarters)
         term = "π/4" if coefficient == 1 else f"{coefficient}π/4"
         if self.constant == 0:
@@ -178,26 +199,26 @@ class RegionArea:
         sign = "+" if self.pi_quarters > 0 else "−"
         return f"{self.constant} {sign} {term}"
 
+    @classmethod
+    def from_fragments(cls, region_id, fragments, state, invalid_arcs=()):
+        fragments = frozenset(fragments)
+        whole_cells = arc_insides = arc_outsides = 0
+        for r, c, side in fragments:
+            if state["cells"][r][c]["arc"] is None:
+                whole_cells += 1
+            elif side == 0:
+                arc_insides += 1
+            else:
+                arc_outsides += 1
+        return cls(region_id, fragments, whole_cells, arc_insides, arc_outsides,
+                   frozenset(invalid_arcs))
+
 
 def determine_region_areas(state, regions=None):
-    """Return region IDs mapped to exact cell-fragment counts, without floats.
-
-    By default determine connectivity first. Passing an existing fragment-to-
-    region mapping avoids repeating that work. Dangling-arc validity remains
-    separate: a region may have integer area while containing both arc sides.
-    """
+    """Convenience view of the exact areas already stored on Region objects."""
     if regions is None:
         regions = determine_regions(state)[0]
-    counts = {}
-    for (r, c, side), region in regions.items():
-        tally = counts.setdefault(region, [0, 0, 0])
-        if state["cells"][r][c]["arc"] is None:
-            tally[0] += 1
-        elif side == 0:
-            tally[1] += 1
-        else:
-            tally[2] += 1
-    return {region: RegionArea(*tally) for region, tally in counts.items()}
+    return {region.id: region.area for region in regions.values()}
 
 
 def region_area_positions(state, regions):
@@ -553,24 +574,24 @@ class PuzzleEditor:
 
     def check_regions(self):
         regions, self.region_colors, invalid_arcs = determine_regions(self.state)
-        areas = determine_region_areas(self.state, regions)
+        unique_regions = set(regions.values())
         self.draw()
-        count = len(set(regions.values()))
+        count = len(unique_regions)
         if invalid_arcs:
             cells = ", ".join(f"({r + 1}, {c + 1})" for r, c in invalid_arcs)
             self.status.set(f"{count} regions — INVALID: both sides of an arc reconnect in cells (row, column): {cells}.")
         else:
             self.status.set(f"{count} regions — every arc separates distinct regions. "
-                            f"{sum(area.is_integer for area in areas.values())}/{count} regions have integer area.")
+                            f"{sum(region.is_integer for region in unique_regions)}/{count} regions have integer area.")
 
     def compute_region_areas(self):
         regions, self.region_colors, invalid_arcs = determine_regions(self.state)
-        areas = determine_region_areas(self.state, regions)
-        self.area_labels = [(position, str(areas[region]))
+        unique_regions = set(regions.values())
+        self.area_labels = [(position, str(region.area))
                             for region, position in region_area_positions(self.state, regions).items()]
         self.draw()
-        self.status.set(f"Areas computed for {len(areas)} regions; "
-                        f"{sum(area.is_integer for area in areas.values())} have integer area. "
+        self.status.set(f"Areas computed for {len(unique_regions)} regions; "
+                        f"{sum(region.is_integer for region in unique_regions)} have integer area. "
                         f"{len(invalid_arcs)} arcs have both sides in one region. Blue labels show areas.")
 
     def clear_arc_colors(self):
