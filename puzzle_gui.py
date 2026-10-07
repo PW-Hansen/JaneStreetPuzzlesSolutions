@@ -345,7 +345,7 @@ def region_area_positions(state, regions):
     return {region: candidate[1] for region, candidate in candidates.items()}
 
 
-def render_grid(state, cell_size, arc_colors=None, region_colors=None):
+def render_grid(state, cell_size, arc_colors=None, region_colors=None, map_mode=False):
     """Draw at four times the display resolution for smooth circular edges."""
     scale, margin = 4, 16
     rows, columns = state["rows"], state["columns"]
@@ -414,6 +414,16 @@ def render_grid(state, cell_size, arc_colors=None, region_colors=None):
                    (margin + columns * cell_size, margin + rows * cell_size),
                    (margin, margin + rows * cell_size), (margin, margin))],
                  fill="black", width=4 * scale, joint="curve")
+    for r, row in enumerate(state['cells']):
+        for c, cell in enumerate(row):
+            saved = state.get('saved_analyses', {}).get(f'{r},{c}')
+            if cell['number'] is None or saved is None or len(saved['states']) <= 1:
+                continue
+            cx = margin + (c + .5) * cell_size
+            cy = margin + (r + (.16 if map_mode else .5)) * cell_size
+            radius = cell_size * (.15 if map_mode else .23)
+            painter.ellipse(box(cx - radius, cy - radius, cx + radius, cy + radius),
+                            outline='#1769aa', width=2 * scale)
     return image.resize((width, height), Image.Resampling.LANCZOS)
 
 
@@ -504,6 +514,33 @@ def blank_grid(rows, columns):
              for _ in range(columns)] for _ in range(rows)]
 
 
+def save_accepted_states(state, selected, result):
+    if (result.cancelled or result.limit_reached or result.worklist_limit_reached
+            or len(result.accepted_states) >= 25):
+        return False
+    r, c = selected
+    state.setdefault('saved_analyses', {})[f'{r},{c}'] = {
+        'clue': state['cells'][r][c]['number'],
+        'states': [[list(placement) for placement in accepted] for accepted in result.accepted_states]}
+    return True
+
+
+def prune_saved_states(state):
+    """Discard local previews conflicting with actual drawn arcs, not omissions."""
+    removed = 0
+    saved = state.get('saved_analyses', {})
+    for key, entry in list(saved.items()):
+        surviving = [accepted for accepted in entry['states']
+                     if all(state['cells'][r][c]['arc'] is None
+                            or state['cells'][r][c]['arc'] == arc for r, c, arc in accepted)]
+        removed += len(entry['states']) - len(surviving)
+        if surviving:
+            entry['states'] = surviving
+        else:
+            del saved[key]
+    return removed
+
+
 def validate_state(state):
     rows, columns = state["rows"], state["columns"]
     if type(rows) is not int or type(columns) is not int or not (1 <= rows <= 50 and 1 <= columns <= 50):
@@ -553,6 +590,31 @@ def validate_state(state):
         from arc_constraints import propagate_arc_domains
         if propagate_arc_domains(state) is None:
             raise ValueError('Conditional deductions contradict the current markings or master list.')
+    saved = state.get('saved_analyses', {})
+    if not isinstance(saved, dict):
+        raise ValueError('Saved clue analyses must be a mapping.')
+    for key, entry in saved.items():
+        try:
+            r, c = map(int, key.split(','))
+            if not (0 <= r < rows and 0 <= c < columns):
+                raise ValueError()
+            if entry['clue'] != cells[r][c]['number'] or entry['clue'] is None:
+                raise ValueError()
+            accepted = entry['states']
+            if not isinstance(accepted, list) or len(accepted) >= 25:
+                raise ValueError()
+            for placements in accepted:
+                if not isinstance(placements, list):
+                    raise ValueError()
+                seen = set()
+                for nr, nc, arc in placements:
+                    if (type(nr) is not int or type(nc) is not int or
+                            not (0 <= nr < rows and 0 <= nc < columns) or arc not in ARC_CYCLE
+                            or (nr, nc) in seen or cells[nr][nc]['green'] and arc is not None):
+                        raise ValueError()
+                    seen.add((nr, nc))
+        except (ValueError, TypeError, KeyError, AttributeError):
+            raise ValueError('Invalid saved clue analysis.') from None
     return state
 
 
@@ -780,9 +842,14 @@ class PuzzleEditor:
             # Clue/green edits change the puzzle; arc placements retain deductions.
             self.state.pop("arc_domains", None)
             self.state.pop('arc_implications', None)
+            self.state.pop('saved_analyses', None)
+        else:
+            prune_saved_states(self.state)
         self.cancel_clue_analysis()
         self.analysis_result = None
         self.preview_index = 0
+        if getattr(self, 'selected', None) is not None:
+            self.load_saved_clue(self.selected)
         self.undo_stack.append(previous)
         self.redo_stack.clear()
         self.smooth_colors = None
@@ -991,6 +1058,7 @@ class PuzzleEditor:
                             from clue_analysis import incorporate_analysis
                             previous = copy.deepcopy(self.state)
                             changes = incorporate_analysis(self.state, value)
+                            save_accepted_states(self.state, selected, value)
                             self.commit(previous, preserve_domains=True)
                             self.analysis_result = value
                             self.preview_index = 0
@@ -1023,6 +1091,18 @@ class PuzzleEditor:
 
         threading.Thread(target=worker, daemon=True).start()
         self.root.after(100, poll)
+
+    def load_saved_clue(self, selected):
+        self.preview_index = 0
+        self.analysis_result = None
+        entry = self.state.get('saved_analyses', {}).get(f'{selected[0]},{selected[1]}')
+        if entry is None:
+            return False
+        from clue_analysis import ClueAnalysis
+        self.analysis_result = ClueAnalysis(
+            accepted_states=[tuple(tuple(placement) for placement in accepted) for accepted in entry['states']],
+            source_clue=selected)
+        return True
 
     def update_preview_controls(self):
         if not hasattr(self, "preview_choice"):
@@ -1132,7 +1212,8 @@ class PuzzleEditor:
         previewing = getattr(self, "preview_index", 0) > 0
         arc_colors = speculative if previewing else self.smooth_colors
         self.grid_image = ImageTk.PhotoImage(render_grid(display, size, arc_colors,
-                                                        None if previewing or map_mode else self.region_colors), master=self.canvas)
+                                                        None if previewing or map_mode else self.region_colors,
+                                                        map_mode=map_mode), master=self.canvas)
         self.canvas.create_image(0, 0, image=self.grid_image, anchor="nw")
         for r, row in enumerate(self.state["cells"]):
             for c, cell in enumerate(row):
@@ -1204,6 +1285,10 @@ class PuzzleEditor:
             return
         self.selected = (r, c)
         self.fresh_entry = True
+        if not erase and self.state['cells'][r][c]['number'] is not None:
+            if self.load_saved_clue(self.selected):
+                self.draw()
+                return
         if mode == 'map':
             if erase:
                 dx, dy = (x % self.size) / self.size, (y % self.size) / self.size
@@ -1255,6 +1340,8 @@ class PuzzleEditor:
             self.selected = (max(0, min(self.state["rows"] - 1, r + dr)),
                              max(0, min(self.state["columns"] - 1, c + dc)))
             self.fresh_entry = True
+            if self.state['cells'][self.selected[0]][self.selected[1]]['number'] is not None:
+                self.load_saved_clue(self.selected)
             self.draw()
             return "break"
         if self.mode.get() in ('select', 'map'):
