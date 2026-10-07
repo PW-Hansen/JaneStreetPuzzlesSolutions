@@ -50,6 +50,7 @@ class ClueAnalysis:
     secondary_branches: int = 0
     secondary_pruned: int = 0
     secondary_cutoffs: int = 0
+    regular_switches: int = 0
 
 
 def fragment_for_edge(orientation, edge):

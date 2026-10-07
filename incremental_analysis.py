@@ -73,6 +73,9 @@ def analyze_clue_incremental(state, selected, accepted_limit=25, stop_event=None
     if target is None:
         raise ValueError("Select a cell containing a clue.")
     factorizations = tuple(clue_factorizations(state, selected))
+    factor_areas = sorted({a for a, _ in factorizations})
+    complex_threshold = (factor_areas[-2] if len(factor_areas) > 1
+                         else factor_areas[-1] if factor_areas else 0)
     priorities = (frontier_priorities(state) if prioritize_frontier else
                   {(r, c): 0 for r in range(rows) for c in range(columns)})
     domains = {(r, c): allowed_arc_configurations(state, r, c)
@@ -161,9 +164,9 @@ def analyze_clue_incremental(state, selected, accepted_limit=25, stop_event=None
         partial.counts = tuple(counts)
         return partial
 
-    def minimum_area(partial):
+    def minimum_area(partial, regular=False):
         whole, inside, outside = partial.counts
-        if simplify_nonclue:
+        if simplify_nonclue and not regular:
             # Fixed arcs retain their proper quarter-disc/complement contribution.
             coefficient = inside - outside
             lower = (whole + outside + Fraction(partial.half_cells, 2)
@@ -192,7 +195,7 @@ def analyze_clue_incremental(state, selected, accepted_limit=25, stop_event=None
         return max(rounded, whole + max(inside, outside))
 
     empty = _Partial()
-    stack = [(fixed | {selected: orientation}, empty, (*selected, 0))
+    stack = [(fixed | {selected: orientation}, empty, (*selected, 0), not simplify_nonclue)
              for orientation in reversed(domains[selected])]
     result, signatures = ClueAnalysis(factorizations=factorizations), set()
     while stack:
@@ -203,7 +206,7 @@ def analyze_clue_incremental(state, selected, accepted_limit=25, stop_event=None
         if worklist_limit is not None and len(stack) > worklist_limit:
             result.worklist_limit_reached = True
             break
-        assigned, parent, seed = stack.pop()
+        assigned, parent, seed, regular = stack.pop()
         result.explored += 1
         if progress and result.explored % 256 == 0:
             progress(result.explored, len(result.accepted_states))
@@ -211,7 +214,34 @@ def analyze_clue_incremental(state, selected, accepted_limit=25, stop_event=None
         if partial is None:
             result.invalid_pruned += 1
             continue
-        area = minimum_area(partial)
+        whole, inside, outside = partial.counts
+        coefficient = inside - outside
+        current_area = (whole + outside + Fraction(partial.half_cells, 2)
+                        + coefficient * (PI_LOW if coefficient >= 0 else PI_HIGH) / 4)
+        if not regular and current_area > complex_threshold:
+            regular = True
+            result.regular_switches += 1
+        if regular and partial.half_cells:
+            budgets = compatible_factorizations(factorizations, minimum_area(partial), 1)
+            if not budgets or not partial_curve_feasible(
+                    partial, assigned, incident_cells, max(p for _, p in budgets),
+                    stop_event, worklist_limit, result):
+                if stop_event is not None and stop_event.is_set():
+                    result.cancelled = True
+                    break
+                result.score_pruned += 1
+                continue
+            if result.worklist_limit_reached:
+                break
+            # Resolve one grouped cell per worklist step, reflooding the same
+            # topology with concrete sides and exact counts. Subsequent steps
+            # stay in regular mode, even if this choice reduces the area.
+            cell = next(cell for cell in sorted(partial.reached)
+                        if isinstance(assigned[cell], SimplifiedArc))
+            for orientation in reversed(assigned[cell].options):
+                stack.append((assigned | {cell: orientation}, empty, (*selected, 0), True))
+            continue
+        area = minimum_area(partial, regular)
         if not compatible_factorizations(factorizations, area, 1):
             result.area_pruned += 1
             result.factorization_pruned += 1
@@ -247,7 +277,7 @@ def analyze_clue_incremental(state, selected, accepted_limit=25, stop_event=None
             if rejected:
                 continue
         if not partial.frontier:
-            if simplify_nonclue:
+            if simplify_nonclue and not regular:
                 whole, inside, outside = partial.counts
                 area = Fraction(2 * whole + inside + outside + partial.half_cells, 2)
                 if not any(a == area for a, _ in factorizations):
@@ -292,13 +322,63 @@ def analyze_clue_incremental(state, selected, accepted_limit=25, stop_event=None
             continue
         cell = choose_frontier_cell(partial.frontier, priorities)
         choices = (simplified_choices(domains[cell], partial.frontier[cell])
-                   if simplify_nonclue and state['cells'][cell[0]][cell[1]]['number'] is None
+                   if not regular and state['cells'][cell[0]][cell[1]]['number'] is None
                    else domains[cell])
         for orientation in reversed(choices):
             required = {edge_side(orientation, edge) for edge in partial.frontier[cell]}
             if len(required) == 1:
-                stack.append((assigned | {cell: orientation}, partial, (*cell, next(iter(required)))))
+                stack.append((assigned | {cell: orientation}, partial, (*cell, next(iter(required))), regular))
     return result
+
+
+def partial_curve_feasible(partial, assigned, incident_cells, max_pieces, stop_event=None,
+                           worklist_limit=None, result=None):
+    """Resolve curve domains at settled corners before the region is complete.
+
+    Open perimeter chains may still merge; only settled sharp joins constrain
+    the count. Success is feasibility of this bound, not a complete solution.
+    """
+    corners = {corner: [(None, (tangent,)) for tangent, _ in entries]
+               for corner, entries in partial.corners.items()}
+    variables = {}
+    for cell in sorted(partial.reached):
+        value = assigned[cell]
+        if not isinstance(value, SimplifiedArc):
+            continue
+        variables[cell] = value.options
+        for endpoint in (0, 1):
+            corner = arc_endpoints(*cell, value.options[0])[endpoint][0]
+            corners.setdefault(corner, []).append((cell, tuple(
+                arc_endpoints(*cell, arc)[endpoint][1] for arc in value.options)))
+    joins = [entries for corner, entries in corners.items()
+             if len(entries) == 2 and all(cell in partial.reached for cell in incident_cells(*corner))]
+    active = sorted({cell for entries in joins for cell, _ in entries if cell is not None})
+    stack = [{}]
+    while stack:
+        if stop_event is not None and stop_event.is_set():
+            return False
+        if worklist_limit is not None and len(stack) > worklist_limit:
+            if result is not None:
+                result.worklist_limit_reached = True
+            return True  # Unknown, rather than a contradiction.
+        chosen = stack.pop()
+        forced = possible = 0
+        for entries in joins:
+            domains = [(tangents[chosen[cell]],) if cell in chosen else tangents
+                       for cell, tangents in entries]
+            smooth = [a == (-b[0], -b[1]) for a in domains[0] for b in domains[1]]
+            forced += not any(smooth)
+            possible += not all(smooth)
+        if minimum_perimeter_pieces(forced) > max_pieces:
+            continue
+        if minimum_perimeter_pieces(possible) <= max_pieces:
+            return True
+        cell = next((cell for cell in active if cell not in chosen), None)
+        if cell is None:
+            return True
+        for option in reversed(range(len(variables[cell]))):
+            stack.append(chosen | {cell: option})
+    return False
 
 
 def concrete_completions(state, assigned, fragments, target, stop_event=None,
@@ -326,8 +406,49 @@ def concrete_completions(state, assigned, fragments, target, stop_event=None,
         minimum[index] = minimum[index + 1] + min(contributions)
         maximum[index] = maximum[index + 1] + max(contributions)
 
+    area = Fraction(sum(2 if assigned[(r, c)] is None else 1 for r, c, _ in reached), 2)
+    if area.denominator != 1 or target % area:
+        return
+    wanted_pieces = int(target / area)
+    # Boundary corners have fixed locations even while curve tangents are
+    # undecided. Rule out sharp joins as soon as both remaining tangent domains
+    # make them unavoidable, rather than constructing every complete Region.
+    corners = {}
+    for index, (r, c, original_side) in enumerate(reached):
+        value = assigned[(r, c)]
+        if value is not None:
+            for endpoint in (0, 1):
+                tangents = {arc: arc_endpoints(r, c, arc)[endpoint][1]
+                            for arc, _ in options[index]}
+                corner = arc_endpoints(r, c, options[index][0][0])[endpoint][0]
+                corners.setdefault(corner, []).append((index, tangents))
+        for edge, on_border, endpoints in (
+            ('N', r == 0, (((r, c), (1, 0)), ((r, c + 1), (-1, 0)))),
+            ('S', r == state['rows'] - 1, (((r + 1, c), (1, 0)), ((r + 1, c + 1), (-1, 0)))),
+            ('W', c == 0, (((r, c), (0, 1)), ((r + 1, c), (0, -1)))),
+            ('E', c == state['columns'] - 1, (((r, c + 1), (0, 1)), ((r + 1, c + 1), (0, -1)))),
+        ):
+            if on_border and edge_side(value, edge) == original_side:
+                for corner, tangent in endpoints:
+                    corners.setdefault(corner, []).append((-1, {None: tangent}))
+    joins = [entries for entries in corners.values() if len(entries) == 2]
+    affected = [[] for _ in options]
+    for join, entries in enumerate(joins):
+        for owner, _ in entries:
+            if owner >= 0:
+                affected[owner].append(join)
+
+    def forced_sharp(entries, chosen):
+        possible = []
+        for owner, tangents in entries:
+            possible.append((tangents[chosen[owner][0]],) if 0 <= owner < len(chosen)
+                            else tuple(tangents.values()))
+        return not any(a == (-b[0], -b[1]) for a in possible[0] for b in possible[1])
+
+    initial_sharp = tuple(forced_sharp(entries, ()) for entries in joins)
+
     # Iterative DFS also supports long boundaries without a recursion limit.
-    stack = [(0, 0, ())]
+    stack = [(0, 0, (), initial_sharp)]
     while stack:
         if stop_event is not None and stop_event.is_set():
             return
@@ -335,13 +456,19 @@ def concrete_completions(state, assigned, fragments, target, stop_event=None,
             if result is not None:
                 result.worklist_limit_reached = True
             return
-        index, balance, chosen = stack.pop()
+        index, balance, chosen, sharp = stack.pop()
         if not minimum[index] <= -balance <= maximum[index]:
+            continue
+        if minimum_perimeter_pieces(sum(sharp)) > wanted_pieces:
             continue
         if index < len(options):
             for arc, side in reversed(options[index]):
                 contribution = 0 if arc is None else 1 if side == 0 else -1
-                stack.append((index + 1, balance + contribution, chosen + ((arc, side),)))
+                next_chosen = chosen + ((arc, side),)
+                next_sharp = list(sharp)
+                for join in affected[index]:
+                    next_sharp[join] = forced_sharp(joins[join], next_chosen)
+                stack.append((index + 1, balance + contribution, next_chosen, tuple(next_sharp)))
             continue
         concrete_fragments = set()
         for (r, c, _), (arc, side) in zip(reached, chosen):

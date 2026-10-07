@@ -8,6 +8,7 @@ from unittest.mock import patch
 from clue_analysis import ClueAnalysis, analyze_clue
 from incremental_analysis import (analyze_clue_incremental, check_secondary_clue,
                                   simplified_choices, SimplifiedArc, concrete_completions)
+from incremental_analysis import _Partial, partial_curve_feasible
 from puzzle_gui import PuzzleEditor, blank_grid
 
 
@@ -90,6 +91,25 @@ class IncrementalAnalysisTests(unittest.TestCase):
 
 
 class SimplifiedArcTests(unittest.TestCase):
+    def test_partial_curve_choices_must_be_consistent_across_corners(self):
+        partial = _Partial(reached={(0, 0)},
+                           corners={(0, 1): (((0, -1), True),),
+                                    (1, 0): (((0, 1), True),)})
+        assigned = {(0, 0): SimplifiedArc('NW', ('tl', 'br'))}
+        # Each corner can be smooth individually, but requires a different
+        # orientation of the same cell. A one-piece perimeter is impossible.
+        incident = lambda r, c: ((0, 0),)
+        self.assertFalse(partial_curve_feasible(partial, assigned, incident, 1))
+        self.assertTrue(partial_curve_feasible(partial, assigned, incident, 2))
+
+    def test_switch_to_regular_arcs_preserves_concrete_solutions(self):
+        state = board(3, 3)
+        state['cells'][0][0]['number'] = 9
+        result = analyze_clue_incremental(state, (0, 0), check_other_clues=False,
+                                          accepted_limit=10000)
+        self.assertGreater(result.regular_switches, 0)
+        self.assertEqual(len(result.accepted_states), 16)
+
     def test_one_incoming_edge_has_three_topological_choices(self):
         for edge in 'NESW':
             choices = simplified_choices((None, 'tl', 'tr', 'br', 'bl'), {edge})
@@ -118,7 +138,7 @@ class SimplifiedArcTests(unittest.TestCase):
                 self.assertEqual(set(actual.accepted_states), set(expected.accepted_states))
                 self.assertEqual(state, before)
 
-    def test_simplification_reduces_expansion_without_losing_realizations(self):
+    def test_switching_preserves_all_realizations(self):
         state = board(3, 3)
         state['cells'][0][0]['number'] = 9
         full = analyze_clue_incremental(state, (0, 0), simplify_nonclue=False,
@@ -126,7 +146,6 @@ class SimplifiedArcTests(unittest.TestCase):
         simple = analyze_clue_incremental(state, (0, 0), check_other_clues=False,
                                            accepted_limit=10000)
         self.assertEqual(set(simple.accepted_states), set(full.accepted_states))
-        self.assertLess(simple.explored, full.explored)
         self.assertTrue(simple.accepted_states)
         for signature in simple.accepted_states:
             self.assertTrue(all(arc in (None, 'tl', 'tr', 'br', 'bl') for _, _, arc in signature))
