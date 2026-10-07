@@ -301,6 +301,14 @@ class Region:
         object.__setattr__(self, "score", score)
         return score
 
+    def verify(self, state):
+        """Verify separation, integer area, and every clue belonging to this region."""
+        score = self.determine_score(state)
+        if score is None:
+            return False
+        return all(state['cells'][r][c]['number'] in (None, score)
+                   for r, c, side in self.fragments if side == 0)
+
     @classmethod
     def from_fragments(cls, region_id, fragments, state, invalid_arcs=()):
         fragments = frozenset(fragments)
@@ -660,6 +668,7 @@ class PuzzleEditor:
         ttk.Label(dimensions, text=f"{self.state['rows']}x{self.state['columns']} grid").pack(side="left", padx=(4, 12))
         ttk.Button(dimensions, text="Check smooth arcs", command=self.check_smooth_arcs).pack(side="left", padx=4)
         ttk.Button(dimensions, text="Determine regions", command=self.check_regions).pack(side="left", padx=4)
+        ttk.Button(dimensions, text="Verify regions", command=self.verify_regions).pack(side="left", padx=4)
         ttk.Button(dimensions, text="Compute region areas", command=self.compute_region_areas).pack(side="left", padx=4)
         ttk.Button(dimensions, text="Compute scores", command=self.compute_region_scores).pack(side="left", padx=4)
         ttk.Button(dimensions, text="Clear colors", command=self.clear_arc_colors).pack(side="left", padx=4)
@@ -1151,6 +1160,18 @@ class PuzzleEditor:
         else:
             self.status.set(f"{count} regions — every arc separates distinct regions. "
                             f"{sum(region.determine_validity() for region in unique_regions)}/{count} regions are valid (integer area).")
+
+    def verify_regions(self):
+        self.preview_index = 0
+        regions, _, _ = determine_regions(self.state)
+        validity = {region: region.verify(self.state) for region in set(regions.values())}
+        self.region_colors = {fragment: '#a8dfac' if validity[region] else '#c4c4c4'
+                              for fragment, region in regions.items()}
+        self.smooth_colors = None
+        self.area_labels = None
+        self.draw()
+        self.status.set(f"Verified regions: {sum(validity.values())} valid (green); "
+                        f"{sum(not valid for valid in validity.values())} invalid (grey).")
 
     def compute_region_areas(self):
         self.preview_index = 0
