@@ -613,6 +613,8 @@ class PuzzleEditor:
         local_controls.pack(fill='x')
         ttk.Button(local_controls, text='Scan local conditionals (3 cells)',
                    command=self.scan_local_conditionals).pack(side='left', padx=4)
+        ttk.Button(local_controls, text='Wipe local conditionals',
+                   command=self.wipe_local_conditionals).pack(side='left', padx=4)
         options = self.state.get("analysis_options", {})
         self.simplify_arcs = tk.BooleanVar(value=options.get("simplify_arcs", True))
         self.prioritize_cells = tk.BooleanVar(value=options.get("prioritize_cells", True))
@@ -788,6 +790,12 @@ class PuzzleEditor:
         self.area_labels = None
         self.draw()
         self.save()
+
+    def wipe_local_conditionals(self):
+        previous = copy.deepcopy(self.state)
+        self.state.pop('arc_implications', None)
+        self.commit(previous, preserve_domains=True)
+        self.status.set('Local conditionals cleared. Arcs and excluded configurations preserved.')
 
     def reset_arcs(self):
         previous = copy.deepcopy(self.state)
