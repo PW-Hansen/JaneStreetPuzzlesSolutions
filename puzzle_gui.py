@@ -563,6 +563,8 @@ class PuzzleEditor:
         ttk.Button(dimensions, text="Clear colors", command=self.clear_arc_colors).pack(side="left", padx=4)
         analysis_controls = ttk.Frame(root, padding=(8, 0, 8, 8))
         analysis_controls.pack(fill="x")
+        ttk.Button(analysis_controls, text="Abort analysis",
+                   command=self.abort_clue_analysis).pack(side="left", padx=4)
         self.analysis_button = ttk.Button(analysis_controls, text="Analyze selected clue",
                                           command=self.analyze_selected_clue)
         self.analysis_button.pack(side="left", padx=4)
@@ -702,6 +704,11 @@ class PuzzleEditor:
             event.set()
             self.analysis_cancel = None
             self.analysis_button.configure(text="Analyze selected clue")
+
+    def abort_clue_analysis(self):
+        if self.analysis_cancel is not None:
+            self.cancel_clue_analysis()
+            self.status.set("Clue analysis aborted. No deductions applied.")
 
     def analyze_selected_clue(self):
         if self.analysis_cancel is not None:
