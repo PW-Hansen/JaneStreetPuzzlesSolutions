@@ -217,42 +217,8 @@ class ClueAnalysisTests(unittest.TestCase):
         editor.set_preview(99)
         self.assertEqual(editor.preview_index, 2)
 
-    def test_branch_cutoff_keeps_only_conclusive_exclusions(self):
-        state = board(2, 2)
-        state["cells"][0][0]["number"] = 3
-        result = analyze_clue(state, (0, 0), branch_limit=100)
-        self.assertTrue(result.branch_limit_reached)
-        self.assertEqual(result.explored, 101)
-        self.assertEqual(result.proven_domains[(0, 0)], ("tr", "br", "bl"))
-        self.assertEqual(incorporate_analysis(state, result)["removed"], 2)
-        self.assertIsNone(state["cells"][0][0]["arc"])
-        other = board(2, 2)
-        other["cells"][0][0]["number"] = 3
-        partial = analyze_clue(other, (0, 0), branch_limit=150)
-        self.assertEqual(len(partial.accepted_states), 1)
-        self.assertFalse(incorporate_analysis(other, partial)["applied"])
 
-    def test_cutoff_proofs_keep_exhaustive_completions(self):
-        state = board(2, 2)
-        expected = exhaustive_local_states(state, (0, 0))
-        for clue in range(1, 21):
-            state["cells"][0][0]["number"] = clue
-            for limit in (0, 10, 50, 100, 150):
-                partial = analyze_clue(state, (0, 0), accepted_limit=10000, branch_limit=limit)
-                for accepted in expected.get(clue, set()):
-                    assignment = {(r, c): orientation for r, c, orientation in accepted}
-                    for cell, proven in partial.proven_domains.items():
-                        if cell in assignment:
-                            self.assertIn(assignment[cell], proven)
-                        else:
-                            self.assertEqual(set(proven), set(ARC_CYCLE))
 
-    def test_cutoff_singleton_proof_applies_forced_cell(self):
-        state = board(1, 1)
-        result = ClueAnalysis(branch_limit_reached=True, proven_domains={(0, 0): ("tr",)})
-        changes = incorporate_analysis(state, result)
-        self.assertEqual(changes["forced"], 1)
-        self.assertEqual(state["cells"][0][0]["arc"], "tr")
 
 
 if __name__ == "__main__":

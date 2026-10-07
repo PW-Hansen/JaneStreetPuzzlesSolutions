@@ -23,8 +23,7 @@ class ClueAnalysis:
     invalid_pruned: int = 0
     limit_reached: bool = False
     cancelled: bool = False
-    branch_limit_reached: bool = False
-    proven_domains: dict = field(default_factory=dict)
+    elapsed_seconds: float = field(default=0.0, compare=False)
 
 
 def fragment_for_edge(orientation, edge):
@@ -122,8 +121,7 @@ def confirmed_smooth_piece_bound(state, assigned, fragments):
     return max(1, sharp)
 
 
-def analyze_clue(state, selected, accepted_limit=25, stop_event=None, progress=None,
-                 branch_limit=100000):
+def analyze_clue(state, selected, accepted_limit=25, stop_event=None, progress=None):
     """Enumerate completed local clue regions, stopping after limit+1 accepts.
 
     Existing arcs are fixed; blank whites are undecided. Unreached cells are
@@ -147,9 +145,6 @@ def analyze_clue(state, selected, accepted_limit=25, stop_event=None, progress=N
     while stack:
         if stop_event is not None and stop_event.is_set():
             result.cancelled = True
-            break
-        if result.explored > branch_limit:
-            result.branch_limit_reached = True
             break
         assigned = stack.pop()
         result.explored += 1
@@ -194,19 +189,6 @@ def analyze_clue(state, selected, accepted_limit=25, stop_event=None, progress=N
             required_sides = {fragment_for_edge(orientation, edge) for edge in frontier[cell]}
             if len(required_sides) == 1:
                 stack.append(assigned | {cell: orientation})
-    if result.branch_limit_reached:
-        survivors = stack + [{(r, c): orientation for r, c, orientation in accepted}
-                             for accepted in result.accepted_states]
-        for cell, domain in domains.items():
-            supported = set()
-            for survivor in survivors:
-                if cell not in survivor:
-                    supported.update(domain)
-                    break
-                supported.add(survivor[cell])
-            kept = tuple(orientation for orientation in domain if orientation in supported)
-            if kept and len(kept) < len(domain):
-                result.proven_domains[cell] = kept
     return result
 
 
@@ -218,23 +200,6 @@ def incorporate_analysis(state, result):
     """
     changes = {"removed": 0, "applied": False}
     if result.limit_reached or result.cancelled:
-        return changes
-    if result.branch_limit_reached:
-        if not result.proven_domains:
-            return changes
-        domains = [[list(allowed_arc_configurations(state, r, c)) for c in range(state["columns"])]
-                   for r in range(state["rows"])]
-        for (r, c), proven in result.proven_domains.items():
-            old = domains[r][c]
-            kept = [orientation for orientation in old if orientation in proven]
-            if not kept:
-                raise ValueError("Proven configurations contradict the current master list.")
-            changes["removed"] += len(old) - len(kept)
-            domains[r][c] = kept
-            if len(kept) == 1 and len(old) > 1:
-                state["cells"][r][c]["arc"] = kept[0]
-                changes["forced"] = changes.get("forced", 0) + 1
-        state["arc_domains"] = domains
         return changes
     if not result.accepted_states:
         return changes

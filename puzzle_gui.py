@@ -8,6 +8,7 @@ import math
 import os
 import re
 import threading
+from time import perf_counter
 from queue import Empty, Queue
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -536,6 +537,8 @@ class PuzzleEditor:
         self.area_labels = None
         self.analysis_cancel = None
         self.analysis_result = None
+        self.analysis_started_at = None
+        self.analysis_elapsed_seconds = None
         self.preview_index = 0
         self.selected = None
         self.fresh_entry = True
@@ -571,6 +574,14 @@ class PuzzleEditor:
         self.analysis_button.pack(side="left", padx=4)
         self.domain_text = tk.StringVar(value="Select a cell to view allowed arc configurations.")
         ttk.Label(analysis_controls, textvariable=self.domain_text).pack(side="left", padx=8)
+        incremental_controls = ttk.Frame(root, padding=(8, 0, 8, 8))
+        incremental_controls.pack(fill="x")
+        self.incremental_analysis_button = ttk.Button(
+            incremental_controls, text="Analyze selected clue (Incremental Expansion)",
+            command=self.analyze_selected_clue_incremental)
+        self.incremental_analysis_button.pack(side="left", padx=4)
+        self.search_time_text = tk.StringVar(value="Search time: —")
+        ttk.Label(incremental_controls, textvariable=self.search_time_text).pack(side="left", padx=12)
         preview_controls = ttk.Frame(root, padding=(8, 0, 8, 8))
         preview_controls.pack(fill="x")
         ttk.Label(preview_controls, text="Accepted state:").pack(side="left", padx=4)
@@ -721,17 +732,38 @@ class PuzzleEditor:
         if event is not None:
             event.set()
             self.analysis_cancel = None
-            self.analysis_button.configure(text="Analyze selected clue")
+            started = getattr(self, "analysis_started_at", None)
+            if started is not None:
+                self.update_analysis_time(perf_counter() - started, "cancelled")
+            self.analysis_started_at = None
+            self.reset_analysis_buttons()
+
+    def reset_analysis_buttons(self):
+        self.analysis_button.configure(text="Analyze selected clue")
+        if hasattr(self, "incremental_analysis_button"):
+            self.incremental_analysis_button.configure(text="Analyze selected clue (Incremental Expansion)")
+
+    def update_analysis_time(self, elapsed, outcome=""):
+        self.analysis_elapsed_seconds = elapsed
+        suffix = f" ({outcome})" if outcome else ""
+        if hasattr(self, "search_time_text"):
+            self.search_time_text.set(f"Search time: {elapsed:.2f} s{suffix}")
 
     def abort_clue_analysis(self):
         if self.analysis_cancel is not None:
             self.cancel_clue_analysis()
-            self.status.set("Clue analysis aborted. No deductions applied.")
+            self.status.set(f"Clue analysis aborted after {self.analysis_elapsed_seconds or 0:.2f} s. No deductions applied.")
 
     def analyze_selected_clue(self):
+        self._start_clue_analysis()
+
+    def analyze_selected_clue_incremental(self):
+        self._start_clue_analysis(incremental=True)
+
+    def _start_clue_analysis(self, incremental=False):
         if self.analysis_cancel is not None:
             self.cancel_clue_analysis()
-            self.status.set("Clue analysis cancelled.")
+            self.status.set(f"Clue analysis cancelled after {self.analysis_elapsed_seconds or 0:.2f} s.")
             return
         if self.selected is None:
             self.status.set("Select a clue cell first, then click Analyze selected clue.")
@@ -742,41 +774,52 @@ class PuzzleEditor:
             self.status.set("The selected cell has no clue. Select a numbered cell.")
             return
         from clue_analysis import analyze_clue
+        if incremental:
+            from incremental_analysis import analyze_clue_incremental as analyze_clue
         snapshot, selected = copy.deepcopy(self.state), self.selected
         event = self.analysis_cancel = threading.Event()
+        self.analysis_started_at = perf_counter()
+        self.update_analysis_time(0.0, "running")
         self.analysis_result = None
         self.preview_index = 0
         self.draw()
         messages = Queue()
-        self.analysis_button.configure(text="Cancel analysis")
+        active_button = self.incremental_analysis_button if incremental else self.analysis_button
+        active_button.configure(text="Cancel analysis")
+        engine_label = "Incremental clue" if incremental else "Clue"
+        progress_counts = [0, 0]
         self.status.set(f"Analyzing clue {clue} at ({r + 1}, {c + 1})…")
 
         def worker():
+            started = perf_counter()
             try:
                 result = analyze_clue(snapshot, selected, stop_event=event,
                                       progress=lambda visited, accepted: messages.put(("progress", (visited, accepted))))
+                result.elapsed_seconds = perf_counter() - started
                 messages.put(("done", result))
             except Exception as exc:
-                messages.put(("error", str(exc)))
+                messages.put(("error", (str(exc), perf_counter() - started)))
 
         def poll():
             if self.analysis_cancel is not event:
                 return
+            self.update_analysis_time(perf_counter() - self.analysis_started_at, "running")
             try:
                 while True:
                     kind, value = messages.get_nowait()
                     if kind == "progress":
                         visited, accepted = value
-                        self.status.set(f"Clue {clue}: {accepted} accepted states; {visited} branches checked…")
+                        progress_counts[:] = [visited, accepted]
                     else:
                         self.analysis_cancel = None
-                        self.analysis_button.configure(text="Analyze selected clue")
+                        self.analysis_started_at = None
+                        self.reset_analysis_buttons()
+                        elapsed = value[1] if kind == "error" else value.elapsed_seconds
+                        self.update_analysis_time(elapsed, "failed" if kind == "error" else "")
                         if kind == "error":
-                            self.status.set(f"Clue analysis failed: {value}")
+                            self.status.set(f"Clue analysis failed after {elapsed:.2f} s: {value[0]}")
                         else:
                             suffix = " Stopped early: more than 25 accepted states." if value.limit_reached else " Search complete."
-                            if value.branch_limit_reached:
-                                suffix = " Stopped early: more than 100,000 branches checked."
                             from clue_analysis import incorporate_analysis
                             previous = copy.deepcopy(self.state)
                             changes = incorporate_analysis(self.state, value)
@@ -790,12 +833,15 @@ class PuzzleEditor:
                                 suffix += " Applied the unique accepted state."
                             elif changes.get("forced"):
                                 suffix += f" Applied {changes['forced']} forced cell configurations."
-                            if not value.accepted_states and not value.limit_reached and not value.cancelled and not value.branch_limit_reached:
+                            if not value.accepted_states and not value.limit_reached and not value.cancelled:
                                 suffix += " No configuration satisfies this clue under the current constraints."
-                            self.status.set(f"Clue {clue}: {len(value.accepted_states)} accepted states; "
-                                            f"{value.explored} branches checked.{suffix}")
+                            self.status.set(f"{engine_label} {clue}: {len(value.accepted_states)} accepted states; "
+                                            f"{value.explored} branches checked in {elapsed:.2f} s.{suffix}")
                         return
             except Empty:
+                visited, accepted = progress_counts
+                self.status.set(f"{engine_label} {clue}: {accepted} accepted states; {visited} branches checked; "
+                                f"{self.analysis_elapsed_seconds:.2f} s elapsed…")
                 self.root.after(100, poll)
 
         threading.Thread(target=worker, daemon=True).start()
