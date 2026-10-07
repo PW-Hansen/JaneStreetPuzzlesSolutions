@@ -523,6 +523,7 @@ class PuzzleEditor:
         self.redo_button = ttk.Button(toolbar, text="Redo", command=self.redo)
         self.redo_button.pack(side="left", padx=4)
         ttk.Button(toolbar, text="Save", command=self.save).pack(side="right")
+        ttk.Button(toolbar, text="Reset arcs", command=self.reset_arcs).pack(side="right", padx=4)
         dimensions = ttk.Frame(root, padding=(8, 0, 8, 8))
         dimensions.pack(fill="x")
         ttk.Label(dimensions, text=f"{self.state['rows']}x{self.state['columns']} grid").pack(side="left", padx=(4, 12))
@@ -592,6 +593,13 @@ class PuzzleEditor:
         self.area_labels = None
         self.draw()
         self.save()
+
+    def reset_arcs(self):
+        previous = copy.deepcopy(self.state)
+        for row in self.state["cells"]:
+            for cell in row:
+                cell["arc"] = None
+        self.commit(previous)
 
     def save(self):
         temporary = self.path.with_name(self.path.name + ".tmp")
