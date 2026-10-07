@@ -1,14 +1,55 @@
 import copy
 import json
 import unittest
+import random
 
 from arc_constraints import propagate_arc_domains
 from clue_analysis import ClueAnalysis, incorporate_analysis
 from incremental_analysis import analyze_clue_incremental, SimplifiedArc
-from puzzle_gui import blank_grid, validate_state
+from puzzle_gui import blank_grid, validate_state, ARC_CYCLE
 
 
 class ArcConstraintTests(unittest.TestCase):
+    def test_queued_propagation_matches_full_pass_reference(self):
+        rng = random.Random(123)
+        state = self.board(2, 2)
+        cells = [(r, c) for r in range(2) for c in range(2)]
+        for _ in range(200):
+            state['arc_implications'] = [
+                {'if': [*rng.choice(cells), rng.choice(ARC_CYCLE)],
+                 'then': [*rng.choice(cells), rng.sample(list(ARC_CYCLE), rng.randint(1, 5))]}
+                for _ in range(8)]
+            domains = {cell: rng.sample(list(ARC_CYCLE), rng.randint(1, 5)) for cell in cells}
+            reference = {cell: set(values) for cell, values in domains.items()}
+            changed = True
+            while changed and all(reference.values()):
+                before = {cell: set(values) for cell, values in reference.items()}
+                for rule in state['arc_implications']:
+                    r, c, trigger = rule['if']
+                    nr, nc, allowed = rule['then']
+                    source, target = reference[(r, c)], reference[(nr, nc)]
+                    if trigger in source and not target.intersection(allowed):
+                        source.remove(trigger)
+                    if source == {trigger}:
+                        reference[(nr, nc)] = target.intersection(allowed)
+                changed = reference != before
+            expected = ({cell: tuple(arc for arc in ARC_CYCLE if arc in values)
+                         for cell, values in reference.items()} if all(reference.values()) else None)
+            self.assertEqual(propagate_arc_domains(state, domains=domains), expected)
+
+    def test_conditional_frontier_growth_matches_reference_solver(self):
+        from clue_analysis import analyze_clue
+        for trigger in ARC_CYCLE:
+            state = self.board(2, 2)
+            state['cells'][0][0]['number'] = 3
+            state['arc_implications'] = [{'if': [0, 0, trigger], 'then': [1, 1, ['tl', 'br']]},
+                                         {'if': [1, 1, 'tl'], 'then': [0, 1, ['br']]}]
+            expected = analyze_clue(state, (0, 0), accepted_limit=1000)
+            actual = analyze_clue_incremental(state, (0, 0), accepted_limit=1000,
+                                             check_other_clues=False, simplify_nonclue=False)
+            normalize = lambda result: {frozenset(values) for values in result.accepted_states}
+            self.assertEqual(normalize(actual), normalize(expected))
+
     def board(self, rows=2, columns=7):
         return {'rows': rows, 'columns': columns, 'cells': blank_grid(rows, columns)}
 

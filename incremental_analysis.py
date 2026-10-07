@@ -9,7 +9,7 @@ from clue_analysis import (ClueAnalysis, PI_HIGH, PI_LOW, STEPS, INSIDE_EDGES, f
                            compatible_factorizations, minimum_perimeter_pieces,
                            frontier_priorities, choose_frontier_cell)
 from puzzle_gui import Region, allowed_arc_configurations, arc_endpoints, clue_factorizations
-from arc_constraints import propagate_arc_domains
+from arc_constraints import propagate_arc_domains, make_arc_domain_propagator
 
 
 @dataclass(frozen=True)
@@ -66,6 +66,7 @@ def analyze_clue_incremental(state, selected, accepted_limit=25, stop_event=None
     edges share one branch and contribute a half-cell during expansion. Fixed
     curves and clue cells retain their concrete geometry. Geometry is cached.
     """
+    propagate_arc_domains = make_arc_domain_propagator(state)
     r, c = selected
     rows, columns = state["rows"], state["columns"]
     if not (0 <= r < rows and 0 <= c < columns):
@@ -119,14 +120,14 @@ def analyze_clue_incremental(state, selected, accepted_limit=25, stop_event=None
         return tuple((r, c) for r in (vr - 1, vr) for c in (vc - 1, vc)
                      if 0 <= r < rows and 0 <= c < columns)
 
-    def expand(parent, assigned, seed):
+    def expand(parent, assigned, seed, extra_seeds=()):
         partial = _Partial(set(parent.fragments), dict(parent.frontier),
                            set(parent.reached), dict(parent.corners),
                            set(parent.sharp_corners), parent.counts,
                            parent.half_cells, set(parent.unresolved_corners))
         counts = list(parent.counts)
         affected = set()
-        queue = deque([seed])
+        queue = deque([seed, *extra_seeds])
         while queue:
             r, c, side = queue.popleft()
             if (r, c, side) in partial.fragments:
@@ -213,6 +214,7 @@ def analyze_clue_incremental(state, selected, accepted_limit=25, stop_event=None
             result.worklist_limit_reached = True
             break
         assigned, parent, seed, regular = stack.pop()
+        extra_seeds = ()
         branch_domains = propagate_arc_domains(state, assigned, domains) if state.get('arc_implications') else domains
         if branch_domains is None:
             result.invalid_pruned += 1
@@ -226,11 +228,19 @@ def analyze_clue_incremental(state, selected, accepted_limit=25, stop_event=None
                     value = resolved[cell]
                     resolved[cell] = SimplifiedArc(value.edges, tuple(arc for arc in value.options if arc in values))
             if resolved != assigned:
-                assigned, parent, seed = resolved, empty, (*selected, 0)
+                changed_cells = {cell for cell, value in resolved.items()
+                                 if cell not in assigned or assigned[cell] != value}
+                if changed_cells & parent.reached:
+                    parent, seed = empty, (*selected, 0)
+                else:
+                    extra_seeds = tuple((*cell, edge_side(resolved[cell], edge))
+                                        for cell in changed_cells if cell in parent.frontier
+                                        for edge in parent.frontier[cell])
+                assigned = resolved
         result.explored += 1
         if progress and result.explored % 256 == 0:
             progress(result.explored, len(result.accepted_states))
-        partial = expand(parent, assigned, seed)
+        partial = expand(parent, assigned, seed, extra_seeds)
         if partial is None:
             result.invalid_pruned += 1
             continue

@@ -581,7 +581,7 @@ class PuzzleEditor:
         self.mode = tk.StringVar(value="arc")
         self.status = tk.StringVar()
         root.title(f"Jane Street — Arc Puzzle Editor — {name or path.stem}")
-        root.geometry("850x850")
+        root.geometry("1110x850")
         toolbar = ttk.Frame(root, padding=8)
         toolbar.pack(fill="x")
         for label, value in [("Select (Ctrl+0)", "select"), ("Green cells (Ctrl+1)", "green"), ("Digits (Ctrl+2)", "digit"), ("Arcs (Ctrl+3)", "arc"), ("Map (Ctrl+4)", "map")]:
@@ -627,8 +627,6 @@ class PuzzleEditor:
         analysis_details.pack(fill="x")
         self.domain_text = tk.StringVar(value="Select a cell to view allowed arc configurations.")
         self.implication_text = tk.StringVar()
-        ttk.Label(root, textvariable=self.implication_text, wraplength=800,
-                  padding=(12, 0, 12, 4)).pack(fill='x')
         ttk.Label(analysis_details, textvariable=self.domain_text).pack(side="left", padx=8)
         self.search_time_text = tk.StringVar(value="Search time: —")
         ttk.Label(analysis_details, textvariable=self.search_time_text).pack(side="right", padx=12)
@@ -665,8 +663,27 @@ class PuzzleEditor:
                   "Backspace edits a clue • Delete clears the current mode’s mark • "
                   "Right-click removes a mark • Ctrl+Z / Ctrl+Y undo / redo",
                   padding=(12, 0, 12, 8)).pack(fill="x")
-        frame = ttk.Frame(root)
-        frame.pack(fill="both", expand=True)
+        body = ttk.Frame(root)
+        body.pack(fill="both", expand=True)
+        conditional_panel = ttk.Frame(body, width=260, padding=12)
+        conditional_panel.pack(side="right", fill="y")
+        conditional_panel.pack_propagate(False)
+        ttk.Label(conditional_panel, text="Local conditionals").pack(anchor="w", pady=(0, 8))
+        conditional_view = tk.Text(conditional_panel, wrap="word", width=28,
+                                   state="disabled", relief="flat", background="#e9edf1")
+        conditional_scroll = ttk.Scrollbar(conditional_panel, command=conditional_view.yview)
+        conditional_scroll.pack(side="right", fill="y")
+        conditional_view.configure(yscrollcommand=conditional_scroll.set)
+        conditional_view.pack(fill="both", expand=True)
+        def update_conditionals(*args):
+            conditional_view.configure(state="normal")
+            conditional_view.delete("1.0", "end")
+            conditional_view.insert("1.0", self.implication_text.get())
+            conditional_view.configure(state="disabled")
+            conditional_view.yview_moveto(0)
+        self.implication_text.trace_add("write", update_conditionals)
+        frame = ttk.Frame(body)
+        frame.pack(side="left", fill="both", expand=True)
         self.canvas = tk.Canvas(frame, background="#e9edf1", highlightthickness=0, takefocus=True)
         vertical = ttk.Scrollbar(frame, orient="vertical", command=self.canvas.yview)
         horizontal = ttk.Scrollbar(frame, orient="horizontal", command=self.canvas.xview)
@@ -851,7 +868,8 @@ class PuzzleEditor:
         self.draw()
         self.status.set(f"Local scan: {counts['clues']} clues; {counts['pairs']} pairs checked; "
                         f"{counts['implications']} conditional deductions recorded; "
-                        f"{counts['removed']} configurations removed in {perf_counter() - started:.2f} s.")
+                        f"{counts['removed']} configurations removed in {perf_counter() - started:.2f} s; "
+                        f"{counts['cutoffs']} checks inconclusive.")
 
     def check_smooth_arcs(self):
         self.preview_index = 0
