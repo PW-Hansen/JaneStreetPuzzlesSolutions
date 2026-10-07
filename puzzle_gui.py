@@ -802,6 +802,8 @@ class PuzzleEditor:
             self.status.set("The selected cell has no clue. Select a numbered cell.")
             return
         from incremental_analysis import analyze_clue_incremental as analyze_clue
+        if hasattr(self, "factorization_text"):
+            self.show_factorizations(update_status=False)
         snapshot, selected = copy.deepcopy(self.state), self.selected
         event = self.analysis_cancel = threading.Event()
         self.analysis_started_at = perf_counter()
@@ -858,6 +860,8 @@ class PuzzleEditor:
                                 suffix += " Applied the unique accepted state."
                             elif changes.get("forced"):
                                 suffix += f" Applied {changes['forced']} forced cell configurations."
+                            if value.factorization_pruned:
+                                suffix += f" Factorization bounds rejected {value.factorization_pruned} branches."
                             if not value.accepted_states and not value.limit_reached and not value.cancelled:
                                 suffix += " No configuration satisfies this clue under the current constraints."
                             self.status.set(f"{engine_label} {clue}: {len(value.accepted_states)} accepted states; "

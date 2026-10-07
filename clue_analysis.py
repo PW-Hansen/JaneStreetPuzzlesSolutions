@@ -4,7 +4,7 @@ from collections import deque
 from dataclasses import dataclass, field
 from fractions import Fraction
 
-from puzzle_gui import ARC_CYCLE, Region, arc_endpoints, allowed_arc_configurations
+from puzzle_gui import ARC_CYCLE, Region, arc_endpoints, allowed_arc_configurations, clue_factorizations
 
 
 INSIDE_EDGES = {"tl": "NW", "tr": "NE", "br": "SE", "bl": "SW"}
@@ -24,6 +24,8 @@ class ClueAnalysis:
     limit_reached: bool = False
     cancelled: bool = False
     elapsed_seconds: float = field(default=0.0, compare=False)
+    factorizations: tuple = ()
+    factorization_pruned: int = 0
 
 
 def fragment_for_edge(orientation, edge):
@@ -79,6 +81,24 @@ def area_lower_bound(state, assigned, fragments, frontier):
     return max(rounded, whole + max(inside, outside))
 
 
+def minimum_perimeter_pieces(confirmed_sharp_joins):
+    """A valid integer-area region cannot have just one sharp perimeter join.
+
+    Quarter-circle turning contributes the same pi/4 coefficient as area.
+    Integer area requires that coefficient to vanish. With exactly one sharp
+    join (a nonzero quarter/half turn), total boundary turning cannot satisfy
+    this, even allowing smooth holes. Thus any confirmed sharp join rules out
+    a one-piece perimeter; separate open chains are still not counted.
+    """
+    return max(2, confirmed_sharp_joins) if confirmed_sharp_joins else 1
+
+
+def compatible_factorizations(factorizations, minimum_area, minimum_pieces):
+    """Retain score pairs whose area and piece count can still be reached."""
+    return tuple((area, pieces) for area, pieces in factorizations
+                 if area >= minimum_area and pieces >= minimum_pieces)
+
+
 def confirmed_smooth_piece_bound(state, assigned, fragments):
     """Count only irrevocable sharp joins, never current disconnected chains.
 
@@ -118,7 +138,7 @@ def confirmed_smooth_piece_bound(state, assigned, fragments):
         a, b = entries[0][0], entries[1][0]
         if a != (-b[0], -b[1]):
             sharp += 1
-    return max(1, sharp)
+    return minimum_perimeter_pieces(sharp)
 
 
 def analyze_clue(state, selected, accepted_limit=25, stop_event=None, progress=None):
@@ -134,14 +154,15 @@ def analyze_clue(state, selected, accepted_limit=25, stop_event=None, progress=N
     target = state["cells"][r][c]["number"]
     if target is None:
         raise ValueError("Select a cell containing a clue.")
+    factorizations = tuple(clue_factorizations(state, selected))
     domains = {(r, c): allowed_arc_configurations(state, r, c)
                for r, row in enumerate(state["cells"]) for c, cell in enumerate(row)}
     if any(not domain for domain in domains.values()):
-        return ClueAnalysis(invalid_pruned=1)
+        return ClueAnalysis(invalid_pruned=1, factorizations=factorizations)
     fixed = {cell: domain[0] for cell, domain in domains.items() if len(domain) == 1}
     choices = domains[selected]
     stack = [fixed | {selected: orientation} for orientation in reversed(choices)]
-    result, signatures = ClueAnalysis(), set()
+    result, signatures = ClueAnalysis(factorizations=factorizations), set()
     while stack:
         if stop_event is not None and stop_event.is_set():
             result.cancelled = True
@@ -160,11 +181,14 @@ def analyze_clue(state, selected, accepted_limit=25, stop_event=None, progress=N
             result.invalid_pruned += 1
             continue
         minimum_area = area_lower_bound(state, assigned, fragments, frontier)
-        if minimum_area > target:
+        if not compatible_factorizations(factorizations, minimum_area, 1):
             result.area_pruned += 1
+            result.factorization_pruned += 1
             continue
-        if minimum_area * confirmed_smooth_piece_bound(state, assigned, fragments) > target:
+        minimum_pieces = confirmed_smooth_piece_bound(state, assigned, fragments)
+        if not compatible_factorizations(factorizations, minimum_area, minimum_pieces):
             result.score_pruned += 1
+            result.factorization_pruned += 1
             continue
         if not frontier:
             candidate = {**state, "cells": [[dict(cell) for cell in row] for row in state["cells"]]}

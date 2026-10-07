@@ -4,8 +4,9 @@ from collections import deque
 from dataclasses import dataclass, field
 from functools import lru_cache
 
-from clue_analysis import ClueAnalysis, PI_HIGH, PI_LOW, STEPS, fragment_for_edge
-from puzzle_gui import Region, allowed_arc_configurations, arc_endpoints
+from clue_analysis import (ClueAnalysis, PI_HIGH, PI_LOW, STEPS, fragment_for_edge,
+                           compatible_factorizations, minimum_perimeter_pieces)
+from puzzle_gui import Region, allowed_arc_configurations, arc_endpoints, clue_factorizations
 
 
 @dataclass
@@ -33,10 +34,11 @@ def analyze_clue_incremental(state, selected, accepted_limit=25, stop_event=None
     target = state["cells"][r][c]["number"]
     if target is None:
         raise ValueError("Select a cell containing a clue.")
+    factorizations = tuple(clue_factorizations(state, selected))
     domains = {(r, c): allowed_arc_configurations(state, r, c)
                for r in range(rows) for c in range(columns)}
     if any(not domain for domain in domains.values()):
-        return ClueAnalysis(invalid_pruned=1)
+        return ClueAnalysis(invalid_pruned=1, factorizations=factorizations)
     fixed = {cell: domain[0] for cell, domain in domains.items() if len(domain) == 1}
 
     @lru_cache(maxsize=None)
@@ -122,7 +124,7 @@ def analyze_clue_incremental(state, selected, accepted_limit=25, stop_event=None
     empty = _Partial()
     stack = [(fixed | {selected: orientation}, empty, (*selected, 0))
              for orientation in reversed(domains[selected])]
-    result, signatures = ClueAnalysis(), set()
+    result, signatures = ClueAnalysis(factorizations=factorizations), set()
     while stack:
         if stop_event is not None and stop_event.is_set():
             result.cancelled = True
@@ -136,11 +138,14 @@ def analyze_clue_incremental(state, selected, accepted_limit=25, stop_event=None
             result.invalid_pruned += 1
             continue
         area = minimum_area(partial)
-        if area > target:
+        if not compatible_factorizations(factorizations, area, 1):
             result.area_pruned += 1
+            result.factorization_pruned += 1
             continue
-        if area * max(1, len(partial.sharp_corners)) > target:
+        pieces = minimum_perimeter_pieces(len(partial.sharp_corners))
+        if not compatible_factorizations(factorizations, area, pieces):
             result.score_pruned += 1
+            result.factorization_pruned += 1
             continue
         if not partial.frontier:
             # Only reached cells matter to this Region; copy just those cells.

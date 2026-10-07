@@ -72,7 +72,7 @@ class IncrementalAnalysisTests(unittest.TestCase):
 
     def test_both_engines_continue_beyond_100000_until_manually_aborted(self):
         state = board(4, 4)
-        state["cells"][1][1]["number"] = 9
+        state["cells"][1][1]["number"] = 12
         for engine in (analyze_clue, analyze_clue_incremental):
             event = threading.Event()
 
