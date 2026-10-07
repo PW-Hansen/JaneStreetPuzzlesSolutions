@@ -544,7 +544,7 @@ class PuzzleEditor:
         root.geometry("850x850")
         toolbar = ttk.Frame(root, padding=8)
         toolbar.pack(fill="x")
-        for label, value in [("Green cells (Ctrl+1)", "green"), ("Digits (Ctrl+2)", "digit"), ("Arcs (Ctrl+3)", "arc")]:
+        for label, value in [("Select (Ctrl+0)", "select"), ("Green cells (Ctrl+1)", "green"), ("Digits (Ctrl+2)", "digit"), ("Arcs (Ctrl+3)", "arc")]:
             ttk.Radiobutton(toolbar, text=label, value=value, variable=self.mode,
                             command=self.mode_changed).pack(side="left", padx=5)
         self.undo_button = ttk.Button(toolbar, text="Undo", command=self.undo)
@@ -593,7 +593,7 @@ class PuzzleEditor:
         root.bind("<Control-y>", lambda event: self.redo())
         root.bind("<Control-Shift-Z>", lambda event: self.redo())
         root.bind("<Control-s>", lambda event: self.save())
-        for number, mode in enumerate(("green", "digit", "arc"), start=1):
+        for number, mode in enumerate(("select", "green", "digit", "arc")):
             root.bind(f"<Control-Key-{number}>",
                       lambda event, chosen=mode: self.set_mode(chosen))
         root.bind("<Escape>", self.clear_selection)
@@ -609,6 +609,8 @@ class PuzzleEditor:
         self.canvas.focus_set()
 
     def set_mode(self, mode):
+        if mode != "select" and self.mode.get() == mode:
+            mode = "select"
         self.mode.set(mode)
         self.mode_changed()
         return "break"
@@ -849,6 +851,9 @@ class PuzzleEditor:
                 self.domain_text.set(f"({r + 1}, {c + 1}) allowed: " + ", ".join(names[o] for o in allowed))
 
     def click(self, event, erase=False):
+        mode = self.mode.get()
+        if mode == "select" and erase:
+            return
         self.canvas.focus_set()
         x, y = self.canvas.canvasx(event.x) - 16, self.canvas.canvasy(event.y) - 16
         r, c = int(y // self.size), int(x // self.size)
@@ -858,7 +863,6 @@ class PuzzleEditor:
         self.fresh_entry = True
         previous = copy.deepcopy(self.state)
         cell = self.state["cells"][r][c]
-        mode = self.mode.get()
         if mode == "green":
             cell["green"] = False if erase else not cell["green"]
             if cell["green"]:
@@ -866,9 +870,9 @@ class PuzzleEditor:
         elif mode == "digit":
             if erase:
                 cell["number"] = None
-        elif erase:
+        elif mode == "arc" and erase:
             cell["arc"] = None
-        elif not cell["green"]:
+        elif mode == "arc" and not cell["green"]:
             cell["arc"] = ARC_CYCLE[(ARC_CYCLE.index(cell["arc"]) + 1) % len(ARC_CYCLE)]
         self.commit(previous)
         self.draw()
@@ -885,6 +889,8 @@ class PuzzleEditor:
                              max(0, min(self.state["columns"] - 1, c + dc)))
             self.fresh_entry = True
             self.draw()
+            return "break"
+        if self.mode.get() == "select":
             return "break"
         previous = copy.deepcopy(self.state)
         cell = self.state["cells"][r][c]
