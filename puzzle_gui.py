@@ -356,13 +356,7 @@ class PuzzleEditor:
         ttk.Button(toolbar, text="Save", command=self.save).pack(side="right")
         dimensions = ttk.Frame(root, padding=(8, 0, 8, 8))
         dimensions.pack(fill="x")
-        self.rows = tk.StringVar(value=str(self.state["rows"]))
-        self.columns = tk.StringVar(value=str(self.state["columns"]))
-        for label, variable in [("Rows", self.rows), ("Columns", self.columns)]:
-            ttk.Label(dimensions, text=label).pack(side="left", padx=4)
-            ttk.Spinbox(dimensions, from_=1, to=50, width=4,
-                        textvariable=variable).pack(side="left")
-        ttk.Button(dimensions, text="Resize grid", command=self.resize).pack(side="left", padx=10)
+        ttk.Label(dimensions, text=f"{self.state['rows']}x{self.state['columns']} grid").pack(side="left", padx=(4, 12))
         ttk.Button(dimensions, text="Check smooth arcs", command=self.check_smooth_arcs).pack(side="left", padx=4)
         ttk.Button(dimensions, text="Determine regions", command=self.check_regions).pack(side="left", padx=4)
         ttk.Button(dimensions, text="Clear colors", command=self.clear_arc_colors).pack(side="left", padx=4)
@@ -460,34 +454,10 @@ class PuzzleEditor:
     def after_history(self):
         self.smooth_colors = None
         self.region_colors = None
-        self.rows.set(str(self.state["rows"]))
-        self.columns.set(str(self.state["columns"]))
         self.selected = None
         self.fresh_entry = True
         self.draw()
         self.save()
-
-    def resize(self):
-        try:
-            rows, columns = int(self.rows.get()), int(self.columns.get())
-            if not (1 <= rows <= 50 and 1 <= columns <= 50):
-                raise ValueError
-        except ValueError:
-            messagebox.showerror("Invalid size", "Use 1–50 rows and columns.")
-            return
-        if (rows, columns) == (self.state["rows"], self.state["columns"]):
-            return
-        if rows < self.state["rows"] or columns < self.state["columns"]:
-            if not messagebox.askyesno("Shrink grid", "Cells outside the new size will be removed. You can undo this. Continue?"):
-                return
-        previous = copy.deepcopy(self.state)
-        cells = blank_grid(rows, columns)
-        for r in range(min(rows, self.state["rows"])):
-            for c in range(min(columns, self.state["columns"])):
-                cells[r][c] = self.state["cells"][r][c]
-        self.state.update(rows=rows, columns=columns, cells=cells)
-        self.selected = None
-        self.commit(previous)
 
     def check_smooth_arcs(self):
         groups, self.smooth_colors, conflicts = smooth_arc_groups(self.state)
