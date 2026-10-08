@@ -2,7 +2,7 @@
 
 A Python solver and interactive Tkinter editor for [Arch Madness](https://www.janestreet.com/puzzles/arch-madness-index/), Jane Street's May 2026 monthly puzzle.
 
-This project is intended as practice with AI-assisted software development: building, testing, and refining a puzzle solver through iterative collaboration with an AI coding assistant.
+This project is practice with AI-assisted software development through iterative collaboration with an AI coding assistant.
 
 ## Getting started
 
@@ -23,14 +23,14 @@ python solve_puzzle.py full_puzzle
 python solve_puzzle.py full_puzzle -greedy
 ```
 
-The command-line solver requires `saved states/<name>/initial_state.json`; it reports an error if that initial state is missing. It preserves the initial state. By default, it uses dynamic ordering with weights **0.8, 0.5, 0.75**. Add `--set` to use a specific clue analysis order determined in `solution_clue_analysis_order.json` or `--custom-weights` to enter dynamic weights in a popup window. These two ordering flags are mutually exclusive; either can be combined with `-greedy`.
+The solver requires and preserves `saved states/<name>/initial_state.json`. It defaults to dynamic ordering with weights **0.8, 0.5, 0.75**. Use `--set` for the puzzle's order in `solution_clue_analysis_order.json`, or `--custom-weights` to enter weights in a popup. These flags are mutually exclusive; either works with `-greedy`.
 
 ```sh
 python solve_puzzle.py full_puzzle --set -greedy
 python solve_puzzle.py full_puzzle --custom-weights
 ```
 
-On my PC, solving the full puzzle takes approximately **25 seconds with dynamic ordering and `-greedy`**, approximately **3 seconds with set ordering and `-greedy`**, and approximately **500 seconds with the non-greedy search**. These are observed timings for this puzzle and machine, rather than guarantees for other puzzles or settings.
+On my PC, the full puzzle takes approximately **25 seconds with dynamic ordering and `-greedy`**, **3 seconds with set ordering and `-greedy`**, and **500 seconds non-greedily**. Timings vary with the machine and settings.
 
 ## Puzzle rules
 
@@ -54,29 +54,29 @@ The editor opens in selection mode. Use the toolbar or these shortcuts:
 
 Pressing the shortcut for the current editing mode returns to selection mode. Escape clears the selection; arrow keys move it. Backspace edits a clue. Right-click or Delete clears the current mode's mark. Digits and arcs can coexist; making a cell green removes its arc.
 
-Undo and redo are available through buttons, Ctrl+Z, Ctrl+Y, and Ctrl+Shift+Z. Ctrl+S saves the grid.
+Undo: Ctrl+Z. Redo: Ctrl+Y or Ctrl+Shift+Z. Ctrl+S saves the grid.
 
-Map mode shows the four possible arcs and a central no-arc option. Toggle possibilities with the selected-cell checkboxes or by right-clicking their miniature representations. At least one option must remain. Drawn arcs and green cells constrain their cells; manual exclusions are considered by future searches.
+Map mode shows four arcs and a central no-arc option. Toggle possibilities using the checkboxes or right-clicking the miniatures; at least one must remain. Future searches respect these exclusions and existing marks.
 
 ## Clue analysis and deductions
 
-**Factorization** lists the selected clue's possible area × perimeter-piece combinations. **Analyze selected clue** incrementally grows its partial region, rejecting contradictions, excessive area, and confirmed perimeter discontinuities that cannot fit any permitted factorization. Completed candidates must have exact integer area, the correct score, and compatible clues.
+**Factorization** lists possible area × perimeter-piece combinations. **Analyze selected clue** grows its region, rejecting contradictions and area or confirmed perimeter discontinuities incompatible with those factors. Completed candidates require integer area, the correct score, and compatible clues.
 
-The search stops early after finding more than 25 accepted states, or when aborted. Completed searches apply a unique accepted state automatically; with multiple accepted states, they apply shared configurations and retain proven exclusions. Untested cells outside a candidate region are not treated as excluded configurations.
+Search stops after finding more than 25 accepted states, or when aborted. Completed searches apply a unique state or configurations shared by all states, retaining proven exclusions. Untested cells outside a candidate region remain unrestricted.
 
 The analysis options are:
 
-- **Simplify arcs:** group equivalent ways of extending a region through an undecided non-clue cell, reducing five choices to three. Such cells initially contribute half a cell; determined arcs retain their exact area. Completed candidates are resolved into actual arcs and checked. Growth beyond the second-highest permitted area switches back to regular arcs.
+- **Simplify arcs:** reduce five choices to three in undecided non-clue cells, initially counting them as half a cell. Fixed arcs retain exact area; completed candidates are resolved and checked with actual arcs. Growth beyond the second-highest permitted area switches back to regular arcs.
 - **Prioritize cells:** favor constrained frontier cells, with bonuses for neighboring green cells, neighboring clues, the grid edge, and each adjacent cell already in the partial region.
-- **Check other clues:** run bounded secondary searches when another clue becomes sufficiently constrained. These searches also use simplified arcs; an inconclusive cutoff does not prove a contradiction.
+- **Check other clues:** run bounded searches using simplified arcs when another clue becomes sufficiently constrained. Cutoffs do not prove contradictions.
 
-After a completed search with multiple accepted states, sanity checks test clues neighboring each candidate region. Each neighboring-clue check currently has its own 2,500-branch limit; reaching it retains the candidate. Sanity checks are skipped for a single accepted state. The console reports rejected candidates and separates main-search and sanity-check timings and branch counts.
+Completed searches with multiple states run sanity checks on neighboring clues, with a separate 2,500-branch limit per check. Cutoffs retain candidates; single-state results skip these checks.
 
-**Scan local conditionals (3 cells)** looks for nearby incompatibilities and implications across the clues. Conditions cascade as configurations are excluded or fixed. The right-hand panel lists conditions involving the selected cell. **Wipe local conditionals** removes those rules while preserving arcs and excluded configurations.
+**Scan local conditionals (3 cells)** finds nearby incompatibilities and cascading implications, shown for the selected cell in the right-hand panel. **Wipe local conditionals** removes rules while preserving arcs and exclusions.
 
-Completed searches with fewer than 25 accepted states save their candidates. A small blue ring identifies clues with multiple saved states. Selecting one loads its candidates and first returns to **State 0 — confirmed grid**. Previous/Next previews alternatives with blue speculative arcs; confirmed arcs remain black. Placing an incompatible arc removes invalidated saved candidates.
+Completed searches with fewer than 25 states save their candidates. Blue rings identify clues with multiple saved states. Selecting one loads its candidates at **State 0 — confirmed grid**; Previous/Next previews blue speculative arcs over black confirmed arcs. Incompatible placed arcs invalidate saved candidates.
 
-**Abort analysis** stops the active search. Search and batch timers remain visible after completion. The console prints when each clue starts and how long its analysis took.
+**Abort analysis** stops the search. Timers remain visible after completion. The console reports clue starts, rejected candidates, and separate main-search and sanity-check timings and branch counts.
 
 ## Greedy search
 
@@ -85,20 +85,20 @@ The greedy search adds two restrictions:
 1. **Every region has at least three distinct continuously differentiable perimeter pieces.** I am quite confident this restriction is true, but cannot prove it conclusively. It rules out factorizations with fewer than three pieces: for example, a 25-clue cannot grow beyond area 5 under this assumption.
 2. **A region has only one uninterrupted connection with the grid edge.** This is not universally true, but is a useful assumption, especially for smaller regions. Grid corners do not interrupt that connection.
 
-When a region reaches the boundary, the greedy search tries the longest permitted continuous contact first, requiring an even number of unit cell borders along the grid edge. It claims eligible no-arc boundary cells, including their whole-cell area, and tests terminating arcs against known exclusions. Disproved endpoints lead to shorter contacts. Equivalent endpoint arcs remain grouped when simplification is enabled.
+At the boundary, greedy search tries the longest permitted contact with an even number of unit cell borders, then shorter contacts if needed. It adds whole-cell area for claimed no-arc cells and respects exclusions for terminating arcs, grouping equivalent arcs when simplification is enabled.
 
-The GUI's **Analyze selected clue (greedy)** button previews candidates under these assumptions without committing ordinary confirmed deductions. The command-line `-greedy` option instead permits provisional deductions throughout a solve.
+**Analyze selected clue (greedy)** previews candidates without committing deductions. The command-line `-greedy` option permits provisional deductions throughout a solve.
 
-If a greedy search fails, the solver retries that clue non-greedily and uses non-greedy searches thereafter. If that also fails, it restores the state before the most recent successful greedy search and retries from that clue. This rollback can cascade through earlier greedy decisions. A completed grid must still pass region and clue verification before being saved as solved.
+If greedy search fails, the solver retries that clue and future clues non-greedily. Further failure restores the state before the latest successful greedy search and retries from there, cascading backward if necessary. Completed grids must pass region and clue verification.
 
 ## Analyzing all clues
 
 Both batch buttons start by scanning local conditionals:
 
-- **Analyze all clues (dynamic order)** asks for ordering weights: per nearby conditional, bordering the grid edge, and per adjacent green cell or being in a green cell. Defaults are **0.8, 0.5, 0.75**. A clue's value is multiplied by the applicable weights; lower scores go first. Scores are recomputed after each analysis.
-- **Analyze all clues (set order)** loads the entry for the current puzzle name from `solution_clue_analysis_order.json`. Entries specify one-based `row`, `column`, and the expected `clue` value. The supplied `full_puzzle` order begins with the edge 9s, starting at r3c9. Edit the JSON file to change or add an order.
+- **Analyze all clues (dynamic order)** asks for weights per nearby conditional, grid-edge contact, and adjacent green cell or being green. Defaults are **0.8, 0.5, 0.75**. Multiply the clue value by applicable weights; lower scores go first. Recompute after each analysis.
+- **Analyze all clues (set order)** reads the current puzzle's entry in `solution_clue_analysis_order.json`: one-based `row`, `column`, and expected `clue`. The supplied order starts with the edge 9s, beginning at r3c9. Edit this file to change or add orders.
 
-The command-line solver uses the same ordering choices. Passes repeat while new arcs are placed and the grid remains incomplete; a pass with no new arcs stops the process. Total elapsed time freezes when analysis ends and is printed to the console.
+Passes repeat until the grid is complete or a pass places no new arcs. Total time freezes at completion and is printed to the console.
 
 ## Region operations
 
@@ -113,7 +113,7 @@ The command-line solver uses the same ordering choices. Passes repeat while new 
 
 Named grids autosave to `grids/<name>.json`. **Save state** creates a named snapshot in `saved states/<name>/`; **Load state** restores a snapshot for that puzzle. Snapshots preserve deductions, saved candidates, and editor state as well as the grid.
 
-**Print state** asks for a file name and exports a PNG in the project root, along with a matching saved-state snapshot. Rendering uses Pillow rather than a screenshot of the window.
+**Print state** asks for a name and exports a PNG in the project root, plus a matching saved-state snapshot.
 
 The command-line solver writes progress to `saved states/<name>/checkpoint_state.json`. Only a complete, validated grid is written to `saved states/<name>/solved_state.json`. Both can be loaded through the GUI. Greedy checkpoints may contain provisional deductions.
 
