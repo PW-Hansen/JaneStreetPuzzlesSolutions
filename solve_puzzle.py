@@ -74,6 +74,9 @@ def write_result(path, name, state, elapsed):
 
 
 def solve(state, name, output, order=None, weights=(.8, 1, 1), log=print):
+    output = Path(output)
+    checkpoint = output.with_name('checkpoint_state.json')
+    verified = False
     started = perf_counter()
     log('Scanning local conditionals...')
     state, counts = scan_local_conditionals(copy.deepcopy(state))
@@ -113,7 +116,7 @@ def solve(state, name, output, order=None, weights=(.8, 1, 1), log=print):
                     apply_arc_deductions(updated)
                 prune_saved_states(updated)
                 state = updated
-                write_result(output, name, state, perf_counter() - started)
+                write_result(checkpoint, name, state, perf_counter() - started)
                 log(f'Clue {clue} at r{r + 1}c{c + 1}: {result.elapsed_seconds:.2f} seconds; '
                     f'{len(result.accepted_states)} accepted states'
                     + (' (stopped early)' if result.limit_reached else ''))
@@ -126,11 +129,14 @@ def solve(state, name, output, order=None, weights=(.8, 1, 1), log=print):
                 log('Puzzle verified complete.' if complete else 'Stopped: no new arcs placed in the last pass.')
                 if complete:
                     log(f'Answer key: {compute_answer_key(state)["answer"]}')
+                    verified = True
                 break
     finally:
         elapsed = perf_counter() - started
-        write_result(output, name, state, elapsed)
-        log(f'Total analysis time: {elapsed:.2f} seconds. Saved: {output}')
+        write_result(checkpoint, name, state, elapsed)
+        if verified:
+            write_result(output, name, state, elapsed)
+        log(f'Total analysis time: {elapsed:.2f} seconds. Saved: {output if verified else checkpoint}')
     return state
 
 

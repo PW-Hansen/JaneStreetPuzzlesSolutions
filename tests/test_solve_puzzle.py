@@ -62,6 +62,28 @@ class CommandLineSolverTests(unittest.TestCase):
             prompt.assert_not_called()
             self.assertEqual(solve.call_args.args[3], [(0, 0)])
 
+    def test_stalled_invalid_grid_only_saves_checkpoint(self):
+        self.state['cells'][0][0]['number'] = 3
+        with tempfile.TemporaryDirectory(dir=Path(__file__).parent) as folder:
+            output = Path(folder) / 'solved_state.json'
+            with patch.object(solver, 'scan_local_conditionals',
+                              return_value=(copy.deepcopy(self.state), {'removed': 0})):
+                solver.solve(self.state, 'tiny', output, order=[], log=lambda _: None)
+            self.assertFalse(output.exists())
+            checkpoint = json.loads((Path(folder) / 'checkpoint_state.json').read_text())
+            self.assertEqual(checkpoint['state']['cells'][0][0]['number'], 3)
+
+    def test_crash_preserves_checkpoint_and_existing_solution(self):
+        with tempfile.TemporaryDirectory(dir=Path(__file__).parent) as folder:
+            output = Path(folder) / 'solved_state.json'
+            output.write_text('previous verified solution')
+            with patch.object(solver, 'analyze_clue_incremental', side_effect=AttributeError('crash')):
+                with self.assertRaisesRegex(AttributeError, 'crash'):
+                    solver.solve(self.state, 'tiny', output, log=lambda _: None)
+            self.assertEqual(output.read_text(), 'previous verified solution')
+            checkpoint = json.loads((Path(folder) / 'checkpoint_state.json').read_text())
+            self.assertEqual(checkpoint['state']['cells'], self.state['cells'])
+
 
 if __name__ == '__main__':
     unittest.main()
