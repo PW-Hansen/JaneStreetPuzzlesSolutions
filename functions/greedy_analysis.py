@@ -8,6 +8,8 @@ from functions.incremental_analysis import (SimplifiedArc, edge_side,
 
 
 class GreedyBoundary:
+    minimum_pieces = 3
+
     def __init__(self, state):
         self.state = state
         rows, cols = state['rows'], state['columns']

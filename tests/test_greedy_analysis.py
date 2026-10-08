@@ -95,3 +95,25 @@ class GreedyAnalysisTests(unittest.TestCase):
         with patch.object(editor, 'analyze_selected_clue') as analyze:
             editor.analyze_selected_clue_greedy()
             analyze.assert_called_once_with(greedy=True)
+
+    def test_greedy_25_area_above_five_rejects_without_perimeter_search(self):
+        state = board(2, 4)
+        state['cells'][0][0]['number'] = 25
+        state['arc_domains'] = [[[None] for _ in range(4)],
+                                [[None], [None], [None, 'tl', 'tr', 'br', 'bl'],
+                                 [None, 'tl', 'tr', 'br', 'bl']]]
+        result = analyze_clue_greedy(state, (0, 0), check_other_clues=False)
+        self.assertFalse(result.accepted_states)
+        self.assertEqual(result.explored, 1)
+        self.assertEqual(result.area_pruned, 1)
+        self.assertTrue(all(pieces >= 3 for _, pieces in result.factorizations))
+        self.assertNotIn((25, 1), result.factorizations)
+
+    def test_minimum_three_pieces_is_specific_to_greedy_search(self):
+        from functions.incremental_analysis import analyze_clue_incremental
+        state = board(5, 5)
+        state['cells'][2][2]['number'] = 25
+        regular = analyze_clue_incremental(state, (2, 2), check_other_clues=False, branch_limit=0)
+        greedy = analyze_clue_greedy(state, (2, 2), check_other_clues=False, branch_limit=0)
+        self.assertTrue(any(pieces < 3 for _, pieces in regular.factorizations))
+        self.assertTrue(all(pieces >= 3 for _, pieces in greedy.factorizations))
