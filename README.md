@@ -27,7 +27,7 @@ Furthermore, I had explicitly instructed Codex to allow for the possibility that
 
 And when I ran that greedy search mode with the previously mentioned order, it solved the puzzle in a bit more than 3 seconds.
 
-After sitting down and thinking further about it, I proved to my own satisfaction that it was impossible to create a region with less than 3 distinct perimeter pieces, after which I moved the that rule from the greedy search to the regular search, which made the solution time plummet massively.
+After sitting down and thinking further about it, I proved to my own satisfaction that it was impossible to create a region with less than 3 distinct perimeter pieces, after which I moved the that rule from the greedy search to the regular search, which made even the non-greedy solution time plummet massively.
 
 This has been a valuable lesson about thinking very carefully about the problem at hand and trying to determine restrictions, requirements, or rules which are not immediately clear, rather than just handing an AI a task and tell it to get going without proper consideration.
 
