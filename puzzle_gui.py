@@ -327,6 +327,21 @@ class Region:
                    frozenset(invalid_arcs))
 
 
+def compute_answer_key(state):
+    """Return majority-region scores and the sum of squared row/column sums."""
+    regions = determine_regions(state)[0]
+    unique = set(regions.values())
+    invalid = [region for region in unique if not region.verify(state)]
+    if invalid:
+        raise ValueError(f'Cannot compute the answer: {len(invalid)} regions fail area, arc separation, or clue-score checks.')
+    values = [[regions[(r, c, 0)].score for c in range(state['columns'])]
+              for r in range(state['rows'])]
+    rows = [sum(row) for row in values]
+    columns = [sum(values[r][c] for r in range(state['rows'])) for c in range(state['columns'])]
+    return {'values': values, 'row_sums': rows, 'column_sums': columns,
+            'answer': sum(total * total for total in rows) + sum(total * total for total in columns)}
+
+
 def determine_region_areas(state, regions=None):
     """Convenience view of the exact areas already stored on Region objects."""
     if regions is None:
@@ -802,6 +817,7 @@ class PuzzleEditor:
         ttk.Button(dimensions, text="Verify regions", command=self.verify_regions).pack(side="left", padx=4)
         ttk.Button(dimensions, text="Compute region areas", command=self.compute_region_areas).pack(side="left", padx=4)
         ttk.Button(dimensions, text="Compute scores", command=self.compute_region_scores).pack(side="left", padx=4)
+        ttk.Button(dimensions, text='Compute answer key', command=self.compute_answer_key).pack(side='left', padx=4)
         ttk.Button(dimensions, text="Clear colors", command=self.clear_arc_colors).pack(side="left", padx=4)
         analysis_controls = ttk.Frame(root, padding=(8, 0, 8, 8))
         analysis_controls.pack(fill="x")
@@ -1631,6 +1647,23 @@ class PuzzleEditor:
         self.area_labels = None
         self.draw()
         self.status.set("Analysis colors cleared.")
+
+    def compute_answer_key(self):
+        try:
+            key = compute_answer_key(self.state)
+        except ValueError as exc:
+            self.status.set(str(exc))
+            return
+        self.preview_index = 0
+        self.mode.set('select')
+        self.area_labels = [((r, c, .5, .5, .8), str(value))
+                            for r, row in enumerate(key['values']) for c, value in enumerate(row)
+                            if self.state['cells'][r][c]['number'] is None]
+        self.draw()
+        message = (f'Answer: {key["answer"]} — row sums: {", ".join(map(str, key["row_sums"]))}; '
+                   f'column sums: {", ".join(map(str, key["column_sums"]))}.')
+        self.status.set(message)
+        print(message, flush=True)
 
     def compute_region_scores(self):
         self.preview_index = 0
