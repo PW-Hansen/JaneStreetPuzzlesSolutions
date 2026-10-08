@@ -11,6 +11,7 @@ from functions.arc_constraints import apply_arc_deductions
 from functions.clue_analysis import incorporate_analysis, analysis_timing_summary
 from functions.incremental_analysis import analyze_clue_with_sanity
 from functions.local_conditionals import scan_local_conditionals
+from functions.solver_analysis import GreedySolveSession
 from puzzle_gui import (SAVED_STATES_DIRECTORY, SOLUTION_ORDER_PATH, grid_name,
                         validate_state, fixed_clue_order, ordered_clues, determine_regions,
                         save_accepted_states, prune_saved_states, compute_answer_key)
@@ -73,7 +74,7 @@ def write_result(path, name, state, elapsed):
     os.replace(temporary, path)
 
 
-def solve(state, name, output, order=None, weights=(.8, 1, 1), log=print):
+def solve(state, name, output, order=None, weights=(.8, 1, 1), log=print, greedy=False):
     output = Path(output)
     checkpoint = output.with_name('checkpoint_state.json')
     verified = False
@@ -89,8 +90,18 @@ def solve(state, name, output, order=None, weights=(.8, 1, 1), log=print):
               'prioritize_frontier': options.get('prioritize_cells', True),
               'check_other_clues': options.get('check_other_clues', True)}
     passes = 0
+    session = None
     try:
         while True:
+            if greedy:
+                session = GreedySolveSession(state, order, weights, kwargs, log,
+                    lambda current: write_result(checkpoint, name, current, perf_counter() - started))
+                state = session.run()
+                regions = set(determine_regions(state)[0].values())
+                if all(region.verify(state) for region in regions):
+                    log(f'Answer key: {compute_answer_key(state)["answer"]}')
+                    verified = True
+                break
             passes += 1
             previous_arcs = {(r, c, cell['arc']) for r, row in enumerate(state['cells'])
                              for c, cell in enumerate(row) if cell['arc'] is not None}
@@ -133,6 +144,8 @@ def solve(state, name, output, order=None, weights=(.8, 1, 1), log=print):
                     verified = True
                 break
     finally:
+        if session is not None:
+            state = session.state
         elapsed = perf_counter() - started
         write_result(checkpoint, name, state, elapsed)
         if verified:
@@ -144,6 +157,8 @@ def solve(state, name, output, order=None, weights=(.8, 1, 1), log=print):
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('name', type=grid_name, help='Puzzle name with a saved initial_state.json')
+    parser.add_argument('-greedy', '--greedy', action='store_true',
+                        help='Try provisional greedy deductions with cascading normal-search fallback')
     args = parser.parse_args(argv)
     try:
         state = load_initial_state(args.name)
@@ -151,7 +166,7 @@ def main(argv=None):
         weights = prompt_weights() if order is None else (.8, 1, 1)
         print('Using dynamic order.' if order is None else 'Using configured set order.', flush=True)
         solve(state, args.name, SAVED_STATES_DIRECTORY / args.name / 'solved_state.json', order, weights,
-              log=lambda message: print(message, flush=True))
+              log=lambda message: print(message, flush=True), greedy=args.greedy)
     except KeyboardInterrupt:
         print('\nAnalysis interrupted; completed results preserved.', flush=True)
         return 130
