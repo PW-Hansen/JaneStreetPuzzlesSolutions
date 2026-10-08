@@ -1,8 +1,8 @@
 import copy
 import unittest
 
-from arc_constraints import propagate_arc_domains
-from local_conditionals import local_conflict, scan_local_conditionals, LocalLookahead
+from functions.arc_constraints import propagate_arc_domains
+from functions.local_conditionals import local_conflict, scan_local_conditionals, LocalLookahead
 from puzzle_gui import blank_grid, validate_state
 
 

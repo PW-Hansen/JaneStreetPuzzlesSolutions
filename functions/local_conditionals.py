@@ -2,8 +2,8 @@
 from collections import deque, OrderedDict
 import copy
 
-from arc_constraints import propagate_arc_domains
-from clue_analysis import STEPS, fragment_for_edge
+from functions.arc_constraints import propagate_arc_domains
+from functions.clue_analysis import STEPS, fragment_for_edge
 from puzzle_gui import ARC_CYCLE, Region
 
 

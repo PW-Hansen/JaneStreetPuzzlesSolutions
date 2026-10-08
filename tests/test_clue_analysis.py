@@ -3,7 +3,7 @@ import threading
 import unittest
 from itertools import product
 
-from clue_analysis import ClueAnalysis, analyze_clue, area_lower_bound, incorporate_analysis, partial_region
+from functions.clue_analysis import ClueAnalysis, analyze_clue, area_lower_bound, incorporate_analysis, partial_region
 from puzzle_gui import ARC_CYCLE, PuzzleEditor, allowed_arc_configurations, blank_grid, determine_regions, validate_state
 
 

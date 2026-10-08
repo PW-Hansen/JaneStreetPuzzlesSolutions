@@ -7,10 +7,10 @@ import os
 from pathlib import Path
 from time import perf_counter
 
-from arc_constraints import apply_arc_deductions
-from clue_analysis import incorporate_analysis
-from incremental_analysis import analyze_clue_incremental, sanity_check_accepted_states
-from local_conditionals import scan_local_conditionals
+from functions.arc_constraints import apply_arc_deductions
+from functions.clue_analysis import incorporate_analysis
+from functions.incremental_analysis import analyze_clue_incremental, sanity_check_accepted_states
+from functions.local_conditionals import scan_local_conditionals
 from puzzle_gui import (SAVED_STATES_DIRECTORY, SOLUTION_ORDER_PATH, grid_name,
                         validate_state, fixed_clue_order, ordered_clues, determine_regions,
                         save_accepted_states, prune_saved_states, compute_answer_key)

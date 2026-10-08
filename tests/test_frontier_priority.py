@@ -1,6 +1,6 @@
 import unittest
 
-from clue_analysis import choose_frontier_cell, frontier_priorities
+from functions.clue_analysis import choose_frontier_cell, frontier_priorities
 from puzzle_gui import blank_grid
 
 

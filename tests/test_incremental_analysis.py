@@ -5,12 +5,12 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from clue_analysis import ClueAnalysis, analyze_clue, minimum_perimeter_pieces, compatible_factorizations
-from incremental_analysis import (analyze_clue_incremental, check_secondary_clue,
+from functions.clue_analysis import ClueAnalysis, analyze_clue, minimum_perimeter_pieces, compatible_factorizations
+from functions.incremental_analysis import (analyze_clue_incremental, check_secondary_clue,
                                   simplified_choices, SimplifiedArc, concrete_completions)
-from incremental_analysis import (_Partial, partial_curve_feasible, SecondarySearchCache,
+from functions.incremental_analysis import (_Partial, partial_curve_feasible, SecondarySearchCache,
                                   secondary_clue_constrained)
-from incremental_analysis import enclosed_perimeter_capacity
+from functions.incremental_analysis import enclosed_perimeter_capacity
 from puzzle_gui import PuzzleEditor, blank_grid, ARC_CYCLE
 
 
@@ -74,7 +74,7 @@ class IncrementalAnalysisTests(unittest.TestCase):
     def test_incremental_engine_does_not_reflood_from_clue(self):
         state = board(2, 2)
         state["cells"][0][0]["number"] = 3
-        with patch("clue_analysis.partial_region", side_effect=AssertionError("Full reflood used")):
+        with patch("functions.clue_analysis.partial_region", side_effect=AssertionError("Full reflood used")):
             result = analyze_clue_incremental(state, (0, 0))
         self.assertEqual(len(result.accepted_states), 2)
 
@@ -212,7 +212,7 @@ class SimplifiedArcTests(unittest.TestCase):
     def test_secondary_check_preserves_simplified_domains(self):
         state = board(2, 2)
         state['cells'][1][1]['number'] = 9
-        with patch('incremental_analysis.analyze_clue_incremental', return_value=ClueAnalysis()) as engine:
+        with patch('functions.incremental_analysis.analyze_clue_incremental', return_value=ClueAnalysis()) as engine:
             check_secondary_clue(state, {(0, 0): SimplifiedArc('NW', ('tl', 'br'))}, (1, 1))
         context = engine.call_args.args[0]
         self.assertIsNone(context['cells'][0][0]['arc'])
@@ -228,7 +228,7 @@ class SecondaryClueTests(unittest.TestCase):
             state['cells'][r][c]['green'] = True
         state['cells'][8][6]['number'] = 35
         before = copy.deepcopy(state)
-        with patch('incremental_analysis.check_secondary_clue', wraps=check_secondary_clue) as secondary:
+        with patch('functions.incremental_analysis.check_secondary_clue', wraps=check_secondary_clue) as secondary:
             result = analyze_clue_incremental(state, (6, 7))
         self.assertFalse(result.accepted_states)
         self.assertFalse(result.limit_reached)
@@ -259,7 +259,7 @@ class SecondaryClueTests(unittest.TestCase):
 
     def test_secondary_cache_reuses_identical_contradiction(self):
         cache = SecondarySearchCache(board(2, 2))
-        with patch('incremental_analysis.check_secondary_clue', return_value=ClueAnalysis()) as engine:
+        with patch('functions.incremental_analysis.check_secondary_clue', return_value=ClueAnalysis()) as engine:
             self.assertFalse(cache.check({(0, 0): 'tl'}, (1, 1))[1])
             result, hit = cache.check({(0, 0): 'tl'}, (1, 1))
             self.assertTrue(hit)
@@ -270,7 +270,7 @@ class SecondaryClueTests(unittest.TestCase):
     def test_secondary_cache_reuses_witness_only_when_compatible(self):
         cache = SecondarySearchCache(board(2, 2))
         witness = ((0, 0, 'tl'), (0, 1, 'br'))
-        with patch('incremental_analysis.check_secondary_clue',
+        with patch('functions.incremental_analysis.check_secondary_clue',
                    return_value=ClueAnalysis(accepted_states=[witness])) as engine:
             cache.check({(0, 0): 'tl'}, (0, 0))
             result, hit = cache.check({(0, 0): SimplifiedArc('NW', ('tl', 'br')),
@@ -283,7 +283,7 @@ class SecondaryClueTests(unittest.TestCase):
 
     def test_secondary_cache_keeps_cutoffs_inconclusive_and_does_not_cache_abort(self):
         cache = SecondarySearchCache(board(2, 2))
-        with patch('incremental_analysis.check_secondary_clue',
+        with patch('functions.incremental_analysis.check_secondary_clue',
                    return_value=ClueAnalysis(worklist_limit_reached=True)) as engine:
             cache.check({}, (0, 0))
             result, hit = cache.check({}, (0, 0))
@@ -291,7 +291,7 @@ class SecondaryClueTests(unittest.TestCase):
             self.assertTrue(result.worklist_limit_reached)
             engine.assert_called_once()
         cache = SecondarySearchCache(board(2, 2))
-        with patch('incremental_analysis.check_secondary_clue',
+        with patch('functions.incremental_analysis.check_secondary_clue',
                    return_value=ClueAnalysis(cancelled=True)) as engine:
             cache.check({}, (0, 0))
             self.assertFalse(cache.check({}, (0, 0))[1])
@@ -300,7 +300,7 @@ class SecondaryClueTests(unittest.TestCase):
     def test_secondary_search_inherits_disabled_settings(self):
         state = board(2, 2)
         state['cells'][0][0]['number'] = 3
-        with patch('incremental_analysis.analyze_clue_incremental', return_value=ClueAnalysis()) as engine:
+        with patch('functions.incremental_analysis.analyze_clue_incremental', return_value=ClueAnalysis()) as engine:
             check_secondary_clue(state, {}, (0, 0), simplify_nonclue=False,
                                  prioritize_frontier=False)
         self.assertFalse(engine.call_args.kwargs['simplify_nonclue'])
@@ -309,7 +309,7 @@ class SecondaryClueTests(unittest.TestCase):
     def test_prioritization_can_be_disabled(self):
         state = board(2, 2)
         state['cells'][0][0]['number'] = 3
-        with patch('incremental_analysis.frontier_priorities', side_effect=AssertionError('Priority used')):
+        with patch('functions.incremental_analysis.frontier_priorities', side_effect=AssertionError('Priority used')):
             result = analyze_clue_incremental(state, (0, 0), prioritize_frontier=False)
         self.assertEqual(len(result.accepted_states), 2)
 
@@ -317,7 +317,7 @@ class SecondaryClueTests(unittest.TestCase):
         state = board(2, 2)
         state["cells"][1][1]["number"] = 9
         before = copy.deepcopy(state)
-        with patch("incremental_analysis.analyze_clue_incremental", return_value=ClueAnalysis()) as engine:
+        with patch("functions.incremental_analysis.analyze_clue_incremental", return_value=ClueAnalysis()) as engine:
             check_secondary_clue(state, {(0, 0): None, (1, 1): "tl"}, (1, 1))
         context = engine.call_args.args[0]
         self.assertEqual(context["arc_domains"][0][0], [None])
@@ -341,10 +341,10 @@ class SecondaryClueTests(unittest.TestCase):
         state = board(3, 3)
         state["cells"][1][1]["number"] = 12
         state["cells"][2][2]["number"] = 9
-        with patch("incremental_analysis.check_secondary_clue", return_value=ClueAnalysis()):
+        with patch("functions.incremental_analysis.check_secondary_clue", return_value=ClueAnalysis()):
             rejected = analyze_clue_incremental(state, (1, 1))
         self.assertGreater(rejected.secondary_pruned, 0)
-        with patch("incremental_analysis.check_secondary_clue",
+        with patch("functions.incremental_analysis.check_secondary_clue",
                    return_value=ClueAnalysis(worklist_limit_reached=True)):
             inconclusive = analyze_clue_incremental(state, (1, 1))
         self.assertGreater(inconclusive.secondary_cutoffs, 0)
@@ -392,8 +392,8 @@ class SearchTimingTests(unittest.TestCase):
                 self.target()
 
         editor, times, statuses, callbacks = self.make_editor()
-        with patch("incremental_analysis.analyze_clue_incremental", return_value=ClueAnalysis(explored=7)) as engine, \
-                patch("clue_analysis.analyze_clue", side_effect=AssertionError("Old engine used")), \
+        with patch("functions.incremental_analysis.analyze_clue_incremental", return_value=ClueAnalysis(explored=7)) as engine, \
+                patch("functions.clue_analysis.analyze_clue", side_effect=AssertionError("Old engine used")), \
                 patch("puzzle_gui.threading.Thread", ImmediateThread), \
                 patch("puzzle_gui.perf_counter", side_effect=[10.0, 11.0, 13.0, 14.0]):
             editor.analyze_selected_clue()
@@ -426,7 +426,7 @@ class SearchTimingTests(unittest.TestCase):
         editor.prioritize_cells = SimpleNamespace(get=lambda: False)
         editor.check_other_clues = SimpleNamespace(get=lambda: False)
         workers = []
-        with patch('incremental_analysis.analyze_clue_incremental', return_value=ClueAnalysis()) as engine, \
+        with patch('functions.incremental_analysis.analyze_clue_incremental', return_value=ClueAnalysis()) as engine, \
                 patch('puzzle_gui.threading.Thread',
                       side_effect=lambda target, **kwargs: SimpleNamespace(start=lambda: workers.append(target))):
             editor.analyze_selected_clue()

@@ -5,11 +5,11 @@ from dataclasses import dataclass, field
 from functools import lru_cache
 from fractions import Fraction
 
-from clue_analysis import (ClueAnalysis, PI_HIGH, PI_LOW, STEPS, INSIDE_EDGES, fragment_for_edge,
+from functions.clue_analysis import (ClueAnalysis, PI_HIGH, PI_LOW, STEPS, INSIDE_EDGES, fragment_for_edge,
                            compatible_factorizations, minimum_perimeter_pieces,
                            frontier_priorities, choose_frontier_cell)
 from puzzle_gui import Region, allowed_arc_configurations, arc_endpoints, clue_factorizations
-from arc_constraints import propagate_arc_domains, make_arc_domain_propagator
+from functions.arc_constraints import propagate_arc_domains, make_arc_domain_propagator
 
 
 @dataclass(frozen=True)

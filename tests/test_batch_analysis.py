@@ -6,7 +6,7 @@ from types import SimpleNamespace
 from pathlib import Path
 from unittest.mock import patch
 
-from clue_analysis import ClueAnalysis
+from functions.clue_analysis import ClueAnalysis
 from puzzle_gui import PuzzleEditor, blank_grid, ordered_clues, fixed_clue_order
 
 
@@ -37,7 +37,7 @@ class BatchAnalysisTests(unittest.TestCase):
                     fixed_clue_order(editor.state, 'example', path)
 
     def setUp(self):
-        sanity = patch('incremental_analysis.sanity_check_accepted_states', side_effect=lambda state, result, *args, **kwargs: result)
+        sanity = patch('functions.incremental_analysis.sanity_check_accepted_states', side_effect=lambda state, result, *args, **kwargs: result)
         sanity.start()
         self.addCleanup(sanity.stop)
     def test_dynamic_weights_change_the_order_and_prompt_can_be_cancelled(self):
@@ -79,7 +79,7 @@ class BatchAnalysisTests(unittest.TestCase):
             seen.append(selected)
             return ClueAnalysis(source_clue=selected)
         with patch('puzzle_gui.threading.Thread', ImmediateThread), \
-                patch('incremental_analysis.analyze_clue_incremental', side_effect=engine), \
+                patch('functions.incremental_analysis.analyze_clue_incremental', side_effect=engine), \
                 patch('builtins.print') as output:
             editor.analyze_all_set()
             while callbacks:
@@ -143,7 +143,7 @@ class BatchAnalysisTests(unittest.TestCase):
             return ClueAnalysis(accepted_states=[((*selected, 'tl' if selected == (0, 0) else 'tr'),)],
                                 source_clue=selected)
         with patch('puzzle_gui.threading.Thread', ImmediateThread), \
-                patch('incremental_analysis.analyze_clue_incremental', side_effect=engine):
+                patch('functions.incremental_analysis.analyze_clue_incremental', side_effect=engine):
             editor.analyze_all_clues()
             while callbacks:
                 callbacks.pop(0)()
@@ -161,7 +161,7 @@ class BatchAnalysisTests(unittest.TestCase):
         editor.state['cells'][0][0]['number'] = 8
         editor.state['cells'][0][1]['number'] = 8
         with patch('puzzle_gui.threading.Thread', ImmediateThread), \
-                patch('incremental_analysis.analyze_clue_incremental', return_value=ClueAnalysis()) as engine:
+                patch('functions.incremental_analysis.analyze_clue_incremental', return_value=ClueAnalysis()) as engine:
             editor.analyze_all_clues()
             while callbacks:
                 callbacks.pop(0)()
@@ -192,8 +192,8 @@ class BatchAnalysisTests(unittest.TestCase):
                 state['arc_implications'] = [{'if': [0, 6, 'tl'], 'then': [0, 5, ['tr']]}]
             return {'removed': 0, 'applied': False}
         with patch('puzzle_gui.threading.Thread', ImmediateThread), \
-                patch('incremental_analysis.analyze_clue_incremental', side_effect=engine), \
-                patch('clue_analysis.incorporate_analysis', side_effect=incorporate):
+                patch('functions.incremental_analysis.analyze_clue_incremental', side_effect=engine), \
+                patch('functions.clue_analysis.incorporate_analysis', side_effect=incorporate):
             editor.analyze_all_clues()
             while callbacks:
                 callbacks.pop(0)()

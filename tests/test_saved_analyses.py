@@ -3,7 +3,7 @@ import json
 import unittest
 from types import SimpleNamespace
 
-from clue_analysis import ClueAnalysis
+from functions.clue_analysis import ClueAnalysis
 from puzzle_gui import PuzzleEditor, blank_grid, save_accepted_states, validate_state, prune_saved_states
 
 

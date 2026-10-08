@@ -201,7 +201,7 @@ def analyze_clue(state, selected, accepted_limit=25, stop_event=None, progress=N
     priorities = frontier_priorities(state)
     domains = {(r, c): allowed_arc_configurations(state, r, c)
                for r, row in enumerate(state["cells"]) for c, cell in enumerate(row)}
-    from arc_constraints import propagate_arc_domains
+    from functions.arc_constraints import propagate_arc_domains
     domains = propagate_arc_domains(state, domains=domains)
     if domains is None:
         return ClueAnalysis(invalid_pruned=1, factorizations=factorizations)
@@ -300,11 +300,11 @@ def incorporate_analysis(state, result):
                 state["cells"][r][c]["arc"] = orientation
                 changes["forced"] = changes.get("forced", 0) + 1
     state["arc_domains"] = domains
-    from arc_constraints import learn_arc_implications
+    from functions.arc_constraints import learn_arc_implications
     learned = learn_arc_implications(state, assignments, mandatory, result.source_clue)
     if learned:
         changes['implications'] = learned
-        from arc_constraints import apply_arc_deductions
+        from functions.arc_constraints import apply_arc_deductions
         forced = apply_arc_deductions(state)
         if forced:
             changes['forced'] = changes.get('forced', 0) + forced

@@ -463,7 +463,7 @@ def render_grid(state, cell_size, arc_colors=None, region_colors=None, map_mode=
                 return ImageFont.truetype('segoeuib.ttf' if bold else 'segoeui.ttf', round(size * scale))
             except OSError:
                 return ImageFont.load_default(size=round(size * scale))
-        from arc_constraints import propagate_arc_domains
+        from functions.arc_constraints import propagate_arc_domains
         domains = propagate_arc_domains(state) if map_mode else None
         for r, row in enumerate(state['cells']):
             for c, cell in enumerate(row):
@@ -735,7 +735,7 @@ def validate_state(state):
             or any(arc not in ARC_CYCLE for arc in target[2])):
             raise ValueError('Invalid conditional arc deduction.')
     if rules:
-        from arc_constraints import propagate_arc_domains
+        from functions.arc_constraints import propagate_arc_domains
         if propagate_arc_domains(state) is None:
             raise ValueError('Conditional deductions contradict the current markings or master list.')
     saved = state.get('saved_analyses', {})
@@ -969,7 +969,7 @@ class PuzzleEditor:
         else:
             allowed.append(orientation)
         domains[r][c] = [arc for arc in ARC_CYCLE if arc in allowed]
-        from arc_constraints import propagate_arc_domains
+        from functions.arc_constraints import propagate_arc_domains
         if propagate_arc_domains(self.state) is None:
             self.state = previous
             self.status.set('This edit conflicts with a recorded conditional deduction.')
@@ -994,7 +994,7 @@ class PuzzleEditor:
         if previous == self.state:
             return
         if preserve_domains and self.state.get('arc_implications'):
-            from arc_constraints import apply_arc_deductions
+            from functions.arc_constraints import apply_arc_deductions
             try:
                 apply_arc_deductions(self.state)
             except ValueError as exc:
@@ -1144,7 +1144,7 @@ class PuzzleEditor:
             smooth = {tuple(key): color for key, color in view['smooth_colors']} or None
             colors = {tuple(key): color for key, color in view['region_colors']} or None
             areas = [(tuple(position), label) for position, label in view['area_labels']] if view['area_labels'] is not None else None
-            from clue_analysis import ClueAnalysis
+            from functions.clue_analysis import ClueAnalysis
             result = ClueAnalysis(accepted_states=accepted,
                 source_clue=tuple(view['source_clue']) if view['source_clue'] is not None else None) if accepted else None
             index = int(view['preview_index'])
@@ -1236,7 +1236,7 @@ class PuzzleEditor:
             self.status.set("Factorizations satisfy arithmetic and grid bounds; geometric feasibility still requires analysis.")
 
     def scan_local_conditionals(self):
-        from local_conditionals import scan_local_conditionals
+        from functions.local_conditionals import scan_local_conditionals
         self.cancel_clue_analysis()
         previous = copy.deepcopy(self.state)
         started = perf_counter()
@@ -1420,7 +1420,7 @@ class PuzzleEditor:
         if clue is None:
             self.status.set("The selected cell has no clue. Select a numbered cell.")
             return
-        from incremental_analysis import analyze_clue_incremental as analyze_clue
+        from functions.incremental_analysis import analyze_clue_incremental as analyze_clue
         if hasattr(self, "factorization_text"):
             self.show_factorizations(update_status=False)
         snapshot, selected = copy.deepcopy(self.state), self.selected
@@ -1453,7 +1453,7 @@ class PuzzleEditor:
                                       prioritize_frontier=prioritize_frontier,
                                       check_other_clues=check_other_clues,
                                       progress=lambda visited, accepted: messages.put(("progress", (visited, accepted))))
-                from incremental_analysis import sanity_check_accepted_states
+                from functions.incremental_analysis import sanity_check_accepted_states
                 sanity_check_accepted_states(snapshot, result, selected, event,
                     simplify_nonclue=simplify_nonclue, prioritize_frontier=prioritize_frontier,
                     progress=lambda text: messages.put(('sanity', text)))
@@ -1493,7 +1493,7 @@ class PuzzleEditor:
                             self.status.set(f"Clue analysis failed after {elapsed:.2f} s: {value[0]}")
                         else:
                             suffix = " Stopped early: more than 25 accepted states." if value.limit_reached else " Search complete."
-                            from clue_analysis import incorporate_analysis
+                            from functions.clue_analysis import incorporate_analysis
                             previous = copy.deepcopy(self.state)
                             updated = copy.deepcopy(self.state)
                             try:
@@ -1560,7 +1560,7 @@ class PuzzleEditor:
         entry = self.state.get('saved_analyses', {}).get(f'{selected[0]},{selected[1]}')
         if entry is None:
             return False
-        from clue_analysis import ClueAnalysis
+        from functions.clue_analysis import ClueAnalysis
         self.analysis_result = ClueAnalysis(
             accepted_states=[tuple(tuple(placement) for placement in accepted) for accepted in entry['states']],
             source_clue=selected)
@@ -1689,7 +1689,7 @@ class PuzzleEditor:
                 self.show_factorizations(update_status=False)
         self.canvas.delete("all")
         rows, columns = self.state["rows"], self.state["columns"]
-        from arc_constraints import propagate_arc_domains
+        from functions.arc_constraints import propagate_arc_domains
         effective_domains = propagate_arc_domains(self.state)
         self.size = max(36, min(80, (self.canvas.winfo_width() - 32) / columns,
                                 (self.canvas.winfo_height() - 32) / rows))
@@ -1765,7 +1765,7 @@ class PuzzleEditor:
                 allowed = effective_domains[(r, c)] if effective_domains is not None else ()
                 self.domain_text.set(f"({r + 1}, {c + 1}) allowed: " + ", ".join(names[o] for o in allowed))
         if hasattr(self, 'implication_text'):
-            from arc_constraints import describe_arc_implications
+            from functions.arc_constraints import describe_arc_implications
             self.implication_text.set(describe_arc_implications(self.state, self.selected))
 
     def click(self, event, erase=False):
@@ -1806,7 +1806,7 @@ class PuzzleEditor:
         elif mode == "arc" and not cell["green"]:
             domains = self.state.get('arc_domains')
             allowed = domains[r][c] if domains is not None else ARC_CYCLE
-            from arc_constraints import propagate_arc_domains
+            from functions.arc_constraints import propagate_arc_domains
             effective = propagate_arc_domains(self.state)
             if effective is not None:
                 # Test alternatives without the currently drawn arc pinning the

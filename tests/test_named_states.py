@@ -6,7 +6,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from PIL import Image, ImageChops
-from clue_analysis import ClueAnalysis
+from functions.clue_analysis import ClueAnalysis
 from puzzle_gui import PuzzleEditor, blank_grid, render_grid
 
 

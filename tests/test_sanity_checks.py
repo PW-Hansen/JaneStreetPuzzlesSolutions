@@ -3,8 +3,8 @@ import threading
 import unittest
 from unittest.mock import patch
 
-from clue_analysis import ClueAnalysis
-from incremental_analysis import sanity_check_accepted_states, analyze_clue_incremental
+from functions.clue_analysis import ClueAnalysis
+from functions.incremental_analysis import sanity_check_accepted_states, analyze_clue_incremental
 from puzzle_gui import blank_grid
 
 
@@ -20,7 +20,7 @@ class SanityChecksTests(unittest.TestCase):
         before = copy.deepcopy(state)
         accepted = ((1, 1, 'tl'),)
         result = ClueAnalysis(accepted_states=[accepted])
-        with patch('incremental_analysis.check_secondary_clue',
+        with patch('functions.incremental_analysis.check_secondary_clue',
                    side_effect=lambda *args, **kwargs: ClueAnalysis(explored=25001, branch_limit_reached=True)) as check:
             sanity_check_accepted_states(state, result, (1, 1))
         self.assertEqual([call.args[2] for call in check.call_args_list], [(0, 1), (1, 0), (1, 2)])
@@ -41,7 +41,7 @@ class SanityChecksTests(unittest.TestCase):
             if assigned[(1, 1)] == 'tl':
                 return ClueAnalysis()
             return ClueAnalysis(accepted_states=[((0, 1, 'tr'),)], limit_reached=True)
-        with patch('incremental_analysis.check_secondary_clue', side_effect=probe):
+        with patch('functions.incremental_analysis.check_secondary_clue', side_effect=probe):
             sanity_check_accepted_states(state, result, (1, 1))
         self.assertEqual(result.accepted_states, accepted[1:])
         self.assertEqual(result.sanity_pruned, 1)
@@ -54,7 +54,7 @@ class SanityChecksTests(unittest.TestCase):
 
     def test_incomplete_primary_results_do_not_run_sanity_searches(self):
         for flag in ('cancelled', 'limit_reached', 'worklist_limit_reached', 'branch_limit_reached'):
-            with patch('incremental_analysis.check_secondary_clue') as check:
+            with patch('functions.incremental_analysis.check_secondary_clue') as check:
                 result = ClueAnalysis(accepted_states=[((1, 1, 'tl'),)], **{flag: True})
                 sanity_check_accepted_states(self.state(), result, (1, 1))
                 check.assert_not_called()

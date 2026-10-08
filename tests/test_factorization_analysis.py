@@ -1,7 +1,7 @@
 import unittest
 
-from clue_analysis import compatible_factorizations, minimum_perimeter_pieces
-from incremental_analysis import analyze_clue_incremental
+from functions.clue_analysis import compatible_factorizations, minimum_perimeter_pieces
+from functions.incremental_analysis import analyze_clue_incremental
 from puzzle_gui import blank_grid, clue_factorizations
 
 

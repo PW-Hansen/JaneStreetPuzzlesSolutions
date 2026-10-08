@@ -3,10 +3,10 @@ import json
 import unittest
 import random
 
-from arc_constraints import (propagate_arc_domains, make_arc_domain_propagator,
+from functions.arc_constraints import (propagate_arc_domains, make_arc_domain_propagator,
                              apply_arc_deductions, describe_arc_implications)
-from clue_analysis import ClueAnalysis, incorporate_analysis
-from incremental_analysis import analyze_clue_incremental, SimplifiedArc
+from functions.clue_analysis import ClueAnalysis, incorporate_analysis
+from functions.incremental_analysis import analyze_clue_incremental, SimplifiedArc
 from puzzle_gui import blank_grid, validate_state, ARC_CYCLE
 
 
@@ -103,7 +103,7 @@ class ArcConstraintTests(unittest.TestCase):
             self.assertEqual(propagate_arc_domains(state, domains=domains), expected)
 
     def test_conditional_frontier_growth_matches_reference_solver(self):
-        from clue_analysis import analyze_clue
+        from functions.clue_analysis import analyze_clue
         for trigger in ARC_CYCLE:
             state = self.board(2, 2)
             state['cells'][0][0]['number'] = 3
