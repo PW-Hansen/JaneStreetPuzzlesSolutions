@@ -76,20 +76,23 @@ def analyze_clue_incremental(state, selected, accepted_limit=25, stop_event=None
     if target is None:
         raise ValueError("Select a cell containing a clue.")
     factorizations = tuple(clue_factorizations(state, selected))
-    factor_areas = sorted({a for a, _ in factorizations})
+    # Keep comprehensions in separate generator scopes. In particular, avoid
+    # temporarily replacing loop locals with closure cells in this long-lived
+    # search frame (the reported Python 3.13 failure corrupted `result`).
+    factor_areas = sorted(set(a for a, _ in factorizations))
     complex_threshold = (factor_areas[-2] if len(factor_areas) > 1
                          else factor_areas[-1] if factor_areas else 0)
     priorities = (frontier_priorities(state) if prioritize_frontier else
-                  {(r, c): 0 for r in range(rows) for c in range(columns)})
-    domains = {(r, c): allowed_arc_configurations(state, r, c)
-               for r in range(rows) for c in range(columns)}
+                  dict(((r, c), 0) for r in range(rows) for c in range(columns)))
+    domains = dict(((r, c), allowed_arc_configurations(state, r, c))
+                   for r in range(rows) for c in range(columns))
     domains = propagate_arc_domains(state, domains=domains)
     if domains is None:
         return ClueAnalysis(invalid_pruned=1, factorizations=factorizations)
     if any(not domain for domain in domains.values()):
         return ClueAnalysis(invalid_pruned=1, factorizations=factorizations)
     propagate_arc_domains.restrict(domains)
-    fixed = {cell: domain[0] for cell, domain in domains.items() if len(domain) == 1}
+    fixed = dict((cell, domain[0]) for cell, domain in domains.items() if len(domain) == 1)
     secondary_cache = SecondarySearchCache(state, stop_event, secondary_worklist_limit,
                                             prioritize_frontier)
 
@@ -211,9 +214,9 @@ def analyze_clue_incremental(state, selected, accepted_limit=25, stop_event=None
         return max(rounded, whole + max(inside, outside))
 
     empty = _Partial()
-    stack = [(fixed | {selected: orientation}, empty, (*selected, 0), not simplify_nonclue,
+    stack = list((fixed | {selected: orientation}, empty, (*selected, 0), not simplify_nonclue,
               domains, (selected, orientation))
-             for orientation in reversed(domains[selected])]
+                 for orientation in reversed(domains[selected]))
     result, signatures = ClueAnalysis(factorizations=factorizations, source_clue=selected), set()
     while stack:
         if stop_event is not None and stop_event.is_set():
@@ -245,8 +248,8 @@ def analyze_clue_incremental(state, selected, accepted_limit=25, stop_event=None
                     value = resolved[cell]
                     resolved[cell] = SimplifiedArc(value.edges, tuple(arc for arc in value.options if arc in values))
             if resolved != assigned:
-                changed_cells = {cell for cell, value in resolved.items()
-                                 if cell not in assigned or assigned[cell] != value}
+                changed_cells = set(cell for cell, value in resolved.items()
+                                    if cell not in assigned or assigned[cell] != value)
                 if changed_cells & parent.reached:
                     parent, seed = empty, (*selected, 0)
                 else:
@@ -307,9 +310,9 @@ def analyze_clue_incremental(state, selected, accepted_limit=25, stop_event=None
             result.factorization_pruned += 1
             continue
         if check_other_clues:
-            other_clues = sorted({(r, c) for r, c, side in partial.fragments
+            other_clues = sorted(set((r, c) for r, c, side in partial.fragments
                                   if (r, c) != selected and assigned[(r, c)] is not None
-                                  and state["cells"][r][c]["number"] is not None})
+                                  and state["cells"][r][c]["number"] is not None))
             rejected = False
             for other in other_clues:
                 if not secondary_clue_constrained(state, assigned, other, domains):
@@ -361,7 +364,7 @@ def analyze_clue_incremental(state, selected, accepted_limit=25, stop_event=None
                     result.score_pruned += 1
                 continue
             # Only reached cells matter to this Region; copy just those cells.
-            candidate = {**state, "cells": [list(row) for row in state["cells"]]}
+            candidate = {**state, "cells": list(list(row) for row in state["cells"])}
             for r, c in partial.reached:
                 candidate["cells"][r][c] = {**state["cells"][r][c], "arc": assigned[(r, c)]}
             region = Region(0, frozenset(partial.fragments), *partial.counts)
@@ -384,7 +387,7 @@ def analyze_clue_incremental(state, selected, accepted_limit=25, stop_event=None
                        else branch_domains[cell])
             viable = []
             for arc in choices:
-                required = {edge_side(arc, edge) for edge in edges}
+                required = set(edge_side(arc, edge) for edge in edges)
                 if len(required) != 1:
                     continue
                 seed = (*cell, next(iter(required)))
@@ -397,7 +400,7 @@ def analyze_clue_incremental(state, selected, accepted_limit=25, stop_event=None
             legal_choices[cell] = tuple(viable)
         cell = choose_frontier_cell(partial.frontier, priorities,
                                     prioritize_connections=prioritize_frontier,
-                                    choice_counts={cell: len(choices) for cell, choices in legal_choices.items()})
+                                    choice_counts=dict((cell, len(choices)) for cell, choices in legal_choices.items()))
         for orientation in reversed(legal_choices[cell]):
             side = edge_side(orientation, next(iter(partial.frontier[cell])))
             # Reuse the forced-growth snapshot; the seed is already reached.
