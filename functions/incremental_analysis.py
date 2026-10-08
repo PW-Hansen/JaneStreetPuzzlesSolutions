@@ -685,7 +685,7 @@ def check_secondary_clue(state, assigned, selected, stop_event=None, worklist_li
 
 def sanity_check_accepted_states(state, result, selected, stop_event=None,
                                  simplify_nonclue=True, prioritize_frontier=True,
-                                 branch_limit=25000, progress=None):
+                                 branch_limit=2500, progress=None):
     """Check neighboring clues only when multiple accepted states remain."""
     if len(result.accepted_states) <= 1:
         return result
