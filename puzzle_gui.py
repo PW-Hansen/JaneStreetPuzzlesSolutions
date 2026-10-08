@@ -12,15 +12,17 @@ from time import perf_counter
 from queue import Empty, Queue
 from dataclasses import dataclass, field
 from pathlib import Path
+from datetime import datetime
 import tkinter as tk
 from tkinter import messagebox, simpledialog, ttk
 
-from PIL import Image, ImageDraw, ImageTk
+from PIL import Image, ImageDraw, ImageTk, ImageFont
 
 
 DEFAULT_STATE = Path(__file__).with_name("puzzle_state.json")
 DATA_DIRECTORY = Path(__file__).resolve().parent / "grids"
 SOLUTION_ORDER_PATH = Path(__file__).with_name('solution_clue_analysis_order.json')
+SAVED_STATES_DIRECTORY = Path(__file__).with_name('saved states')
 ARC_CYCLE = (None, "tl", "tr", "br", "bl")
 
 
@@ -354,7 +356,8 @@ def region_area_positions(state, regions):
     return {region: candidate[1] for region, candidate in candidates.items()}
 
 
-def render_grid(state, cell_size, arc_colors=None, region_colors=None, map_mode=False, active_clue=None):
+def render_grid(state, cell_size, arc_colors=None, region_colors=None, map_mode=False, active_clue=None,
+                include_labels=False, area_labels=None):
     """Draw at four times the display resolution for smooth circular edges."""
     scale, margin = 4, 16
     rows, columns = state["rows"], state["columns"]
@@ -439,6 +442,44 @@ def render_grid(state, cell_size, arc_colors=None, region_colors=None, map_mode=
         radius = cell_size * .42
         painter.ellipse(box(cx - radius, cy - radius, cx + radius, cy + radius),
                         outline='#ef8c00', width=2 * scale)
+    if include_labels:
+        def font(size, bold=False):
+            try:
+                return ImageFont.truetype('segoeuib.ttf' if bold else 'segoeui.ttf', round(size * scale))
+            except OSError:
+                return ImageFont.load_default(size=round(size * scale))
+        from arc_constraints import propagate_arc_domains
+        domains = propagate_arc_domains(state) if map_mode else None
+        for r, row in enumerate(state['cells']):
+            for c, cell in enumerate(row):
+                x, y = margin + c * cell_size, margin + r * cell_size
+                if cell['number'] is not None:
+                    painter.text((round((x + cell_size / 2) * scale),
+                                  round((y + cell_size * (.16 if map_mode else .5)) * scale)),
+                                 str(cell['number']), fill='black', anchor='mm',
+                                 font=font(max(10, cell_size * .24), True))
+                if map_mode:
+                    allowed = domains[(r, c)] if domains is not None else ()
+                    for arc, dx, dy in ((None, .5, .5), ('tl', .78, .27), ('tr', .22, .27),
+                                        ('br', .22, .76), ('bl', .78, .76)):
+                        cx, cy, radius = x + dx * cell_size, y + dy * cell_size, cell_size * .12
+                        color = '#172b4d' if arc in allowed else '#c8c8c8'
+                        if arc is None:
+                            painter.text((round(cx * scale), round(cy * scale)), '—', anchor='mm',
+                                         fill=color, font=font(max(9, cell_size * .2), True))
+                        else:
+                            start = {'tl': 0, 'tr': 90, 'br': 180, 'bl': 270}[arc]
+                            points = [(round((cx + radius * math.cos(math.radians(start + step * 7.5))) * scale),
+                                       round((cy - radius * math.sin(math.radians(start + step * 7.5))) * scale))
+                                      for step in range(13)]
+                            painter.line(points, fill=color, width=2 * scale, joint='curve')
+                        if arc not in allowed:
+                            painter.line(box(cx - radius, cy - radius, cx + radius, cy + radius),
+                                         fill='#c84646', width=scale)
+        for (r, c, dx, dy, _), label in area_labels or []:
+            painter.text((round((margin + (c + dx) * cell_size) * scale),
+                          round((margin + (r + dy) * cell_size) * scale)), str(label),
+                         fill='#174377', anchor='mm', font=font(max(7, min(11, cell_size * .14))))
     return image.resize((width, height), Image.Resampling.LANCZOS)
 
 
@@ -747,6 +788,11 @@ class PuzzleEditor:
         self.redo_button = ttk.Button(toolbar, text="Redo", command=self.redo)
         self.redo_button.pack(side="left", padx=4)
         ttk.Button(toolbar, text="Save", command=self.save).pack(side="right")
+        saved_controls = ttk.Frame(root, padding=(8, 0, 8, 6))
+        saved_controls.pack(fill='x')
+        ttk.Button(saved_controls, text='Save state', command=self.save_named_state).pack(side='left', padx=4)
+        ttk.Button(saved_controls, text='Load state', command=self.choose_saved_state).pack(side='left', padx=4)
+        ttk.Button(saved_controls, text='Print state', command=self.print_state).pack(side='left', padx=4)
         ttk.Button(toolbar, text="Reset arcs", command=self.reset_arcs).pack(side="right", padx=4)
         dimensions = ttk.Frame(root, padding=(8, 0, 8, 8))
         dimensions.pack(fill="x")
@@ -974,6 +1020,140 @@ class PuzzleEditor:
             for cell in row:
                 cell["arc"] = None
         self.commit(previous)
+
+    def print_state(self):
+        self.save_named_state(picture=True)
+
+    def render_current_state(self):
+        display, speculative = self.preview_grid()
+        previewing = getattr(self, 'preview_index', 0) > 0
+        map_mode = self.mode.get() == 'map'
+        if map_mode:
+            display = {**self.state, 'cells': [[{**cell, 'arc': None} for cell in row]
+                                               for row in self.state['cells']]}
+        return render_grid(display, 80, speculative if previewing else self.smooth_colors,
+                None if previewing or map_mode else self.region_colors, map_mode=map_mode,
+                active_clue=getattr(self, 'active_clue', None) if self.analysis_cancel is not None else None,
+                include_labels=True, area_labels=None if previewing or map_mode else self.area_labels)
+
+    def named_snapshot(self):
+        state = copy.deepcopy(self.state)
+        state['analysis_options'] = {'simplify_arcs': self.simplify_arcs.get(),
+            'prioritize_cells': self.prioritize_cells.get(), 'check_other_clues': self.check_other_clues.get()}
+        result = self.analysis_result
+        return {'puzzle_name': self.puzzle_name, 'state': state,
+            'undo': copy.deepcopy(self.undo_stack), 'redo': copy.deepcopy(self.redo_stack),
+            'view': {'selected': self.selected, 'mode': self.mode.get(), 'preview_index': self.preview_index,
+                'accepted_states': result.accepted_states if result is not None else [],
+                'source_clue': result.source_clue if result is not None else None,
+                'smooth_colors': [[list(key), color] for key, color in (self.smooth_colors or {}).items()],
+                'region_colors': [[list(key), color] for key, color in (self.region_colors or {}).items()],
+                'area_labels': self.area_labels, 'search_time': self.analysis_elapsed_seconds,
+                'total_time': getattr(self, 'batch_elapsed_seconds', None)}}
+
+    def save_named_state(self, picture=False):
+        if self.analysis_cancel is not None or getattr(self, 'batch_token', None) is not None:
+            self.status.set('Wait for analysis to finish before saving a state.')
+            return
+        title = 'Print state' if picture else 'Save state'
+        name = simpledialog.askstring(title, 'Name for this picture and state:' if picture else 'Name for this saved state:',
+            parent=self.root, initialvalue=datetime.now().strftime('%Y-%m-%d_%H-%M-%S'))
+        if name is None:
+            return
+        try:
+            name = grid_name(name.strip())
+            folder = SAVED_STATES_DIRECTORY / self.puzzle_name
+            path = folder / f'{name}.json'
+            picture_path = Path(__file__).parent / f'{name}.png'
+            if (path.exists() or picture and picture_path.exists()) and not messagebox.askyesno(
+                    title, f"Replace existing files named '{name}'?", parent=self.root):
+                return
+            snapshot = self.named_snapshot()
+            folder.mkdir(parents=True, exist_ok=True)
+            if picture:
+                temporary_picture = picture_path.with_suffix('.png.tmp')
+                self.render_current_state().save(temporary_picture, format='PNG')
+                os.replace(temporary_picture, picture_path)
+            temporary = path.with_suffix('.json.tmp')
+            temporary.write_text(json.dumps(snapshot, indent=2) + '\n', encoding='utf-8')
+            os.replace(temporary, path)
+            self.status.set(f'Saved state — {path}' + (f'; PNG — {picture_path}' if picture else ''))
+        except (OSError, ValueError, argparse.ArgumentTypeError) as exc:
+            self.status.set(f'Could not save state: {exc}')
+
+    def choose_saved_state(self):
+        if self.analysis_cancel is not None or getattr(self, 'batch_token', None) is not None:
+            self.status.set('Wait for analysis to finish before loading a state.')
+            return
+        paths = sorted((SAVED_STATES_DIRECTORY / self.puzzle_name).glob('*.json'))
+        if not paths:
+            self.status.set('No saved states for this grid yet.')
+            return
+        dialog = tk.Toplevel(self.root)
+        dialog.title('Load state')
+        dialog.transient(self.root)
+        dialog.grab_set()
+        ttk.Label(dialog, text='Saved state:').pack(anchor='w', padx=16, pady=(16, 4))
+        selection = ttk.Combobox(dialog, state='readonly', values=[path.stem for path in paths], width=40)
+        selection.pack(padx=16, pady=4)
+        selection.current(0)
+        def load():
+            if self.load_named_state(paths[selection.current()]):
+                dialog.destroy()
+        ttk.Button(dialog, text='Load', command=load).pack(padx=16, pady=16)
+
+    def load_named_state(self, path):
+        if self.analysis_cancel is not None or getattr(self, 'batch_token', None) is not None:
+            self.status.set('Wait for analysis to finish before loading a state.')
+            return False
+        try:
+            snapshot = json.loads(Path(path).read_text(encoding='utf-8'))
+            state = validate_state(snapshot['state'])
+            if snapshot['puzzle_name'] != self.puzzle_name or (state['rows'], state['columns']) != (self.state['rows'], self.state['columns']):
+                raise ValueError('Saved state belongs to a different puzzle or grid size.')
+            undo = [validate_state(item) for item in snapshot['undo']]
+            redo = [validate_state(item) for item in snapshot['redo']]
+            view = snapshot['view']
+            selected = tuple(view['selected']) if view['selected'] is not None else None
+            if selected is not None and (len(selected) != 2 or any(type(v) is not int for v in selected)
+                    or not (0 <= selected[0] < state['rows'] and 0 <= selected[1] < state['columns'])):
+                raise ValueError('Invalid saved selection.')
+            if view['mode'] not in ('select', 'green', 'digit', 'arc', 'map'):
+                raise ValueError('Invalid saved mode.')
+            accepted = [tuple(tuple(placement) for placement in values) for values in view['accepted_states']]
+            for values in accepted:
+                for r, c, arc in values:
+                    if not (0 <= r < state['rows'] and 0 <= c < state['columns']) or arc not in ARC_CYCLE:
+                        raise ValueError('Invalid saved preview.')
+            smooth = {tuple(key): color for key, color in view['smooth_colors']} or None
+            colors = {tuple(key): color for key, color in view['region_colors']} or None
+            areas = [(tuple(position), label) for position, label in view['area_labels']] if view['area_labels'] is not None else None
+            from clue_analysis import ClueAnalysis
+            result = ClueAnalysis(accepted_states=accepted,
+                source_clue=tuple(view['source_clue']) if view['source_clue'] is not None else None) if accepted else None
+            index = int(view['preview_index'])
+            if not 0 <= index <= len(accepted):
+                raise ValueError('Invalid saved preview index.')
+        except (OSError, ValueError, KeyError, TypeError, IndexError) as exc:
+            self.status.set(f'Could not load state: {exc}')
+            return False
+        self.state, self.undo_stack, self.redo_stack = state, undo, redo
+        self.selected, self.analysis_result, self.preview_index = selected, result, index
+        self.mode.set(view['mode'])
+        self.smooth_colors, self.region_colors, self.area_labels = smooth, colors, areas
+        self.factorization_selection = None
+        self.fresh_entry = True
+        options = state.get('analysis_options', {})
+        for key in ('simplify_arcs', 'prioritize_cells', 'check_other_clues'):
+            getattr(self, key).set(options.get(key, True))
+        if view['search_time'] is not None:
+            self.update_analysis_time(view['search_time'])
+        if view['total_time'] is not None:
+            self.update_batch_time(view['total_time'])
+        self.draw()
+        self.save()
+        self.status.set(f'Loaded state — {Path(path).stem}')
+        return True
 
     def save(self):
         if hasattr(self, "simplify_arcs"):
