@@ -1,0 +1,452 @@
+{
+  "puzzle_name": "full_puzzle",
+  "state": {
+    "version": 1,
+    "rows": 9,
+    "columns": 9,
+    "cells": [
+      [
+        {
+          "green": true,
+          "number": null,
+          "arc": null
+        },
+        {
+          "green": false,
+          "number": null,
+          "arc": null
+        },
+        {
+          "green": false,
+          "number": 21,
+          "arc": null
+        },
+        {
+          "green": true,
+          "number": null,
+          "arc": null
+        },
+        {
+          "green": false,
+          "number": null,
+          "arc": null
+        },
+        {
+          "green": true,
+          "number": null,
+          "arc": null
+        },
+        {
+          "green": false,
+          "number": null,
+          "arc": null
+        },
+        {
+          "green": true,
+          "number": null,
+          "arc": null
+        },
+        {
+          "green": false,
+          "number": null,
+          "arc": null
+        }
+      ],
+      [
+        {
+          "green": false,
+          "number": 21,
+          "arc": null
+        },
+        {
+          "green": false,
+          "number": null,
+          "arc": null
+        },
+        {
+          "green": false,
+          "number": null,
+          "arc": null
+        },
+        {
+          "green": true,
+          "number": null,
+          "arc": null
+        },
+        {
+          "green": false,
+          "number": 27,
+          "arc": null
+        },
+        {
+          "green": false,
+          "number": null,
+          "arc": null
+        },
+        {
+          "green": true,
+          "number": null,
+          "arc": null
+        },
+        {
+          "green": false,
+          "number": 25,
+          "arc": null
+        },
+        {
+          "green": true,
+          "number": null,
+          "arc": null
+        }
+      ],
+      [
+        {
+          "green": true,
+          "number": null,
+          "arc": null
+        },
+        {
+          "green": false,
+          "number": 27,
+          "arc": null
+        },
+        {
+          "green": false,
+          "number": null,
+          "arc": null
+        },
+        {
+          "green": false,
+          "number": null,
+          "arc": null
+        },
+        {
+          "green": false,
+          "number": null,
+          "arc": null
+        },
+        {
+          "green": false,
+          "number": 15,
+          "arc": null
+        },
+        {
+          "green": false,
+          "number": null,
+          "arc": null
+        },
+        {
+          "green": true,
+          "number": null,
+          "arc": null
+        },
+        {
+          "green": false,
+          "number": 9,
+          "arc": null
+        }
+      ],
+      [
+        {
+          "green": false,
+          "number": null,
+          "arc": null
+        },
+        {
+          "green": false,
+          "number": null,
+          "arc": null
+        },
+        {
+          "green": false,
+          "number": null,
+          "arc": null
+        },
+        {
+          "green": false,
+          "number": null,
+          "arc": null
+        },
+        {
+          "green": false,
+          "number": null,
+          "arc": null
+        },
+        {
+          "green": false,
+          "number": null,
+          "arc": null
+        },
+        {
+          "green": false,
+          "number": null,
+          "arc": null
+        },
+        {
+          "green": false,
+          "number": null,
+          "arc": null
+        },
+        {
+          "green": true,
+          "number": null,
+          "arc": null
+        }
+      ],
+      [
+        {
+          "green": true,
+          "number": 25,
+          "arc": null
+        },
+        {
+          "green": false,
+          "number": null,
+          "arc": null
+        },
+        {
+          "green": false,
+          "number": null,
+          "arc": null
+        },
+        {
+          "green": false,
+          "number": 27,
+          "arc": null
+        },
+        {
+          "green": true,
+          "number": null,
+          "arc": null
+        },
+        {
+          "green": false,
+          "number": 45,
+          "arc": null
+        },
+        {
+          "green": false,
+          "number": null,
+          "arc": null
+        },
+        {
+          "green": false,
+          "number": null,
+          "arc": null
+        },
+        {
+          "green": false,
+          "number": 9,
+          "arc": null
+        }
+      ],
+      [
+        {
+          "green": false,
+          "number": null,
+          "arc": null
+        },
+        {
+          "green": false,
+          "number": null,
+          "arc": null
+        },
+        {
+          "green": false,
+          "number": null,
+          "arc": null
+        },
+        {
+          "green": false,
+          "number": null,
+          "arc": null
+        },
+        {
+          "green": false,
+          "number": null,
+          "arc": null
+        },
+        {
+          "green": false,
+          "number": null,
+          "arc": null
+        },
+        {
+          "green": false,
+          "number": null,
+          "arc": null
+        },
+        {
+          "green": true,
+          "number": null,
+          "arc": null
+        },
+        {
+          "green": true,
+          "number": null,
+          "arc": null
+        }
+      ],
+      [
+        {
+          "green": false,
+          "number": 9,
+          "arc": null
+        },
+        {
+          "green": false,
+          "number": null,
+          "arc": null
+        },
+        {
+          "green": false,
+          "number": null,
+          "arc": null
+        },
+        {
+          "green": false,
+          "number": 63,
+          "arc": null
+        },
+        {
+          "green": false,
+          "number": null,
+          "arc": null
+        },
+        {
+          "green": false,
+          "number": null,
+          "arc": null
+        },
+        {
+          "green": false,
+          "number": null,
+          "arc": null
+        },
+        {
+          "green": false,
+          "number": 45,
+          "arc": null
+        },
+        {
+          "green": false,
+          "number": null,
+          "arc": null
+        }
+      ],
+      [
+        {
+          "green": true,
+          "number": null,
+          "arc": null
+        },
+        {
+          "green": false,
+          "number": 63,
+          "arc": null
+        },
+        {
+          "green": false,
+          "number": null,
+          "arc": null
+        },
+        {
+          "green": false,
+          "number": null,
+          "arc": null
+        },
+        {
+          "green": false,
+          "number": 9,
+          "arc": null
+        },
+        {
+          "green": false,
+          "number": null,
+          "arc": null
+        },
+        {
+          "green": false,
+          "number": null,
+          "arc": null
+        },
+        {
+          "green": false,
+          "number": null,
+          "arc": null
+        },
+        {
+          "green": false,
+          "number": 288,
+          "arc": null
+        }
+      ],
+      [
+        {
+          "green": false,
+          "number": null,
+          "arc": null
+        },
+        {
+          "green": true,
+          "number": null,
+          "arc": null
+        },
+        {
+          "green": false,
+          "number": null,
+          "arc": null
+        },
+        {
+          "green": false,
+          "number": null,
+          "arc": null
+        },
+        {
+          "green": true,
+          "number": null,
+          "arc": null
+        },
+        {
+          "green": false,
+          "number": null,
+          "arc": null
+        },
+        {
+          "green": true,
+          "number": 35,
+          "arc": null
+        },
+        {
+          "green": false,
+          "number": null,
+          "arc": null
+        },
+        {
+          "green": true,
+          "number": null,
+          "arc": null
+        }
+      ]
+    ],
+    "analysis_options": {
+      "simplify_arcs": true,
+      "prioritize_cells": false,
+      "check_other_clues": false
+    }
+  },
+  "undo": [],
+  "redo": [],
+  "view": {
+    "selected": null,
+    "mode": "select",
+    "preview_index": 0,
+    "accepted_states": [],
+    "source_clue": null,
+    "smooth_colors": [],
+    "region_colors": [],
+    "area_labels": null,
+    "search_time": null,
+    "total_time": null
+  }
+}
