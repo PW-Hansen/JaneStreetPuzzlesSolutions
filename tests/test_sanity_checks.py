@@ -19,18 +19,19 @@ class SanityChecksTests(unittest.TestCase):
         state = self.state()
         before = copy.deepcopy(state)
         accepted = ((1, 1, 'tl'),)
-        result = ClueAnalysis(accepted_states=[accepted])
+        alternatives = [accepted, ((1, 1, 'br'),)]
+        result = ClueAnalysis(accepted_states=list(alternatives))
         with patch('functions.incremental_analysis.check_secondary_clue',
                    side_effect=lambda *args, **kwargs: ClueAnalysis(explored=25001, branch_limit_reached=True)) as check:
             sanity_check_accepted_states(state, result, (1, 1))
-        self.assertEqual([call.args[2] for call in check.call_args_list], [(0, 1), (1, 0), (1, 2)])
-        for call in check.call_args_list:
+        self.assertEqual([call.args[2] for call in check.call_args_list], [(0, 1), (1, 0), (1, 2)] * 2)
+        for index, call in enumerate(check.call_args_list):
             self.assertEqual(call.kwargs['branch_limit'], 25000)
             self.assertIsNone(call.kwargs['worklist_limit'])
-            self.assertEqual(call.args[1], {(1, 1): 'tl'})
-        self.assertEqual(result.accepted_states, [accepted])
-        self.assertEqual(result.sanity_cutoffs, 3)
-        self.assertEqual(result.sanity_branches, 75003)
+            self.assertEqual(call.args[1], {(1, 1): 'tl' if index < 3 else 'br'})
+        self.assertEqual(result.accepted_states, alternatives)
+        self.assertEqual(result.sanity_cutoffs, 6)
+        self.assertEqual(result.sanity_branches, 150006)
         self.assertEqual(state, before)
 
     def test_exhaustive_failure_rejects_only_that_state_and_cancellation_applies_nothing(self):
@@ -55,9 +56,18 @@ class SanityChecksTests(unittest.TestCase):
     def test_incomplete_primary_results_do_not_run_sanity_searches(self):
         for flag in ('cancelled', 'limit_reached', 'worklist_limit_reached', 'branch_limit_reached'):
             with patch('functions.incremental_analysis.check_secondary_clue') as check:
-                result = ClueAnalysis(accepted_states=[((1, 1, 'tl'),)], **{flag: True})
+                result = ClueAnalysis(accepted_states=[((1, 1, 'tl'),), ((1, 1, 'br'),)], **{flag: True})
                 sanity_check_accepted_states(self.state(), result, (1, 1))
                 check.assert_not_called()
+
+    def test_single_accepted_state_skips_sanity_checks(self):
+        accepted = [((1, 1, 'tl'),)]
+        result = ClueAnalysis(accepted_states=list(accepted))
+        with patch('functions.incremental_analysis.check_secondary_clue') as check:
+            self.assertIs(sanity_check_accepted_states(self.state(), result, (1, 1)), result)
+            check.assert_not_called()
+        self.assertEqual(result.accepted_states, accepted)
+        self.assertEqual(result.sanity_checks, 0)
 
     def test_branch_cap_is_optional_and_uses_explored_branches(self):
         state = {'rows': 2, 'columns': 2, 'cells': blank_grid(2, 2)}
