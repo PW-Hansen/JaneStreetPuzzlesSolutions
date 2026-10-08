@@ -663,7 +663,7 @@ class AnalysisWeightsDialog(simpledialog.Dialog):
 
 
 def save_accepted_states(state, selected, result):
-    if (result.cancelled or result.limit_reached or result.worklist_limit_reached
+    if (result.heuristic or result.cancelled or result.limit_reached or result.worklist_limit_reached
             or len(result.accepted_states) >= 25):
         return False
     r, c = selected
@@ -826,6 +826,8 @@ class PuzzleEditor:
         self.analysis_button = ttk.Button(analysis_controls, text="Analyze selected clue",
                                           command=self.analyze_selected_clue)
         self.analysis_button.pack(side="left", padx=4)
+        ttk.Button(analysis_controls, text='Analyze selected clue (greedy)',
+                   command=self.analyze_selected_clue_greedy).pack(side='left', padx=4)
         ttk.Button(analysis_controls, text="Factorization", command=self.show_factorizations).pack(side="left", padx=4)
         local_controls = ttk.Frame(root, padding=(8, 0, 8, 6))
         local_controls.pack(fill='x')
@@ -1407,7 +1409,10 @@ class PuzzleEditor:
             self.cancel_clue_analysis()
             self.status.set(f"Clue analysis aborted after {self.analysis_elapsed_seconds or 0:.2f} s. Completed deductions preserved.")
 
-    def analyze_selected_clue(self):
+    def analyze_selected_clue_greedy(self):
+        self.analyze_selected_clue(greedy=True)
+
+    def analyze_selected_clue(self, greedy=False):
         if self.analysis_cancel is not None:
             self.cancel_clue_analysis()
             self.status.set(f"Clue analysis cancelled after {self.analysis_elapsed_seconds or 0:.2f} s.")
@@ -1421,6 +1426,8 @@ class PuzzleEditor:
             self.status.set("The selected cell has no clue. Select a numbered cell.")
             return
         from functions.incremental_analysis import analyze_clue_with_sanity as analyze_clue
+        if greedy:
+            from functions.greedy_analysis import analyze_clue_greedy as analyze_clue
         from functions.clue_analysis import analysis_timing_summary
         if hasattr(self, "factorization_text"):
             self.show_factorizations(update_status=False)
@@ -1437,7 +1444,7 @@ class PuzzleEditor:
         self.draw()
         messages = Queue()
         self.analysis_button.configure(text="Cancel analysis")
-        engine_label = "Clue"
+        engine_label = 'Greedy clue' if greedy else 'Clue'
         progress_counts = [0, 0]
         sanity_status = [None]
         self.status.set(f"Analyzing clue {clue} at ({r + 1}, {c + 1})…")
@@ -1495,6 +1502,8 @@ class PuzzleEditor:
                             self.status.set(f"Clue analysis failed after {elapsed:.2f} s: {value[0]}")
                         else:
                             suffix = " Stopped early: more than 25 accepted states." if value.limit_reached else " Search complete."
+                            if value.heuristic:
+                                suffix += ' Greedy previews only; master domains and confirmed arcs are unchanged.'
                             from functions.clue_analysis import incorporate_analysis
                             previous = copy.deepcopy(self.state)
                             updated = copy.deepcopy(self.state)

@@ -65,6 +65,7 @@ class ClueAnalysis:
     sanity_branches: int = 0
     sanity_pruned: int = 0
     sanity_cutoffs: int = 0
+    heuristic: bool = False
 
 
 def analysis_timing_summary(result):
@@ -288,6 +289,8 @@ def incorporate_analysis(state, result):
     its unenumerated external configurations might all still be possible.
     """
     changes = {"removed": 0, "applied": False}
+    if result.heuristic:
+        return changes
     if result.limit_reached or result.cancelled or result.worklist_limit_reached:
         return changes
     if not result.accepted_states:

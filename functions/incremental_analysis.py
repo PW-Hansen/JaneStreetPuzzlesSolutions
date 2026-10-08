@@ -59,7 +59,7 @@ class _Partial:
 def analyze_clue_incremental(state, selected, accepted_limit=25, stop_event=None,
                              progress=None, check_other_clues=True, worklist_limit=None,
                              secondary_worklist_limit=25, simplify_nonclue=True,
-                             prioritize_frontier=True, branch_limit=None):
+                             prioritize_frontier=True, branch_limit=None, boundary_policy=None):
     """Expand regions with grouped non-clue arcs, then validate concrete curves.
 
     Parent snapshots are read-only. Each branch adds only newly reached
@@ -216,7 +216,7 @@ def analyze_clue_incremental(state, selected, accepted_limit=25, stop_event=None
 
     empty = _Partial()
     stack = list((fixed | {selected: orientation}, empty, (*selected, 0), not simplify_nonclue,
-              domains, (selected, orientation))
+              domains, (selected, orientation), None)
                  for orientation in reversed(domains[selected]))
     result, signatures = ClueAnalysis(factorizations=factorizations, source_clue=selected), set()
     while stack:
@@ -230,7 +230,7 @@ def analyze_clue_incremental(state, selected, accepted_limit=25, stop_event=None
         if worklist_limit is not None and len(stack) > worklist_limit:
             result.worklist_limit_reached = True
             break
-        assigned, parent, seed, regular, parent_domains, placement = stack.pop()
+        assigned, parent, seed, regular, parent_domains, placement, boundary_interval = stack.pop()
         extra_seeds = ()
         if state.get('arc_implications'):
             branch_domains, domain_changes = propagate_arc_domains.extend(parent_domains, *placement)
@@ -265,6 +265,30 @@ def analyze_clue_incremental(state, selected, accepted_limit=25, stop_event=None
         if partial is None:
             result.invalid_pruned += 1
             continue
+        if boundary_policy is not None:
+            contacts = boundary_policy.contacts(assigned, partial.fragments)
+            if boundary_interval is not None:
+                if not contacts <= boundary_interval or not partial.frontier and contacts != boundary_interval:
+                    result.invalid_pruned += 1
+                    continue
+            elif contacts:
+                plans = boundary_policy.plans(assigned, partial.fragments, branch_domains,
+                                              simplify_nonclue and not regular)
+                for updates, interval in reversed(plans):
+                    expanded_assignment = assigned | updates
+                    planned_domains = propagate_arc_domains(state, expanded_assignment)
+                    if planned_domains is None:
+                        continue
+                    for cell, values in planned_domains.items():
+                        if len(values) == 1:
+                            expanded_assignment[cell] = values[0]
+                        elif isinstance(expanded_assignment.get(cell), SimplifiedArc):
+                            value = expanded_assignment[cell]
+                            expanded_assignment[cell] = SimplifiedArc(value.edges,
+                                tuple(arc for arc in value.options if arc in values))
+                    stack.append((expanded_assignment, empty, (*selected, 0), regular,
+                                  planned_domains, (selected, expanded_assignment[selected]), interval))
+                continue
         whole, inside, outside = partial.counts
         if not partial.frontier:
             enclosed_area = Fraction(2 * whole + inside + outside + partial.half_cells, 2)
@@ -298,7 +322,7 @@ def analyze_clue_incremental(state, selected, accepted_limit=25, stop_event=None
                         if isinstance(assigned[cell], SimplifiedArc))
             for orientation in reversed(assigned[cell].options):
                 stack.append((assigned | {cell: orientation}, empty, (*selected, 0), True,
-                              branch_domains, (cell, orientation)))
+                              branch_domains, (cell, orientation), boundary_interval))
             continue
         area = minimum_area(partial, regular)
         if not compatible_factorizations(factorizations, area, 1):
@@ -406,7 +430,7 @@ def analyze_clue_incremental(state, selected, accepted_limit=25, stop_event=None
             side = edge_side(orientation, next(iter(partial.frontier[cell])))
             # Reuse the forced-growth snapshot; the seed is already reached.
             stack.append((assigned | {cell: orientation}, lookahead[(cell, orientation)],
-                          (*cell, side), regular, branch_domains, (cell, orientation)))
+                          (*cell, side), regular, branch_domains, (cell, orientation), boundary_interval))
     return result
 
 
