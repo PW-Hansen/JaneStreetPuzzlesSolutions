@@ -17,7 +17,7 @@ def allowed_arc_configurations(state, row, column):
 
 
 
-def clue_factorizations(state, selected):
+def arithmetic_clue_factorizations(state, selected):
     """Ordered area/perimeter factor pairs within conservative grid bounds.
 
     These are arithmetic candidates, not a claim that each pair is realizable.
@@ -32,7 +32,13 @@ def clue_factorizations(state, selected):
                         for r in range(state["rows"]) for c in range(state["columns"]))
     max_pieces = possible_arcs + 2 * state["rows"] + 2 * state["columns"]
     return [(area, clue // area) for area in range(1, min(clue, max_area) + 1)
-            if clue % area == 0 and MINIMUM_REGION_PIECES <= clue // area <= max_pieces]
+            if clue % area == 0 and clue // area <= max_pieces]
+
+
+def clue_factorizations(state, selected):
+    """Score factors satisfying the mandatory three-piece perimeter bound."""
+    return [(area, pieces) for area, pieces in arithmetic_clue_factorizations(state, selected)
+            if pieces >= MINIMUM_REGION_PIECES]
 
 
 

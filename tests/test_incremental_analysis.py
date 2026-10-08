@@ -157,6 +157,20 @@ class SimplifiedArcTests(unittest.TestCase):
         self.assertGreater(result.regular_switches, 0)
         self.assertEqual(len(result.accepted_states), 16)
 
+    def test_three_piece_filter_does_not_switch_25_to_regular_arcs_at_area_two(self):
+        state = board(5, 5)
+        state['cells'][0][0]['number'] = 25
+        state['arc_domains'] = [[list(ARC_CYCLE) for _ in range(5)] for _ in range(5)]
+        state['arc_domains'][0][0] = [None]
+        state['arc_domains'][0][1] = [None]
+        with patch('functions.incremental_analysis.simplified_choices',
+                   wraps=simplified_choices) as grouped:
+            result = analyze_clue_incremental(state, (0, 0), check_other_clues=False,
+                                              branch_limit=1)
+        self.assertEqual(result.factorizations, ((1, 25), (5, 5)))
+        self.assertGreater(grouped.call_count, 0)
+        self.assertEqual(result.regular_switches, 0)
+
     def test_one_incoming_edge_has_three_topological_choices(self):
         for edge in 'NESW':
             choices = simplified_choices((None, 'tl', 'tr', 'br', 'bl'), {edge})

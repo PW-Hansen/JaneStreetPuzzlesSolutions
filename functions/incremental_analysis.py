@@ -9,7 +9,8 @@ from time import perf_counter
 from functions.clue_analysis import (ClueAnalysis, PI_HIGH, PI_LOW, STEPS, INSIDE_EDGES, fragment_for_edge,
                            compatible_factorizations, minimum_perimeter_pieces,
                            frontier_priorities, choose_frontier_cell)
-from functions.puzzle_model import Region, allowed_arc_configurations, arc_endpoints, clue_factorizations
+from functions.puzzle_model import (Region, allowed_arc_configurations, arc_endpoints,
+                                    clue_factorizations, arithmetic_clue_factorizations)
 from functions.arc_constraints import propagate_arc_domains, make_arc_domain_propagator
 
 
@@ -80,7 +81,10 @@ def analyze_clue_incremental(state, selected, accepted_limit=25, stop_event=None
     # Keep comprehensions in separate generator scopes. In particular, avoid
     # temporarily replacing loop locals with closure cells in this long-lived
     # search frame (the reported Python 3.13 failure corrupted `result`).
-    factor_areas = sorted(set(a for a, _ in factorizations))
+    # This is a search-scheduling threshold, not an acceptance bound. Preserve
+    # the original arithmetic factors so stronger pruning does not prematurely
+    # expand grouped arcs into separate concrete branches.
+    factor_areas = sorted(set(a for a, _ in arithmetic_clue_factorizations(state, selected)))
     complex_threshold = (factor_areas[-2] if len(factor_areas) > 1
                          else factor_areas[-1] if factor_areas else 0)
     priorities = (frontier_priorities(state) if prioritize_frontier else

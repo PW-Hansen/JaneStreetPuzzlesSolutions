@@ -66,7 +66,7 @@ Search stops after finding more than 25 accepted states, or when aborted. Comple
 
 The analysis options are:
 
-- **Simplify arcs:** reduce five choices to three in undecided non-clue cells, initially counting them as half a cell. Fixed arcs retain exact area; completed candidates are resolved and checked with actual arcs. Growth beyond the second-highest permitted area switches back to regular arcs.
+- **Simplify arcs:** reduce five choices to three in undecided non-clue cells, initially counting them as half a cell. Fixed arcs retain exact area; completed candidates are resolved and checked with actual arcs. Growth beyond the second-highest arithmetic factor area switches back to regular arcs; the three-piece rule independently bounds valid areas.
 - **Prioritize cells:** favor constrained frontier cells, with bonuses for neighboring green cells, neighboring clues, the grid edge, and each adjacent cell already in the partial region.
 - **Check other clues:** run bounded searches using simplified arcs when another clue becomes sufficiently constrained. Cutoffs do not prove contradictions.
 
