@@ -1457,6 +1457,9 @@ class PuzzleEditor:
                 sanity_check_accepted_states(snapshot, result, selected, event,
                     simplify_nonclue=simplify_nonclue, prioritize_frontier=prioritize_frontier,
                     progress=lambda text: messages.put(('sanity', text)))
+                if result.sanity_pruned:
+                    print(f'Sanity checks rejected {result.sanity_pruned} accepted states '
+                          f'for clue {clue} at r{selected[0] + 1}c{selected[1] + 1}.', flush=True)
                 result.elapsed_seconds = perf_counter() - started
                 outcome = ' (aborted)' if result.cancelled else ' (stopped early)' if result.limit_reached or result.worklist_limit_reached else ''
                 print(f'Clue {clue} at r{selected[0] + 1}c{selected[1] + 1}: '

@@ -107,7 +107,10 @@ def solve(state, name, output, order=None, weights=(.8, 1, 1), log=print):
                 result = analyze_clue_incremental(state, selected, **kwargs)
                 sanity_check_accepted_states(state, result, selected,
                     simplify_nonclue=kwargs['simplify_nonclue'],
-                    prioritize_frontier=kwargs['prioritize_frontier'], progress=log)
+                    prioritize_frontier=kwargs['prioritize_frontier'])
+                if result.sanity_pruned:
+                    log(f'Sanity checks rejected {result.sanity_pruned} accepted states '
+                        f'for clue {clue} at r{r + 1}c{c + 1}.')
                 result.elapsed_seconds = perf_counter() - clue_started
                 updated = copy.deepcopy(state)
                 incorporate_analysis(updated, result)
