@@ -2,7 +2,7 @@
 from itertools import product
 from time import perf_counter
 
-from puzzle_gui import arc_endpoints
+from functions.puzzle_model import arc_endpoints
 from functions.incremental_analysis import (SimplifiedArc, edge_side,
     analyze_clue_incremental, sanity_check_accepted_states)
 

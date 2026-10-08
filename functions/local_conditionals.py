@@ -4,7 +4,8 @@ import copy
 
 from functions.arc_constraints import propagate_arc_domains
 from functions.clue_analysis import STEPS, fragment_for_edge
-from puzzle_gui import ARC_CYCLE, Region
+from functions.constants import ARC_CYCLE
+from functions.puzzle_model import Region
 
 
 def local_conflict(state, source, domains, max_distance=3):

@@ -35,7 +35,7 @@ class AnswerKeyTests(unittest.TestCase):
         outside = Region(1, frozenset({(0, 0, 1)}))
         object.__setattr__(inside, 'score', 7)
         object.__setattr__(outside, 'score', 99)
-        with patch('puzzle_gui.determine_regions', return_value=({(0, 0, 0): inside, (0, 0, 1): outside}, {}, [])), \
+        with patch('functions.puzzle_model.determine_regions', return_value=({(0, 0, 0): inside, (0, 0, 1): outside}, {}, [])), \
                 patch.object(Region, 'verify', return_value=True):
             self.assertEqual(compute_answer_key(state)['values'], [[7]])
 

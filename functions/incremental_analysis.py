@@ -9,7 +9,7 @@ from time import perf_counter
 from functions.clue_analysis import (ClueAnalysis, PI_HIGH, PI_LOW, STEPS, INSIDE_EDGES, fragment_for_edge,
                            compatible_factorizations, minimum_perimeter_pieces,
                            frontier_priorities, choose_frontier_cell)
-from puzzle_gui import Region, allowed_arc_configurations, arc_endpoints, clue_factorizations
+from functions.puzzle_model import Region, allowed_arc_configurations, arc_endpoints, clue_factorizations
 from functions.arc_constraints import propagate_arc_domains, make_arc_domain_propagator
 
 

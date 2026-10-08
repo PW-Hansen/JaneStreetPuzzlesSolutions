@@ -1,5 +1,6 @@
 """Persistent conditional arc deductions and branch-local propagation."""
-from puzzle_gui import ARC_CYCLE, allowed_arc_configurations
+from functions.constants import ARC_CYCLE
+from functions.puzzle_model import allowed_arc_configurations
 from collections import deque
 from functools import lru_cache
 

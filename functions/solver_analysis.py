@@ -5,8 +5,8 @@ from functions.arc_constraints import apply_arc_deductions
 from functions.clue_analysis import incorporate_analysis, analysis_timing_summary
 from functions.greedy_analysis import analyze_clue_greedy
 from functions.incremental_analysis import analyze_clue_with_sanity
-from puzzle_gui import (allowed_arc_configurations, determine_regions, ordered_clues,
-                        save_accepted_states, prune_saved_states)
+from functions.puzzle_model import allowed_arc_configurations, determine_regions
+from functions.puzzle_state import ordered_clues, save_accepted_states, prune_saved_states
 
 
 def verified_grid(state):

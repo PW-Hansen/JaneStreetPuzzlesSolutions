@@ -11,10 +11,11 @@ from functions.clue_analysis import incorporate_analysis, analysis_timing_summar
 from functions.incremental_analysis import analyze_clue_with_sanity
 from functions.local_conditionals import scan_local_conditionals
 from functions.solver_analysis import GreedySolveSession
-from puzzle_gui import (SAVED_STATES_DIRECTORY, SOLUTION_ORDER_PATH, grid_name,
-                        DEFAULT_ANALYSIS_WEIGHTS, AnalysisWeightsDialog,
-                        validate_state, fixed_clue_order, ordered_clues, determine_regions,
-                        save_accepted_states, prune_saved_states, compute_answer_key)
+from functions.constants import SAVED_STATES_DIRECTORY, SOLUTION_ORDER_PATH, DEFAULT_ANALYSIS_WEIGHTS
+from functions.dialogs import AnalysisWeightsDialog
+from functions.puzzle_model import determine_regions, compute_answer_key
+from functions.puzzle_state import (grid_name, validate_state, fixed_clue_order,
+                                    ordered_clues, save_accepted_states, prune_saved_states)
 
 
 def load_initial_state(name, folder=None):

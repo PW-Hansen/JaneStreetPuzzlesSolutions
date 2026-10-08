@@ -4,8 +4,9 @@ from collections import deque
 from dataclasses import dataclass, field
 from fractions import Fraction
 
-from puzzle_gui import (ARC_CYCLE, Region, arc_endpoints, allowed_arc_configurations,
-                        clue_factorizations, MINIMUM_REGION_PIECES)
+from functions.constants import ARC_CYCLE, MINIMUM_REGION_PIECES
+from functions.puzzle_model import (Region, arc_endpoints, allowed_arc_configurations,
+                                    clue_factorizations)
 
 
 INSIDE_EDGES = {"tl": "NW", "tr": "NE", "br": "SE", "bl": "SW"}

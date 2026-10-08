@@ -120,10 +120,11 @@ The command-line solver writes progress to `saved states/<name>/checkpoint_state
 
 ## Code organization and tests
 
-- `puzzle_gui.py`: Tkinter interface, grid geometry, regions, rendering, persistence, and shared puzzle utilities.
+- `puzzle_gui.py`: Tkinter editor and interaction with the shared functions.
 - `solve_puzzle.py`: command-line solving, ordering, reporting, and checkpoint output.
+- `functions/constants.py`: shared constants, default weights, and project paths.
 - `solution_clue_analysis_order.json`: named fixed clue orders.
-- `functions/`: incremental and greedy searches, conditional propagation, local scans, sanity checks, and greedy rollback scheduling.
+- `functions/`: grid geometry and regions, state handling, rendering, dialogs, searches, deductions, and rollback scheduling. These modules do not import files in the project root.
 - `tests/`: automated regression tests.
 - `grids/` and `saved states/`: working grids and named snapshots.
 
