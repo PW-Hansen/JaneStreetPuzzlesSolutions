@@ -34,20 +34,12 @@ Approximate runtimes on the author's PC:
 
 | Command | Runtime |
 | --- | --- |
-| `python solve_puzzle.py full_puzzle` | ~10 seconds |
-| `python solve_puzzle.py full_puzzle --greedy` | ~4 seconds |
-| `python solve_puzzle.py full_puzzle --set` | ~3 seconds |
-| `python solve_puzzle.py full_puzzle --set --greedy` | ~2 seconds |
+| `python solve_puzzle.py full_puzzle` | 8.29 seconds |
+| `python solve_puzzle.py full_puzzle --greedy` | 2.89 |
+| `python solve_puzzle.py full_puzzle --set` | 2.44 seconds |
+| `python solve_puzzle.py full_puzzle --set --greedy` | 1.46 seconds |
 
-Timings vary with the machine and settings.
-
-## Puzzle rules
-
-Place at most one unit-radius, 90-degree arc in each white cell, connecting opposite corners. Green cells cannot contain arcs. The arcs and grid boundary divide the board into regions. Every region must have integer area, and the two sides of each arc must belong to different regions.
-
-A region's score is its area multiplied by the number of distinct continuously differentiable, or **smooth**, pieces in its perimeter. The solver enforces a minimum of three pieces in every search. A clue specifies the score of the region containing at least half of its cell. Different clues can share a region only when their values agree.
-
-After completing the grid, fill every unnumbered cell with its majority region's score. **Compute answer key** validates the grid, displays those scores, and calculates the sum of the squares of the row sums **plus** the sum of the squares of the column sums. The command-line solver also prints the answer when it verifies a completed grid.
+Timings vary with the machine and settings, and also varies slightly from run to run.
 
 ## Editing the grid
 
