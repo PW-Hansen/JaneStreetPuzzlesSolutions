@@ -1228,6 +1228,7 @@ class PuzzleEditor:
         self.analysis_button.configure(text="Cancel analysis")
         engine_label = "Clue"
         progress_counts = [0, 0]
+        sanity_status = [None]
         self.status.set(f"Analyzing clue {clue} at ({r + 1}, {c + 1})…")
         if getattr(self, 'batch_token', None) is not None:
             self.status.set(f'Pass {self.batch_pass}: analyzing clue {self.batch_completed + 1}/{self.batch_total}: '
@@ -1242,6 +1243,10 @@ class PuzzleEditor:
                                       prioritize_frontier=prioritize_frontier,
                                       check_other_clues=check_other_clues,
                                       progress=lambda visited, accepted: messages.put(("progress", (visited, accepted))))
+                from incremental_analysis import sanity_check_accepted_states
+                sanity_check_accepted_states(snapshot, result, selected, event,
+                    simplify_nonclue=simplify_nonclue, prioritize_frontier=prioritize_frontier,
+                    progress=lambda text: messages.put(('sanity', text)))
                 result.elapsed_seconds = perf_counter() - started
                 outcome = ' (aborted)' if result.cancelled else ' (stopped early)' if result.limit_reached or result.worklist_limit_reached else ''
                 print(f'Clue {clue} at r{selected[0] + 1}c{selected[1] + 1}: '
@@ -1263,6 +1268,9 @@ class PuzzleEditor:
                     if kind == "progress":
                         visited, accepted = value
                         progress_counts[:] = [visited, accepted]
+                    elif kind == 'sanity':
+                        sanity_status[0] = value
+                        self.status.set(value)
                     else:
                         self.analysis_cancel = None
                         self.analysis_started_at = None
@@ -1308,6 +1316,10 @@ class PuzzleEditor:
                                 suffix += f" Applied {changes['forced']} forced cell configurations."
                             if value.factorization_pruned:
                                 suffix += f" Factorization bounds rejected {value.factorization_pruned} branches."
+                            if value.sanity_checks:
+                                suffix += (f' Sanity checks: {value.sanity_checks}; '
+                                           f'{value.sanity_pruned} states rejected; '
+                                           f'{value.sanity_cutoffs} clue checks inconclusive at the branch limit.')
                             if value.secondary_checks:
                                 suffix += (f" Other-clue checks: {value.secondary_checks}; "
                                            f"{value.secondary_cache_hits} reused from cache; "
@@ -1320,6 +1332,10 @@ class PuzzleEditor:
                             self.batch_clue_finished()
                         return
             except Empty:
+                if sanity_status[0] is not None:
+                    self.status.set(f'{sanity_status[0]}; {self.analysis_elapsed_seconds:.2f} s elapsed…')
+                    self.root.after(100, poll)
+                    return
                 visited, accepted = progress_counts
                 self.status.set(f"{engine_label} {clue}: {accepted} accepted states; {visited} branches checked; "
                                 f"{self.analysis_elapsed_seconds:.2f} s elapsed…")

@@ -17,6 +17,10 @@ class ImmediateThread:
 
 
 class BatchAnalysisTests(unittest.TestCase):
+    def setUp(self):
+        sanity = patch('incremental_analysis.sanity_check_accepted_states', side_effect=lambda state, result, *args, **kwargs: result)
+        sanity.start()
+        self.addCleanup(sanity.stop)
     def test_dynamic_weights_change_the_order_and_prompt_can_be_cancelled(self):
         state = {'rows': 3, 'columns': 3, 'cells': blank_grid(3, 3)}
         state['cells'][0][0]['number'] = 9

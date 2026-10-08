@@ -58,6 +58,11 @@ class ClueAnalysis:
     secondary_cache_hits: int = 0
     perimeter_capacity_pruned: int = 0
     source_clue: tuple | None = field(default=None, compare=False)
+    branch_limit_reached: bool = False
+    sanity_checks: int = 0
+    sanity_branches: int = 0
+    sanity_pruned: int = 0
+    sanity_cutoffs: int = 0
 
 
 def fragment_for_edge(orientation, edge):

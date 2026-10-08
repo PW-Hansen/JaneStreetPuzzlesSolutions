@@ -58,7 +58,7 @@ class _Partial:
 def analyze_clue_incremental(state, selected, accepted_limit=25, stop_event=None,
                              progress=None, check_other_clues=True, worklist_limit=None,
                              secondary_worklist_limit=25, simplify_nonclue=True,
-                             prioritize_frontier=True):
+                             prioritize_frontier=True, branch_limit=None):
     """Expand regions with grouped non-clue arcs, then validate concrete curves.
 
     Parent snapshots are read-only. Each branch adds only newly reached
@@ -218,6 +218,9 @@ def analyze_clue_incremental(state, selected, accepted_limit=25, stop_event=None
     while stack:
         if stop_event is not None and stop_event.is_set():
             result.cancelled = True
+            break
+        if branch_limit is not None and result.explored > branch_limit:
+            result.branch_limit_reached = True
             break
         # Only secondary searches pass a worklist limit; main searches stay unlimited.
         if worklist_limit is not None and len(stack) > worklist_limit:
@@ -656,7 +659,7 @@ class SecondarySearchCache:
 
 
 def check_secondary_clue(state, assigned, selected, stop_event=None, worklist_limit=25,
-                         simplify_nonclue=True, prioritize_frontier=True):
+                         simplify_nonclue=True, prioritize_frontier=True, branch_limit=None):
     """Check another clue under branch-local decisions without changing the grid.
 
     One acceptance is enough to establish local feasibility. Zero acceptances
@@ -676,4 +679,48 @@ def check_secondary_clue(state, assigned, selected, stop_event=None, worklist_li
                                     stop_event=stop_event, check_other_clues=False,
                                     worklist_limit=worklist_limit,
                                     simplify_nonclue=simplify_nonclue,
-                                    prioritize_frontier=prioritize_frontier)
+                                    prioritize_frontier=prioritize_frontier,
+                                    branch_limit=branch_limit)
+
+
+def sanity_check_accepted_states(state, result, selected, stop_event=None,
+                                 simplify_nonclue=True, prioritize_frontier=True,
+                                 branch_limit=25000, progress=None):
+    """Reject only states with a conclusively impossible neighboring clue."""
+    if result.cancelled or result.limit_reached or result.worklist_limit_reached or result.branch_limit_reached:
+        return result
+    surviving = []
+    for index, accepted in enumerate(result.accepted_states):
+        assigned = {(r, c): arc for r, c, arc in accepted}
+        neighbors = {(r + dr, c + dc) for r, c in assigned for _, dr, dc, _ in STEPS
+                     if 0 <= r + dr < state['rows'] and 0 <= c + dc < state['columns']
+                     and (r + dr, c + dc) != selected
+                     and state['cells'][r + dr][c + dc]['number'] is not None}
+        rejected = False
+        for other in sorted(neighbors):
+            if stop_event is not None and stop_event.is_set():
+                result.cancelled = True
+                return result
+            if progress:
+                progress(f'Sanity check: state {index + 1}/{len(result.accepted_states)}, '
+                         f'clue {state["cells"][other[0]][other[1]]["number"]} at '
+                         f'r{other[0] + 1}c{other[1] + 1}')
+            probe = check_secondary_clue(state, assigned, other, stop_event,
+                                         worklist_limit=None, branch_limit=branch_limit,
+                                         simplify_nonclue=simplify_nonclue,
+                                         prioritize_frontier=prioritize_frontier)
+            result.sanity_checks += 1
+            result.sanity_branches += probe.explored
+            if probe.cancelled:
+                result.cancelled = True
+                return result
+            if probe.branch_limit_reached or probe.worklist_limit_reached:
+                result.sanity_cutoffs += 1
+            elif not probe.accepted_states:
+                rejected = True
+                result.sanity_pruned += 1
+                break
+        if not rejected:
+            surviving.append(accepted)
+    result.accepted_states = surviving
+    return result
