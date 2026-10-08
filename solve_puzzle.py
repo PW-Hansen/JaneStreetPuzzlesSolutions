@@ -8,8 +8,8 @@ from pathlib import Path
 from time import perf_counter
 
 from functions.arc_constraints import apply_arc_deductions
-from functions.clue_analysis import incorporate_analysis
-from functions.incremental_analysis import analyze_clue_incremental, sanity_check_accepted_states
+from functions.clue_analysis import incorporate_analysis, analysis_timing_summary
+from functions.incremental_analysis import analyze_clue_with_sanity
 from functions.local_conditionals import scan_local_conditionals
 from puzzle_gui import (SAVED_STATES_DIRECTORY, SOLUTION_ORDER_PATH, grid_name,
                         validate_state, fixed_clue_order, ordered_clues, determine_regions,
@@ -104,14 +104,11 @@ def solve(state, name, output, order=None, weights=(.8, 1, 1), log=print):
                 clue = state['cells'][r][c]['number']
                 log(f'Pass {passes}: starting analysis of clue {clue} at r{r + 1}c{c + 1}')
                 clue_started = perf_counter()
-                result = analyze_clue_incremental(state, selected, **kwargs)
-                sanity_check_accepted_states(state, result, selected,
-                    simplify_nonclue=kwargs['simplify_nonclue'],
-                    prioritize_frontier=kwargs['prioritize_frontier'])
+                result = analyze_clue_with_sanity(state, selected,
+                    timer=perf_counter, started_at=clue_started, **kwargs)
                 if result.sanity_pruned:
                     log(f'Sanity checks rejected {result.sanity_pruned} accepted states '
                         f'for clue {clue} at r{r + 1}c{c + 1}.')
-                result.elapsed_seconds = perf_counter() - clue_started
                 updated = copy.deepcopy(state)
                 incorporate_analysis(updated, result)
                 save_accepted_states(updated, selected, result)
@@ -122,6 +119,7 @@ def solve(state, name, output, order=None, weights=(.8, 1, 1), log=print):
                 write_result(checkpoint, name, state, perf_counter() - started)
                 log(f'Clue {clue} at r{r + 1}c{c + 1}: {result.elapsed_seconds:.2f} seconds; '
                     f'{len(result.accepted_states)} accepted states'
+                    + f'; {analysis_timing_summary(result)}'
                     + (' (stopped early)' if result.limit_reached else ''))
             regions = set(determine_regions(state)[0].values())
             complete = all(region.verify(state) for region in regions)

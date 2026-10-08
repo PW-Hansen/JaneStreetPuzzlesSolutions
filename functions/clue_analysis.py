@@ -47,6 +47,8 @@ class ClueAnalysis:
     limit_reached: bool = False
     cancelled: bool = False
     elapsed_seconds: float = field(default=0.0, compare=False)
+    main_search_seconds: float = field(default=0.0, compare=False)
+    sanity_check_seconds: float = field(default=0.0, compare=False)
     factorizations: tuple = ()
     factorization_pruned: int = 0
     worklist_limit_reached: bool = False
@@ -63,6 +65,14 @@ class ClueAnalysis:
     sanity_branches: int = 0
     sanity_pruned: int = 0
     sanity_cutoffs: int = 0
+
+
+def analysis_timing_summary(result):
+    """Console breakdown; main time includes any in-search secondary checks."""
+    return (f'main search: {result.main_search_seconds:.2f} s '
+            f'({result.explored} branches, {result.secondary_branches} secondary branches); '
+            f'sanity checks: {result.sanity_check_seconds:.2f} s '
+            f'({result.sanity_branches} branches, {result.sanity_checks} checks)')
 
 
 def fragment_for_edge(orientation, edge):

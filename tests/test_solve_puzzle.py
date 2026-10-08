@@ -77,7 +77,7 @@ class CommandLineSolverTests(unittest.TestCase):
         with tempfile.TemporaryDirectory(dir=Path(__file__).parent) as folder:
             output = Path(folder) / 'solved_state.json'
             output.write_text('previous verified solution')
-            with patch.object(solver, 'analyze_clue_incremental', side_effect=AttributeError('crash')):
+            with patch.object(solver, 'analyze_clue_with_sanity', side_effect=AttributeError('crash')):
                 with self.assertRaisesRegex(AttributeError, 'crash'):
                     solver.solve(self.state, 'tiny', output, log=lambda _: None)
             self.assertEqual(output.read_text(), 'previous verified solution')

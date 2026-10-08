@@ -395,7 +395,7 @@ class SearchTimingTests(unittest.TestCase):
         with patch("functions.incremental_analysis.analyze_clue_incremental", return_value=ClueAnalysis(explored=7)) as engine, \
                 patch("functions.clue_analysis.analyze_clue", side_effect=AssertionError("Old engine used")), \
                 patch("puzzle_gui.threading.Thread", ImmediateThread), \
-                patch("puzzle_gui.perf_counter", side_effect=[10.0, 11.0, 13.0, 14.0]):
+                patch("puzzle_gui.perf_counter", side_effect=[10.0, 11.0, 12.0, 13.0, 14.0]):
             editor.analyze_selected_clue()
             callbacks.pop(0)()
         engine.assert_called_once()
@@ -403,6 +403,8 @@ class SearchTimingTests(unittest.TestCase):
         self.assertTrue(engine.call_args.kwargs['prioritize_frontier'])
         self.assertTrue(engine.call_args.kwargs['check_other_clues'])
         self.assertEqual(editor.analysis_result.elapsed_seconds, 2.0)
+        self.assertEqual(editor.analysis_result.main_search_seconds, 1.0)
+        self.assertEqual(editor.analysis_result.sanity_check_seconds, 1.0)
         self.assertEqual(times[-1], "Search time: 2.00 s")
         self.assertIn("7 branches checked in 2.00 s", statuses[-1])
 

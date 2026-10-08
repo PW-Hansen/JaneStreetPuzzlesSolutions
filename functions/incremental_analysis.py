@@ -4,6 +4,7 @@ from collections import deque, OrderedDict
 from dataclasses import dataclass, field
 from functools import lru_cache
 from fractions import Fraction
+from time import perf_counter
 
 from functions.clue_analysis import (ClueAnalysis, PI_HIGH, PI_LOW, STEPS, INSIDE_EDGES, fragment_for_edge,
                            compatible_factorizations, minimum_perimeter_pieces,
@@ -684,6 +685,24 @@ def check_secondary_clue(state, assigned, selected, stop_event=None, worklist_li
                                     simplify_nonclue=simplify_nonclue,
                                     prioritize_frontier=prioritize_frontier,
                                     branch_limit=branch_limit)
+
+
+def analyze_clue_with_sanity(state, selected, *, timer=perf_counter,
+                            started_at=None, sanity_progress=None, **search_options):
+    """Run both analysis phases and record their durations in one place."""
+    started = timer() if started_at is None else started_at
+    result = analyze_clue_incremental(state, selected, **search_options)
+    main_finished = timer()
+    result.main_search_seconds = main_finished - started
+    sanity_check_accepted_states(state, result, selected,
+        stop_event=search_options.get('stop_event'),
+        simplify_nonclue=search_options.get('simplify_nonclue', True),
+        prioritize_frontier=search_options.get('prioritize_frontier', True),
+        progress=sanity_progress)
+    finished = timer()
+    result.sanity_check_seconds = finished - main_finished
+    result.elapsed_seconds = finished - started
+    return result
 
 
 def sanity_check_accepted_states(state, result, selected, stop_event=None,

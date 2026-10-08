@@ -1420,7 +1420,8 @@ class PuzzleEditor:
         if clue is None:
             self.status.set("The selected cell has no clue. Select a numbered cell.")
             return
-        from functions.incremental_analysis import analyze_clue_incremental as analyze_clue
+        from functions.incremental_analysis import analyze_clue_with_sanity as analyze_clue
+        from functions.clue_analysis import analysis_timing_summary
         if hasattr(self, "factorization_text"):
             self.show_factorizations(update_status=False)
         snapshot, selected = copy.deepcopy(self.state), self.selected
@@ -1449,21 +1450,19 @@ class PuzzleEditor:
             print(f'Starting analysis of clue {clue} at r{selected[0] + 1}c{selected[1] + 1}', flush=True)
             try:
                 result = analyze_clue(snapshot, selected, stop_event=event,
+                                      timer=perf_counter, started_at=started,
+                                      sanity_progress=lambda text: messages.put(('sanity', text)),
                                       simplify_nonclue=simplify_nonclue,
                                       prioritize_frontier=prioritize_frontier,
                                       check_other_clues=check_other_clues,
                                       progress=lambda visited, accepted: messages.put(("progress", (visited, accepted))))
-                from functions.incremental_analysis import sanity_check_accepted_states
-                sanity_check_accepted_states(snapshot, result, selected, event,
-                    simplify_nonclue=simplify_nonclue, prioritize_frontier=prioritize_frontier,
-                    progress=lambda text: messages.put(('sanity', text)))
                 if result.sanity_pruned:
                     print(f'Sanity checks rejected {result.sanity_pruned} accepted states '
                           f'for clue {clue} at r{selected[0] + 1}c{selected[1] + 1}.', flush=True)
-                result.elapsed_seconds = perf_counter() - started
                 outcome = ' (aborted)' if result.cancelled else ' (stopped early)' if result.limit_reached or result.worklist_limit_reached else ''
                 print(f'Clue {clue} at r{selected[0] + 1}c{selected[1] + 1}: '
-                      f'{result.elapsed_seconds:.2f} seconds{outcome}', flush=True)
+                      f'{result.elapsed_seconds:.2f} seconds{outcome}; '
+                      f'{analysis_timing_summary(result)}', flush=True)
                 messages.put(("done", result))
             except Exception as exc:
                 elapsed = perf_counter() - started
