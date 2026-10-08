@@ -30,7 +30,16 @@ python solve_puzzle.py full_puzzle --set -greedy
 python solve_puzzle.py full_puzzle --custom-weights
 ```
 
-On the author's PC, the full puzzle takes approximately **25 seconds with dynamic ordering and `-greedy`**, **3 seconds with set ordering and `-greedy`**, and **500 seconds non-greedily**. Timings vary with the machine and settings.
+Approximate runtimes on the author's PC:
+
+| Command | Runtime |
+| --- | --- |
+| `python solve_puzzle.py full_puzzle` | ~10 seconds |
+| `python solve_puzzle.py full_puzzle --greedy` | ~4 seconds |
+| `python solve_puzzle.py full_puzzle --set` | ~3 seconds |
+| `python solve_puzzle.py full_puzzle --set --greedy` | ~2 seconds |
+
+Timings vary with the machine and settings.
 
 ## Puzzle rules
 
