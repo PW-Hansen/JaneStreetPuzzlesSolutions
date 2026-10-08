@@ -29,9 +29,9 @@ def frontier_priorities(state):
 
 
 def choose_frontier_cell(frontier, priorities, prioritize_connections=True, choice_counts=None):
-    """Add +2 once when a frontier cell connects through multiple edges."""
+    """Add one priority point per neighboring cell in the partial region."""
     def score(cell):
-        return priorities[cell] + 2 * (prioritize_connections and len(frontier[cell]) >= 2)
+        return priorities[cell] + (len(frontier[cell]) if prioritize_connections else 0)
     return min(frontier, key=lambda cell: (
         choice_counts[cell] if choice_counts is not None else -len(frontier[cell]),
         -score(cell), -len(frontier[cell]), cell))

@@ -38,10 +38,12 @@ class FrontierPriorityTests(unittest.TestCase):
         self.assertEqual(choose_frontier_cell(frontier, priorities), (2, 4))
         self.assertEqual(choose_frontier_cell(frontier, priorities, prioritize_connections=False), (2, 4))
 
-    def test_connection_bonus_counts_once_for_multiple_edges(self):
+    def test_connection_bonus_counts_each_neighbor(self):
         frontier = {(1, 1): {'N', 'W'}, (2, 4): {'N', 'W', 'S'}}
         priorities = {(1, 1): 1, (2, 4): 0}
-        self.assertEqual(choose_frontier_cell(frontier, priorities, choice_counts={(1, 1): 1, (2, 4): 1}), (1, 1))
+        self.assertEqual(choose_frontier_cell(frontier, priorities, choice_counts={(1, 1): 1, (2, 4): 1}), (2, 4))
+        self.assertEqual(choose_frontier_cell(frontier, priorities, prioritize_connections=False,
+                                             choice_counts={(1, 1): 1, (2, 4): 1}), (1, 1))
 
     def test_legal_choice_count_precedes_priority_and_edge_count(self):
         frontier = {(1, 1): {'N', 'W'}, (2, 4): {'W'}}
