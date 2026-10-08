@@ -20,6 +20,7 @@ from PIL import Image, ImageDraw, ImageTk
 
 DEFAULT_STATE = Path(__file__).with_name("puzzle_state.json")
 DATA_DIRECTORY = Path(__file__).resolve().parent / "grids"
+SOLUTION_ORDER_PATH = Path(__file__).with_name('solution_clue_analysis_order.json')
 ARC_CYCLE = (None, "tl", "tr", "br", "bl")
 
 
@@ -553,17 +554,30 @@ def ordered_clues(state, weights=(.8, 1, 1)):
     return [(r, c) for _, r, c in sorted(ranked)]
 
 
-def fixed_clue_order(state):
-    nines = [(r, c) for r, row in enumerate(state['cells']) for c, cell in enumerate(row)
-             if cell['number'] == 9]
-    if (2, 8) not in nines:
-        raise ValueError('The expected 9 at r3c9 is missing.')
-    sequence = [(1, 7, 25), (2, 5, 15), (1, 0, 21), (0, 2, 21), (2, 1, 27),
-                (4, 0, 25), (7, 1, 63), (8, 6, 35), (6, 7, 45), (7, 8, 288)]
-    for r, c, clue in sequence:
-        if r >= state['rows'] or c >= state['columns'] or state['cells'][r][c]['number'] != clue:
+def fixed_clue_order(state, puzzle_name, order_path=None):
+    path = Path(order_path) if order_path is not None else SOLUTION_ORDER_PATH
+    try:
+        orders = json.loads(path.read_text(encoding='utf-8'))
+    except (OSError, ValueError) as exc:
+        raise ValueError(f'Cannot read set orders from {path.name}: {exc}') from exc
+    if not isinstance(orders, dict) or puzzle_name not in orders:
+        raise ValueError(f'No set order is configured for puzzle {puzzle_name}.')
+    entries = orders[puzzle_name]
+    if not isinstance(entries, list) or not entries:
+        raise ValueError(f'The set order for {puzzle_name} must be a nonempty list.')
+    sequence = []
+    for entry in entries:
+        if not isinstance(entry, dict) or any(type(entry.get(key)) is not int for key in ('row', 'column', 'clue')):
+            raise ValueError('Each set-order entry needs integer row, column, and clue fields.')
+        r, c, clue = entry['row'] - 1, entry['column'] - 1, entry['clue']
+        if not (0 <= r < state['rows'] and 0 <= c < state['columns']):
+            raise ValueError(f'Set-order cell r{r + 1}c{c + 1} is outside the grid.')
+        if state['cells'][r][c]['number'] != clue:
             raise ValueError(f'The expected {clue} at r{r + 1}c{c + 1} is missing.')
-    return [(2, 8)] + [cell for cell in nines if cell != (2, 8)] + [(r, c) for r, c, _ in sequence]
+        if (r, c) in sequence:
+            raise ValueError(f'Set-order cell r{r + 1}c{c + 1} is repeated.')
+        sequence.append((r, c))
+    return sequence
 
 
 class AnalysisWeightsDialog(simpledialog.Dialog):
@@ -698,6 +712,7 @@ def validate_state(state):
 
 class PuzzleEditor:
     def __init__(self, root, path, name=None):
+        self.puzzle_name = name or path.stem
         self.root, self.path = root, path
         self.state = {"version": 1, "rows": 10, "columns": 10,
                       "cells": blank_grid(10, 10)}
@@ -720,7 +735,7 @@ class PuzzleEditor:
         self.fresh_entry = True
         self.mode = tk.StringVar(value="select")
         self.status = tk.StringVar()
-        root.title(f"Jane Street — Arc Puzzle Editor — {name or path.stem}")
+        root.title(f"Jane Street — Arc Puzzle Editor — {self.puzzle_name}")
         root.geometry("1110x850")
         toolbar = ttk.Frame(root, padding=8)
         toolbar.pack(fill="x")
@@ -1094,18 +1109,15 @@ class PuzzleEditor:
         if getattr(self, 'batch_token', None) is not None:
             self.abort_clue_analysis()
             return
-        if self.path.stem != 'full_puzzle':
-            messagebox.showerror('Set order', 'Set order requires the full_puzzle puzzle.', parent=self.root)
-            return
         try:
-            fixed_clue_order(self.state)
+            fixed_clue_order(self.state, self.puzzle_name)
         except ValueError as exc:
             messagebox.showerror('Set order', str(exc), parent=self.root)
             return
         self.analyze_all_clues(order='set')
 
     def batch_order(self):
-        return fixed_clue_order(self.state) if self.batch_order_mode == 'set' else ordered_clues(self.state, self.batch_weights)
+        return list(self.batch_set_order) if self.batch_order_mode == 'set' else ordered_clues(self.state, self.batch_weights)
 
     def analyze_all_clues(self, order='dynamic', weights=(.8, 1, 1)):
         if getattr(self, 'batch_token', None) is not None:
@@ -1113,6 +1125,8 @@ class PuzzleEditor:
             return
         self.cancel_clue_analysis()
         self.batch_order_mode, self.batch_weights = order, weights
+        if order == 'set':
+            self.batch_set_order = fixed_clue_order(self.state, self.puzzle_name)
         started = perf_counter()
         self.update_batch_time(0.0)
         if not self.scan_local_conditionals():

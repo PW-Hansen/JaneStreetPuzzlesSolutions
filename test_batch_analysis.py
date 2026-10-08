@@ -1,4 +1,6 @@
 import copy
+import json
+import tempfile
 import unittest
 from types import SimpleNamespace
 from pathlib import Path
@@ -17,6 +19,23 @@ class ImmediateThread:
 
 
 class BatchAnalysisTests(unittest.TestCase):
+    def test_file_order_uses_one_based_coordinates_and_named_puzzle(self):
+        editor, _ = self.editor()
+        with tempfile.TemporaryDirectory(dir=Path(__file__).parent) as folder:
+            path = Path(folder) / 'solution_clue_analysis_order.json'
+            path.write_text(json.dumps({'example': [
+                {'row': 1, 'column': 2, 'clue': 8}, {'row': 1, 'column': 1, 'clue': 4}]}), encoding='utf-8')
+            self.assertEqual(fixed_clue_order(editor.state, 'example', path), [(0, 1), (0, 0)])
+            with self.assertRaisesRegex(ValueError, 'No set order'):
+                fixed_clue_order(editor.state, 'missing', path)
+            for entries in ([{'row': 0, 'column': 1, 'clue': 4}],
+                            [{'row': 1, 'column': 1, 'clue': 99}],
+                            [{'row': 1, 'column': 1, 'clue': 4}] * 2,
+                            [{'row': True, 'column': 1, 'clue': 4}]):
+                path.write_text(json.dumps({'example': entries}), encoding='utf-8')
+                with self.assertRaises(ValueError):
+                    fixed_clue_order(editor.state, 'example', path)
+
     def setUp(self):
         sanity = patch('incremental_analysis.sanity_check_accepted_states', side_effect=lambda state, result, *args, **kwargs: result)
         sanity.start()
@@ -40,11 +59,13 @@ class BatchAnalysisTests(unittest.TestCase):
     def test_set_order_requires_full_puzzle_and_follows_exact_sequence(self):
         editor, callbacks = self.editor()
         editor.path = Path('example.json')
+        editor.puzzle_name = 'example'
         with patch('puzzle_gui.messagebox.showerror') as error:
             editor.analyze_all_set()
         error.assert_called_once()
         self.assertEqual(callbacks, [])
         editor.path = Path('full_puzzle.json')
+        editor.puzzle_name = 'full_puzzle'
         editor.state = {'rows': 9, 'columns': 9, 'cells': blank_grid(9, 9)}
         sequence = [(2, 8, 9), (4, 8, 9), (6, 0, 9), (7, 4, 9),
                     (1, 7, 25), (2, 5, 15), (1, 0, 21), (0, 2, 21), (2, 1, 27),
@@ -52,7 +73,7 @@ class BatchAnalysisTests(unittest.TestCase):
         for r, c, number in sequence + [(4, 3, 27)]:
             editor.state['cells'][r][c]['number'] = number
         expected = [(r, c) for r, c, _ in sequence]
-        self.assertEqual(fixed_clue_order(editor.state), expected)
+        self.assertEqual(fixed_clue_order(editor.state, editor.puzzle_name), expected)
         seen = []
         def engine(state, selected, **kwargs):
             seen.append(selected)
