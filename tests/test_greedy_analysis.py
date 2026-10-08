@@ -109,11 +109,12 @@ class GreedyAnalysisTests(unittest.TestCase):
         self.assertTrue(all(pieces >= 3 for _, pieces in result.factorizations))
         self.assertNotIn((25, 1), result.factorizations)
 
-    def test_minimum_three_pieces_is_specific_to_greedy_search(self):
+    def test_minimum_three_pieces_applies_to_both_searches(self):
         from functions.incremental_analysis import analyze_clue_incremental
         state = board(5, 5)
         state['cells'][2][2]['number'] = 25
         regular = analyze_clue_incremental(state, (2, 2), check_other_clues=False, branch_limit=0)
         greedy = analyze_clue_greedy(state, (2, 2), check_other_clues=False, branch_limit=0)
-        self.assertTrue(any(pieces < 3 for _, pieces in regular.factorizations))
+        self.assertTrue(all(pieces >= 3 for _, pieces in regular.factorizations))
+        self.assertEqual(regular.factorizations, greedy.factorizations)
         self.assertTrue(all(pieces >= 3 for _, pieces in greedy.factorizations))

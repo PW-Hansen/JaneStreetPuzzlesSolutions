@@ -24,6 +24,7 @@ DATA_DIRECTORY = Path(__file__).resolve().parent / "grids"
 SOLUTION_ORDER_PATH = Path(__file__).with_name('solution_clue_analysis_order.json')
 SAVED_STATES_DIRECTORY = Path(__file__).with_name('saved states')
 ARC_CYCLE = (None, "tl", "tr", "br", "bl")
+MINIMUM_REGION_PIECES = 3
 
 
 def allowed_arc_configurations(state, row, column):
@@ -53,7 +54,7 @@ def clue_factorizations(state, selected):
                         for r in range(state["rows"]) for c in range(state["columns"]))
     max_pieces = possible_arcs + 2 * state["rows"] + 2 * state["columns"]
     return [(area, clue // area) for area in range(1, min(clue, max_area) + 1)
-            if clue % area == 0 and clue // area <= max_pieces]
+            if clue % area == 0 and MINIMUM_REGION_PIECES <= clue // area <= max_pieces]
 
 
 def arc_endpoints(row, column, orientation):

@@ -80,7 +80,7 @@ class IncrementalAnalysisTests(unittest.TestCase):
 
     def test_both_engines_continue_beyond_100000_until_manually_aborted(self):
         state = board(5, 5)
-        state["cells"][1][1]["number"] = 12
+        state["cells"][1][1]["number"] = 36
         for engine in (analyze_clue, analyze_clue_incremental):
             event = threading.Event()
 
@@ -146,7 +146,8 @@ class SimplifiedArcTests(unittest.TestCase):
         # orientation of the same cell. A one-piece perimeter is impossible.
         incident = lambda r, c: ((0, 0),)
         self.assertFalse(partial_curve_feasible(partial, assigned, incident, 1))
-        self.assertTrue(partial_curve_feasible(partial, assigned, incident, 2))
+        self.assertFalse(partial_curve_feasible(partial, assigned, incident, 2))
+        self.assertTrue(partial_curve_feasible(partial, assigned, incident, 3))
 
     def test_switch_to_regular_arcs_preserves_concrete_solutions(self):
         state = board(3, 3)

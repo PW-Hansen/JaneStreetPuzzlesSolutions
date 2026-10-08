@@ -22,7 +22,7 @@ def exhaustive_local_states(state, selected):
             candidate["cells"][r][c]["arc"] = orientation
         region = determine_regions(candidate)[0][(*selected, 0)]
         score = region.determine_score(candidate)
-        if score is None:
+        if score is None or region.smooth_pieces < 3:
             continue
         if any(side == 0 and candidate["cells"][r][c]["number"] not in (None, score)
                and (r, c) != selected for r, c, side in region.fragments):

@@ -4,7 +4,8 @@ from collections import deque
 from dataclasses import dataclass, field
 from fractions import Fraction
 
-from puzzle_gui import ARC_CYCLE, Region, arc_endpoints, allowed_arc_configurations, clue_factorizations
+from puzzle_gui import (ARC_CYCLE, Region, arc_endpoints, allowed_arc_configurations,
+                        clue_factorizations, MINIMUM_REGION_PIECES)
 
 
 INSIDE_EDGES = {"tl": "NW", "tr": "NE", "br": "SE", "bl": "SW"}
@@ -130,20 +131,13 @@ def area_lower_bound(state, assigned, fragments, frontier):
 
 
 def minimum_perimeter_pieces(confirmed_sharp_joins, confirmed_quarter_turns=0):
-    """A valid integer-area region cannot have just one sharp perimeter join.
-
-    Quarter-circle turning contributes the same pi/4 coefficient as area.
-    Integer area requires that coefficient to vanish. With exactly one sharp
-    join (a nonzero quarter/half turn), total boundary turning cannot satisfy
-    this, even allowing smooth holes. Thus any confirmed sharp join rules out
-    a one-piece perimeter; separate open chains are still not counted.
-    """
+    """Combine the three-piece minimum with confirmed joins and turn parity."""
     # Balanced quarter-disc contributions give zero net smooth turning for
     # integer area. Total boundary turning is a multiple of a full turn, so
     # an odd number of 90-degree joins needs another 90-degree join. Cusps
     # contribute 180 degrees and do not change this parity.
     required = confirmed_sharp_joins + confirmed_quarter_turns % 2
-    return max(2, required) if confirmed_sharp_joins else 1
+    return max(MINIMUM_REGION_PIECES, required)
 
 
 def compatible_factorizations(factorizations, minimum_area, minimum_pieces):

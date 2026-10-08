@@ -23,7 +23,7 @@ class SanityChecksTests(unittest.TestCase):
         result = ClueAnalysis(accepted_states=list(alternatives))
         with patch('functions.incremental_analysis.check_secondary_clue',
                    side_effect=lambda *args, **kwargs: ClueAnalysis(explored=25001, branch_limit_reached=True)) as check:
-            sanity_check_accepted_states(state, result, (1, 1))
+            sanity_check_accepted_states(state, result, (1, 1), branch_limit=25000)
         self.assertEqual([call.args[2] for call in check.call_args_list], [(0, 1), (1, 0), (1, 2)] * 2)
         for index, call in enumerate(check.call_args_list):
             self.assertEqual(call.kwargs['branch_limit'], 25000)

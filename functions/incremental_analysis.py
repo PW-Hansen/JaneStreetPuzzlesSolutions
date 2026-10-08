@@ -83,9 +83,6 @@ def analyze_clue_incremental(state, selected, accepted_limit=25, stop_event=None
     factor_areas = sorted(set(a for a, _ in factorizations))
     complex_threshold = (factor_areas[-2] if len(factor_areas) > 1
                          else factor_areas[-1] if factor_areas else 0)
-    if boundary_policy is not None:
-        factorizations = tuple((area, pieces) for area, pieces in factorizations
-                               if pieces >= boundary_policy.minimum_pieces)
     priorities = (frontier_priorities(state) if prioritize_frontier else
                   dict(((r, c), 0) for r in range(rows) for c in range(columns)))
     domains = dict(((r, c), allowed_arc_configurations(state, r, c))

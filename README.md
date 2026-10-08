@@ -30,13 +30,13 @@ python solve_puzzle.py full_puzzle --set -greedy
 python solve_puzzle.py full_puzzle --custom-weights
 ```
 
-On my PC, the full puzzle takes approximately **25 seconds with dynamic ordering and `-greedy`**, **3 seconds with set ordering and `-greedy`**, and **500 seconds non-greedily**. Timings vary with the machine and settings.
+On the author's PC, the full puzzle takes approximately **25 seconds with dynamic ordering and `-greedy`**, **3 seconds with set ordering and `-greedy`**, and **500 seconds non-greedily**. Timings vary with the machine and settings.
 
 ## Puzzle rules
 
 Place at most one unit-radius, 90-degree arc in each white cell, connecting opposite corners. Green cells cannot contain arcs. The arcs and grid boundary divide the board into regions. Every region must have integer area, and the two sides of each arc must belong to different regions.
 
-A region's score is its area multiplied by the number of distinct continuously differentiable, or **smooth**, pieces in its perimeter. A clue specifies the score of the region containing at least half of its cell. Different clues can share a region only when their values agree.
+A region's score is its area multiplied by the number of distinct continuously differentiable, or **smooth**, pieces in its perimeter. The solver enforces a minimum of three pieces in every search. A clue specifies the score of the region containing at least half of its cell. Different clues can share a region only when their values agree.
 
 After completing the grid, fill every unnumbered cell with its majority region's score. **Compute answer key** validates the grid, displays those scores, and calculates the sum of the squares of the row sums **plus** the sum of the squares of the column sums. The command-line solver also prints the answer when it verifies a completed grid.
 
@@ -80,10 +80,9 @@ Completed searches with fewer than 25 states save their candidates. Blue rings i
 
 ## Greedy search
 
-The greedy search adds two restrictions:
+The greedy search assumes **a region has only one uninterrupted connection with the grid edge**. This is not universally true, but is useful, especially for smaller regions. Grid corners do not interrupt that connection.
 
-1. **Every region has at least three distinct continuously differentiable perimeter pieces.** I am quite confident this restriction is true, but cannot prove it conclusively. It rules out factorizations with fewer than three pieces: for example, a 25-clue cannot grow beyond area 5 under this assumption.
-2. **A region has only one uninterrupted connection with the grid edge.** This is not universally true, but is a useful assumption, especially for smaller regions. Grid corners do not interrupt that connection.
+The three-piece minimum is enforced by both greedy and non-greedy searches, not treated as a greedy assumption. For example, either search rejects a 25-clue region growing beyond area 5.
 
 At the boundary, greedy search tries the longest permitted contact with an even number of unit cell borders, then shorter contacts if needed. It adds whole-cell area for claimed no-arc cells and respects exclusions for terminating arcs, grouping equivalent arcs when simplification is enabled.
 
