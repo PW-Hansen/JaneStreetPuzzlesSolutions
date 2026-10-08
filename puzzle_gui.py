@@ -528,8 +528,9 @@ def blank_grid(rows, columns):
              for _ in range(columns)] for _ in range(rows)]
 
 
-def ordered_clues(state):
+def ordered_clues(state, weights=(.8, 1, 1)):
     from fractions import Fraction
+    conditional_weight, edge_weight, green_weight = map(lambda value: Fraction(str(value)), weights)
     # Equivalent trigger orientations are one grouped conditional, matching
     # the display and propagation rather than inflating their importance.
     conditionals = {(tuple(rule['if'][:2]), tuple(rule['then'][:2]), frozenset(rule['then'][2]))
@@ -541,9 +542,54 @@ def ordered_clues(state):
                 continue
             nearby = {(r, c), (r - 1, c), (r + 1, c), (r, c - 1), (r, c + 1)}
             count = sum(source in nearby or target in nearby for source, target, _ in conditionals)
-            score = Fraction(cell['number']) * Fraction(4, 5) ** count
+            green = int(cell['green']) + sum(state['cells'][nr][nc]['green']
+                for nr, nc in ((r - 1, c), (r + 1, c), (r, c - 1), (r, c + 1))
+                if 0 <= nr < state['rows'] and 0 <= nc < state['columns'])
+            edge = r in (0, state['rows'] - 1) or c in (0, state['columns'] - 1)
+            score = Fraction(cell['number']) * conditional_weight ** count * green_weight ** green
+            if edge:
+                score *= edge_weight
             ranked.append((score, r, c))
     return [(r, c) for _, r, c in sorted(ranked)]
+
+
+def fixed_clue_order(state):
+    nines = [(r, c) for r, row in enumerate(state['cells']) for c, cell in enumerate(row)
+             if cell['number'] == 9]
+    if (2, 8) not in nines:
+        raise ValueError('The expected 9 at r3c9 is missing.')
+    sequence = [(1, 7, 25), (2, 5, 15), (1, 0, 21), (0, 2, 21), (2, 1, 27),
+                (4, 0, 25), (7, 1, 63), (8, 6, 35), (6, 7, 45), (7, 8, 288)]
+    for r, c, clue in sequence:
+        if r >= state['rows'] or c >= state['columns'] or state['cells'][r][c]['number'] != clue:
+            raise ValueError(f'The expected {clue} at r{r + 1}c{c + 1} is missing.')
+    return [(2, 8)] + [cell for cell in nines if cell != (2, 8)] + [(r, c) for r, c, _ in sequence]
+
+
+class AnalysisWeightsDialog(simpledialog.Dialog):
+    def body(self, master):
+        self.entries = []
+        for row, (label, value) in enumerate((('Per nearby conditional', '0.8'),
+                ('Bordering the grid edge', '1'), ('Per adjacent green cell / in a green cell', '1'))):
+            ttk.Label(master, text=label).grid(row=row, column=0, sticky='w', padx=8, pady=6)
+            entry = ttk.Entry(master, width=12)
+            entry.insert(0, value)
+            entry.grid(row=row, column=1, padx=8, pady=6)
+            self.entries.append(entry)
+        return self.entries[0]
+
+    def validate(self):
+        try:
+            self.weights = tuple(float(entry.get()) for entry in self.entries)
+            if any(not math.isfinite(value) or value <= 0 for value in self.weights):
+                raise ValueError()
+        except ValueError:
+            messagebox.showerror('Invalid weights', 'Enter a positive finite number for each weight.', parent=self)
+            return False
+        return True
+
+    def apply(self):
+        self.result = self.weights
 
 
 def save_accepted_states(state, selected, result):
@@ -710,9 +756,12 @@ class PuzzleEditor:
                    command=self.scan_local_conditionals).pack(side='left', padx=4)
         ttk.Button(local_controls, text='Wipe local conditionals',
                    command=self.wipe_local_conditionals).pack(side='left', padx=4)
-        self.analyze_all_button = ttk.Button(local_controls, text='Analyze all clues',
-                                             command=self.analyze_all_clues)
+        self.analyze_all_button = ttk.Button(local_controls, text='Analyze all clues (dynamic order)',
+                                             command=self.analyze_all_dynamic)
         self.analyze_all_button.pack(side='left', padx=4)
+        self.analyze_set_button = ttk.Button(local_controls, text='Analyze all clues (set order)',
+                                             command=self.analyze_all_set)
+        self.analyze_set_button.pack(side='left', padx=4)
         options = self.state.get("analysis_options", {})
         self.simplify_arcs = tk.BooleanVar(value=options.get("simplify_arcs", True))
         self.prioritize_cells = tk.BooleanVar(value=options.get("prioritize_cells", True))
@@ -1029,19 +1078,47 @@ class PuzzleEditor:
         self.batch_token = None
         self.batch_clues = []
         if hasattr(self, 'analyze_all_button'):
-            self.analyze_all_button.configure(text='Analyze all clues')
+            self.analyze_all_button.configure(text='Analyze all clues (dynamic order)')
+        if hasattr(self, 'analyze_set_button'):
+            self.analyze_set_button.configure(text='Analyze all clues (set order)')
 
-    def analyze_all_clues(self):
+    def analyze_all_dynamic(self):
+        if getattr(self, 'batch_token', None) is not None:
+            self.abort_clue_analysis()
+            return
+        dialog = AnalysisWeightsDialog(self.root, title='Dynamic analysis weights')
+        if dialog.result is not None:
+            self.analyze_all_clues(weights=dialog.result)
+
+    def analyze_all_set(self):
+        if getattr(self, 'batch_token', None) is not None:
+            self.abort_clue_analysis()
+            return
+        if self.path.stem != 'full_puzzle':
+            messagebox.showerror('Set order', 'Set order requires the full_puzzle puzzle.', parent=self.root)
+            return
+        try:
+            fixed_clue_order(self.state)
+        except ValueError as exc:
+            messagebox.showerror('Set order', str(exc), parent=self.root)
+            return
+        self.analyze_all_clues(order='set')
+
+    def batch_order(self):
+        return fixed_clue_order(self.state) if self.batch_order_mode == 'set' else ordered_clues(self.state, self.batch_weights)
+
+    def analyze_all_clues(self, order='dynamic', weights=(.8, 1, 1)):
         if getattr(self, 'batch_token', None) is not None:
             self.abort_clue_analysis()
             return
         self.cancel_clue_analysis()
+        self.batch_order_mode, self.batch_weights = order, weights
         started = perf_counter()
         self.update_batch_time(0.0)
         if not self.scan_local_conditionals():
             self.update_batch_time(perf_counter() - started)
             return
-        self.batch_clues = ordered_clues(self.state)
+        self.batch_clues = self.batch_order()
         if not self.batch_clues:
             self.update_batch_time(perf_counter() - started)
             self.status.set('No clues to analyze.')
@@ -1055,6 +1132,8 @@ class PuzzleEditor:
                                 for c, cell in enumerate(row) if cell['arc'] is not None}
         if hasattr(self, 'analyze_all_button'):
             self.analyze_all_button.configure(text='Stop analyzing all clues')
+        if hasattr(self, 'analyze_set_button'):
+            self.analyze_set_button.configure(text='Stop analyzing all clues')
         self.poll_batch_time(self.batch_token)
         self.next_batch_clue(self.batch_token)
 
@@ -1073,6 +1152,10 @@ class PuzzleEditor:
         if getattr(self, 'batch_token', None) is not token:
             return
         if not self.batch_clues:
+            if self.batch_order_mode == 'set':
+                self.update_batch_time(perf_counter() - self.batch_started_at)
+                print(f'Set-order pass {self.batch_pass} complete: '
+                      f'{self.batch_elapsed_seconds:.2f} seconds total', flush=True)
             regions = set(determine_regions(self.state)[0].values())
             complete = all(region.verify(self.state) for region in regions)
             arcs = {(r, c, cell['arc']) for r, row in enumerate(self.state['cells'])
@@ -1081,14 +1164,18 @@ class PuzzleEditor:
                 passes = self.batch_pass
                 self.stop_batch_analysis()
                 outcome = 'Puzzle verified complete.' if complete else 'No new arcs placed in the last pass.'
+                if self.batch_order_mode == 'set':
+                    print(f'Set-order analysis finished after {passes} passes: '
+                          f'{self.batch_elapsed_seconds:.2f} seconds total. {outcome}', flush=True)
                 self.status.set(f'Finished after {passes} passes. {outcome}')
                 return
             self.batch_pass += 1
             self.batch_pass_arcs = arcs
-            self.batch_clues = ordered_clues(self.state)
+            self.batch_clues = self.batch_order()
             self.batch_completed = 0
-        remaining = set(self.batch_clues)
-        self.batch_clues = [cell for cell in ordered_clues(self.state) if cell in remaining]
+        if self.batch_order_mode == 'dynamic':
+            remaining = set(self.batch_clues)
+            self.batch_clues = [cell for cell in self.batch_order() if cell in remaining]
         self.selected = self.batch_clues.pop(0)
         self.load_saved_clue(self.selected)
         self.analyze_selected_clue()

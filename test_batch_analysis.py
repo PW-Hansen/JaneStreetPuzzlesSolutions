@@ -1,10 +1,11 @@
 import copy
 import unittest
 from types import SimpleNamespace
+from pathlib import Path
 from unittest.mock import patch
 
 from clue_analysis import ClueAnalysis
-from puzzle_gui import PuzzleEditor, blank_grid, ordered_clues
+from puzzle_gui import PuzzleEditor, blank_grid, ordered_clues, fixed_clue_order
 
 
 class ImmediateThread:
@@ -16,6 +17,53 @@ class ImmediateThread:
 
 
 class BatchAnalysisTests(unittest.TestCase):
+    def test_dynamic_weights_change_the_order_and_prompt_can_be_cancelled(self):
+        state = {'rows': 3, 'columns': 3, 'cells': blank_grid(3, 3)}
+        state['cells'][0][0]['number'] = 9
+        state['cells'][0][1]['green'] = True
+        state['cells'][1][1]['number'] = 8
+        self.assertEqual(ordered_clues(state), [(1, 1), (0, 0)])
+        self.assertEqual(ordered_clues(state, (1, .5, .75)), [(0, 0), (1, 1)])
+        editor, _ = self.editor()
+        editor.analyze_all_clues = run = unittest.mock.Mock()
+        with patch('puzzle_gui.AnalysisWeightsDialog', return_value=SimpleNamespace(result=None)):
+            editor.analyze_all_dynamic()
+        run.assert_not_called()
+        with patch('puzzle_gui.AnalysisWeightsDialog', return_value=SimpleNamespace(result=(.8, .5, .75))):
+            editor.analyze_all_dynamic()
+        run.assert_called_once_with(weights=(.8, .5, .75))
+
+    def test_set_order_requires_full_puzzle_and_follows_exact_sequence(self):
+        editor, callbacks = self.editor()
+        editor.path = Path('example.json')
+        with patch('puzzle_gui.messagebox.showerror') as error:
+            editor.analyze_all_set()
+        error.assert_called_once()
+        self.assertEqual(callbacks, [])
+        editor.path = Path('full_puzzle.json')
+        editor.state = {'rows': 9, 'columns': 9, 'cells': blank_grid(9, 9)}
+        sequence = [(2, 8, 9), (4, 8, 9), (6, 0, 9), (7, 4, 9),
+                    (1, 7, 25), (2, 5, 15), (1, 0, 21), (0, 2, 21), (2, 1, 27),
+                    (4, 0, 25), (7, 1, 63), (8, 6, 35), (6, 7, 45), (7, 8, 288)]
+        for r, c, number in sequence + [(4, 3, 27)]:
+            editor.state['cells'][r][c]['number'] = number
+        expected = [(r, c) for r, c, _ in sequence]
+        self.assertEqual(fixed_clue_order(editor.state), expected)
+        seen = []
+        def engine(state, selected, **kwargs):
+            seen.append(selected)
+            return ClueAnalysis(source_clue=selected)
+        with patch('puzzle_gui.threading.Thread', ImmediateThread), \
+                patch('incremental_analysis.analyze_clue_incremental', side_effect=engine), \
+                patch('builtins.print') as output:
+            editor.analyze_all_set()
+            while callbacks:
+                callbacks.pop(0)()
+        self.assertEqual(seen, expected)
+        messages = [call.args[0] for call in output.call_args_list]
+        self.assertTrue(any(message.startswith('Set-order pass 1 complete:') for message in messages))
+        self.assertTrue(any(message.startswith('Set-order analysis finished after 1 passes:') for message in messages))
+
     def test_order_uses_nearby_grouped_conditionals_instead_of_green_and_edges(self):
         state = {'rows': 4, 'columns': 5, 'cells': blank_grid(4, 5)}
         for r, c, number in [(0, 0, 9), (2, 3, 15), (2, 2, 21), (0, 4, 17)]:
