@@ -34,11 +34,37 @@ class CommandLineSolverTests(unittest.TestCase):
             self.assertEqual(solver.configured_order(self.state, 'tiny', path), [(0, 0)])
             self.assertIsNone(solver.configured_order(self.state, 'other', path))
 
-    def test_weights_defaults_and_validation(self):
-        self.assertEqual(solver.prompt_weights(lambda _: ''), (.8, 1, 1))
-        answers = iter(['nan', '0', '.7', '.5', '.75'])
-        with patch('builtins.print'):
-            self.assertEqual(solver.prompt_weights(lambda _: next(answers)), (.7, .5, .75))
+    def test_default_cli_uses_dynamic_order_without_prompt(self):
+        with patch.object(solver, 'load_initial_state', return_value=self.state), \
+                patch.object(solver, 'configured_order') as order, \
+                patch.object(solver, 'prompt_weights') as prompt, \
+                patch.object(solver, 'solve') as solve, patch('builtins.print'):
+            self.assertEqual(solver.main(['tiny']), 0)
+            order.assert_not_called()
+            prompt.assert_not_called()
+            self.assertIsNone(solve.call_args.args[3])
+            self.assertEqual(solve.call_args.args[4], (.8, .5, .75))
+
+    def test_custom_weights_and_cancellation(self):
+        with patch.object(solver, 'load_initial_state', return_value=self.state), \
+                patch.object(solver, 'prompt_weights', return_value=(.7, .4, .6)) as prompt, \
+                patch.object(solver, 'solve') as solve, patch('builtins.print'):
+            self.assertEqual(solver.main(['tiny', '--custom-weights']), 0)
+            prompt.assert_called_once_with()
+            self.assertEqual(solve.call_args.args[4], (.7, .4, .6))
+            solve.reset_mock()
+            prompt.return_value = None
+            self.assertEqual(solver.main(['tiny', '--custom-weights']), 0)
+            solve.assert_not_called()
+
+    def test_missing_set_order_is_an_error(self):
+        with patch.object(solver, 'load_initial_state', return_value=self.state), \
+                patch.object(solver, 'configured_order', return_value=None), \
+                patch.object(solver, 'solve') as solve, patch('sys.stderr'):
+            with self.assertRaises(SystemExit) as error:
+                solver.main(['tiny', '--set'])
+            self.assertEqual(error.exception.code, 1)
+            solve.assert_not_called()
 
     def test_real_search_writes_loadable_result_without_changing_input(self):
         before = copy.deepcopy(self.state)
@@ -58,7 +84,7 @@ class CommandLineSolverTests(unittest.TestCase):
                 patch.object(solver, 'configured_order', return_value=[(0, 0)]), \
                 patch.object(solver, 'prompt_weights') as prompt, \
                 patch.object(solver, 'solve') as solve, patch('builtins.print'):
-            self.assertEqual(solver.main(['tiny']), 0)
+            self.assertEqual(solver.main(['tiny', '--set']), 0)
             prompt.assert_not_called()
             self.assertEqual(solve.call_args.args[3], [(0, 0)])
 

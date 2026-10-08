@@ -45,7 +45,8 @@ class BatchAnalysisTests(unittest.TestCase):
         state['cells'][0][0]['number'] = 9
         state['cells'][0][1]['green'] = True
         state['cells'][1][1]['number'] = 8
-        self.assertEqual(ordered_clues(state), [(1, 1), (0, 0)])
+        self.assertEqual(ordered_clues(state, (.8, 1, 1)), [(1, 1), (0, 0)])
+        self.assertEqual(ordered_clues(state), [(0, 0), (1, 1)])
         self.assertEqual(ordered_clues(state, (1, .5, .75)), [(0, 0), (1, 1)])
         editor, _ = self.editor()
         editor.analyze_all_clues = run = unittest.mock.Mock()
@@ -95,15 +96,15 @@ class BatchAnalysisTests(unittest.TestCase):
             state['cells'][r][c]['number'] = number
         for r, c in [(0, 1), (1, 0), (3, 3)]:
             state['cells'][r][c]['green'] = True
-        self.assertEqual(ordered_clues(state), [(0, 0), (2, 3), (0, 4), (2, 2)])
+        self.assertEqual(ordered_clues(state, (.8, 1, 1)), [(0, 0), (2, 3), (0, 4), (2, 2)])
         state['arc_implications'] = [{'if': [2, 2, arc], 'then': [3, 2, ['tl']]}
                                      for arc in ('tl', 'tr', 'br', 'bl')]
         # Four equivalent triggers form one conditional, and endpoints in
         # the same neighborhood count once: 21 * .8 = 16.8.
-        self.assertEqual(ordered_clues(state), [(0, 0), (2, 3), (2, 2), (0, 4)])
+        self.assertEqual(ordered_clues(state, (.8, 1, 1)), [(0, 0), (2, 3), (2, 2), (0, 4)])
         state['arc_implications'].append({'if': [3, 2, 'br'], 'then': [3, 1, ['tl']]})
         state['arc_implications'].append({'if': [1, 2, 'br'], 'then': [0, 2, ['tl']]})
-        self.assertEqual(ordered_clues(state), [(0, 0), (2, 2), (2, 3), (0, 4)])
+        self.assertEqual(ordered_clues(state, (.8, 1, 1)), [(0, 0), (2, 2), (2, 3), (0, 4)])
 
     def editor(self):
         editor = PuzzleEditor.__new__(PuzzleEditor)

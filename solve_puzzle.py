@@ -2,7 +2,6 @@
 import argparse
 import copy
 import json
-import math
 import os
 from pathlib import Path
 from time import perf_counter
@@ -13,6 +12,7 @@ from functions.incremental_analysis import analyze_clue_with_sanity
 from functions.local_conditionals import scan_local_conditionals
 from functions.solver_analysis import GreedySolveSession
 from puzzle_gui import (SAVED_STATES_DIRECTORY, SOLUTION_ORDER_PATH, grid_name,
+                        DEFAULT_ANALYSIS_WEIGHTS, AnalysisWeightsDialog,
                         validate_state, fixed_clue_order, ordered_clues, determine_regions,
                         save_accepted_states, prune_saved_states, compute_answer_key)
 
@@ -33,21 +33,15 @@ def load_initial_state(name, folder=None):
         raise ValueError(f'Invalid initial state: {path}') from exc
 
 
-def prompt_weights(input_fn=input):
-    values = []
-    for label, default in [('Per nearby conditional', .8), ('Bordering the grid edge', 1),
-                           ('Per adjacent green cell / in a green cell', 1)]:
-        while True:
-            text = input_fn(f'{label} weight [{default}]: ').strip()
-            try:
-                value = float(text) if text else default
-                if not math.isfinite(value) or value <= 0:
-                    raise ValueError()
-                values.append(value)
-                break
-            except ValueError:
-                print('Enter a positive finite number.', flush=True)
-    return tuple(values)
+def prompt_weights():
+    """Use the editor's validated modal dialog without opening the editor."""
+    import tkinter as tk
+    root = tk.Tk()
+    root.withdraw()
+    try:
+        return AnalysisWeightsDialog(root, title='Dynamic analysis weights').result
+    finally:
+        root.destroy()
 
 
 def configured_order(state, name, path=None):
@@ -74,7 +68,7 @@ def write_result(path, name, state, elapsed):
     os.replace(temporary, path)
 
 
-def solve(state, name, output, order=None, weights=(.8, 1, 1), log=print, greedy=False):
+def solve(state, name, output, order=None, weights=DEFAULT_ANALYSIS_WEIGHTS, log=print, greedy=False):
     output = Path(output)
     checkpoint = output.with_name('checkpoint_state.json')
     verified = False
@@ -159,11 +153,21 @@ def main(argv=None):
     parser.add_argument('name', type=grid_name, help='Puzzle name with a saved initial_state.json')
     parser.add_argument('-greedy', '--greedy', action='store_true',
                         help='Try provisional greedy deductions with cascading normal-search fallback')
+    ordering = parser.add_mutually_exclusive_group()
+    ordering.add_argument('--set', action='store_true', dest='set_order',
+                          help='Use the named order in solution_clue_analysis_order.json')
+    ordering.add_argument('--custom-weights', action='store_true',
+                          help='Choose dynamic ordering weights in a popup window')
     args = parser.parse_args(argv)
     try:
         state = load_initial_state(args.name)
-        order = configured_order(state, args.name)
-        weights = prompt_weights() if order is None else (.8, 1, 1)
+        order = configured_order(state, args.name) if args.set_order else None
+        if args.set_order and order is None:
+            raise ValueError(f'No configured set order for puzzle {args.name!r}.')
+        weights = prompt_weights() if args.custom_weights else DEFAULT_ANALYSIS_WEIGHTS
+        if weights is None:
+            print('Analysis cancelled.', flush=True)
+            return 0
         print('Using dynamic order.' if order is None else 'Using configured set order.', flush=True)
         solve(state, args.name, SAVED_STATES_DIRECTORY / args.name / 'solved_state.json', order, weights,
               log=lambda message: print(message, flush=True), greedy=args.greedy)

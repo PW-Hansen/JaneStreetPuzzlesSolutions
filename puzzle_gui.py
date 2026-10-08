@@ -585,7 +585,10 @@ def blank_grid(rows, columns):
              for _ in range(columns)] for _ in range(rows)]
 
 
-def ordered_clues(state, weights=(.8, 1, 1)):
+DEFAULT_ANALYSIS_WEIGHTS = (.8, .5, .75)
+
+
+def ordered_clues(state, weights=DEFAULT_ANALYSIS_WEIGHTS):
     from fractions import Fraction
     conditional_weight, edge_weight, green_weight = map(lambda value: Fraction(str(value)), weights)
     # Equivalent trigger orientations are one grouped conditional, matching
@@ -640,7 +643,7 @@ class AnalysisWeightsDialog(simpledialog.Dialog):
     def body(self, master):
         self.entries = []
         for row, (label, value) in enumerate((('Per nearby conditional', '0.8'),
-                ('Bordering the grid edge', '1'), ('Per adjacent green cell / in a green cell', '1'))):
+                ('Bordering the grid edge', '0.5'), ('Per adjacent green cell / in a green cell', '0.75'))):
             ttk.Label(master, text=label).grid(row=row, column=0, sticky='w', padx=8, pady=6)
             entry = ttk.Entry(master, width=12)
             entry.insert(0, value)
@@ -1317,7 +1320,7 @@ class PuzzleEditor:
     def batch_order(self):
         return list(self.batch_set_order) if self.batch_order_mode == 'set' else ordered_clues(self.state, self.batch_weights)
 
-    def analyze_all_clues(self, order='dynamic', weights=(.8, 1, 1)):
+    def analyze_all_clues(self, order='dynamic', weights=DEFAULT_ANALYSIS_WEIGHTS):
         if getattr(self, 'batch_token', None) is not None:
             self.abort_clue_analysis()
             return
