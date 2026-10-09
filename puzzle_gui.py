@@ -7,6 +7,9 @@ from tkinter import ttk, messagebox, simpledialog
 
 from functions.constants import MODES, CELL_SIZE, PADDING
 from functions.movements import MovementSearch
+from functions.path_analysis import ContinuationSearch, apply_continuation
+from functions.path_combinations import CombinationSearch, apply_combinations
+from functions.tower_placements import TowerPlacementSearch, apply_tower_placements
 from functions.persistence import puzzles, snapshots, snapshot_path
 from functions.rendering import dimensions, draw_grid, cell_at, edge_at
 from functions.workflow import (
@@ -66,6 +69,12 @@ class PuzzleGUI(ttk.Frame):
         ttk.Entry(movement_controls, textvariable=self.lookahead, width=5).pack(side="left", padx=6)
         self.movement_button = ttk.Button(inspector, text="Generate valid movements", command=self.generate_movements)
         self.movement_button.pack(fill="x", pady=(0, 10))
+        self.continue_button = ttk.Button(inspector, text="Continue path", command=self.continue_path)
+        self.continue_button.pack(fill="x", pady=(0, 10))
+        self.combinations_button = ttk.Button(inspector, text="Find valid combinations", command=self.find_combinations)
+        self.combinations_button.pack(fill="x", pady=(0, 10))
+        self.tower_placements_button = ttk.Button(inspector, text="Attempt tower placements", command=self.attempt_tower_placements)
+        self.tower_placements_button.pack(fill="x", pady=(0, 10))
         help_text = ("Select: click to inspect.\nArrow keys: move selection.\nEscape: clear selection.\n\n"
                      "Score / Visit number: type digits into the selected cell or use Set value. "
                      "The first digit replaces the old value. Backspace removes a digit. "
@@ -130,6 +139,9 @@ class PuzzleGUI(ttk.Frame):
             value = visit if self.session.mode == "Visit number" else score
             self.value.set("" if value is None else str(value))
         editable = selected is not None and self.session.mode in ("Score", "Visit number")
+        if self.session.pending_paths:
+            counts = ", ".join(str(len(group)) for group in self.session.pending_paths)
+            self.details.set(self.details.get() + f"\nRetained path alternatives: {counts}")
         self.entry.configure(state="normal" if editable else "disabled")
         self.apply_button.configure(state="normal" if editable else "disabled")
         self.undo_button.configure(state="normal" if self.session.undo_stack else "disabled")
@@ -139,6 +151,162 @@ class PuzzleGUI(ttk.Frame):
                           and self.session.grid["visits"][selected[0]][selected[1]] is not None
                           and self.session.grid["visits"][selected[0]][selected[1]] >= 0)
         self.movement_button.configure(state="normal" if movement_ready else "disabled")
+        self.continue_button.configure(state="normal" if movement_ready else "disabled")
+        self.combinations_button.configure(state="normal" if self.session.pending_paths else "disabled")
+
+    def attempt_tower_placements(self):
+        search = TowerPlacementSearch(self.session)
+        window = tk.Toplevel(self)
+        window.title("Attempt tower placements")
+        status = tk.StringVar(value="Checking tower candidates against retained paths…")
+        ttk.Label(window, textvariable=status, wraplength=440, padding=16).pack(fill="x")
+        pending = None
+        stopped = False
+        def abort():
+            nonlocal stopped, pending
+            stopped = True
+            if pending is not None:
+                window.after_cancel(pending)
+                pending = None
+            status.set("Aborted. No deductions applied.")
+            button.configure(state="disabled")
+        button = ttk.Button(window, text="Abort", command=abort)
+        button.pack(pady=(0, 12))
+        def batch():
+            nonlocal pending, stopped
+            pending = None
+            until = perf_counter() + 0.02
+            while not search.done and perf_counter() < until:
+                search.advance()
+            if search.done:
+                stopped = True
+                try:
+                    changed = apply_tower_placements(self.session, search)
+                    self.changed(changed)
+                    summary = (f"{len(search.cells)} tower candidates checked: "
+                               f"{len(search.possible)} possible, {len(search.impossible)} impossible.")
+                    summary += " Deductions applied." if changed else " Grid unchanged."
+                    if not search.groups:
+                        summary += " No retained paths; only region constraints were checked."
+                    rejected = ", ".join(f"r{r + 1}c{c + 1}" for r, c in search.impossible)
+                    if rejected:
+                        summary += f"\nRejected: {rejected}."
+                except ValueError as error:
+                    summary = str(error)
+                status.set(summary)
+                self.message.set(summary)
+                button.configure(state="disabled")
+            else:
+                status.set(f"{search.phase}: {search.index}/{len(search.cells)} cells checked.")
+                pending = window.after(10, batch)
+        def close():
+            if not stopped:
+                abort()
+            window.destroy()
+        window.protocol("WM_DELETE_WINDOW", close)
+        batch()
+
+    def find_combinations(self):
+        search = CombinationSearch(self.session)
+        if not search.groups:
+            self.message.set("No retained paths to combine. Run Continue path first.")
+            return
+        window = tk.Toplevel(self)
+        window.title("Find valid combinations")
+        status = tk.StringVar(value="Checking retained path combinations…")
+        ttk.Label(window, textvariable=status, wraplength=440, padding=16).pack(fill="x")
+        pending = None
+        stopped = False
+        def abort():
+            nonlocal stopped, pending
+            stopped = True
+            if pending is not None:
+                window.after_cancel(pending)
+                pending = None
+            status.set("Aborted. No deductions applied.")
+            button.configure(state="disabled")
+        button = ttk.Button(window, text="Abort", command=abort)
+        button.pack(pady=(0, 12))
+        def batch():
+            nonlocal pending, stopped
+            pending = None
+            until = perf_counter() + 0.02
+            while not search.done and perf_counter() < until:
+                search.advance()
+            if search.done:
+                stopped = True
+                try:
+                    changed = apply_combinations(self.session, search)
+                    self.changed(changed)
+                    summary = f"{len(search.combinations)} valid combinations."
+                    summary += (" Shared deductions applied; combinations retained." if changed
+                                else " Grid unchanged.")
+                except ValueError as error:
+                    summary = str(error)
+                status.set(summary)
+                self.message.set(summary)
+                button.configure(state="disabled")
+            else:
+                status.set(f"{len(search.combinations)} valid combinations found so far.")
+                pending = window.after(10, batch)
+        def close():
+            if not stopped:
+                abort()
+            window.destroy()
+        window.protocol("WM_DELETE_WINDOW", close)
+        batch()
+
+    def continue_path(self):
+        if self.session.selected is None:
+            return
+        try:
+            search = ContinuationSearch(self.session.grid, self.session.selected, int(self.lookahead.get()))
+        except ValueError as error:
+            self.message.set(str(error))
+            return
+        window = tk.Toplevel(self)
+        window.title("Continue path")
+        status = tk.StringVar(value="Analyzing arithmetic sequences…")
+        ttk.Label(window, textvariable=status, wraplength=440, padding=16).pack(fill="x")
+        started = perf_counter()
+        pending = None
+        stopped = False
+        def abort():
+            nonlocal stopped, pending
+            stopped = True
+            if pending is not None:
+                window.after_cancel(pending)
+                pending = None
+            status.set(f"Aborted. No deductions applied. {perf_counter() - started:.2f} seconds.")
+            button.configure(state="disabled")
+        button = ttk.Button(window, text="Abort", command=abort)
+        button.pack(pady=(0, 12))
+        def batch():
+            nonlocal pending, stopped
+            pending = None
+            until = perf_counter() + 0.02
+            while not search.done and perf_counter() < until:
+                search.advance()
+            if search.done:
+                stopped = True
+                try:
+                    changed = apply_continuation(self.session, search)
+                    self.changed(changed)
+                    summary = search.message + (" Shared deductions applied." if changed else " Grid unchanged.")
+                except ValueError as error:
+                    summary = str(error)
+                status.set(f"{summary}\n{perf_counter() - started:.2f} seconds.")
+                self.message.set(summary)
+                button.configure(state="disabled")
+            else:
+                status.set(f"{search.phase}: {search.path_count} valid paths so far. {perf_counter() - started:.2f} seconds.")
+                pending = window.after(10, batch)
+        def close():
+            if not stopped:
+                abort()
+            window.destroy()
+        window.protocol("WM_DELETE_WINDOW", close)
+        batch()
 
     def generate_movements(self):
         selected = self.session.selected
@@ -236,6 +404,8 @@ class PuzzleGUI(ttk.Frame):
         self.refresh()
         if changed:
             self.queue_save()
+            if self.session.path_notice:
+                self.message.set(self.session.path_notice)
 
     def change_mode(self, mode):
         self.session.set_mode(mode)

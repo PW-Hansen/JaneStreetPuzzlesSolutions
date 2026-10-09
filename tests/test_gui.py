@@ -63,6 +63,30 @@ class GuiTests(unittest.TestCase):
         self.root.update()
         self.assertIsNone(g.session.selected)
 
+    def test_find_combinations_button_works_without_selected_cell(self):
+        g = self.gui
+        self.assertEqual(str(g.combinations_button["state"]), "disabled")
+
+        g.session.pending_paths = [
+            [[[0, 0, 10, 1, 1]], [[0, 1, 10, 1, 0]]],
+            [[[1, 2, 20, 2, 1]]]]
+        g.refresh()
+        self.assertEqual(str(g.combinations_button["state"]), "normal")
+        g.combinations_button.invoke()
+        self.root.update()
+        self.assertEqual(g.session.grid["visits"][0][1], 1)
+        self.assertEqual(g.session.grid["visits"][1][2], 2)
+        self.assertIn("1 valid combinations", g.message.get())
+        self.assertEqual(str(g.combinations_button["state"]), "disabled")
+
+    def test_attempt_tower_placements_button_applies_exclusions(self):
+        g = self.gui
+        g.session.pending_paths = [[[[0, 0, 10, 1, 0]], [[0, 0, 20, 1, 0]]]]
+        g.tower_placements_button.invoke()
+        self.root.update()
+        self.assertIn([0, 0], g.session.grid["non_towers"])
+        self.assertIn("1 impossible", g.message.get())
+
     def test_border_edits_and_undo(self):
         g = self.gui
         g.change_mode("Cell border drawing")
@@ -136,3 +160,22 @@ class GuiTests(unittest.TestCase):
         self.root.update()
         self.assertEqual(g.session.grid["towers"], [[0, 0]])
         self.assertEqual(len(g.session.grid["non_towers"]), 23)
+
+    def test_continue_path_button_commits_unique_path(self):
+        g = self.gui
+        g.session.grid["scores"][0][0] = 0
+        g.session.grid["visits"][0][0] = 0
+        g.session.grid["scores"][1][2] = 1
+        g.session.select((0, 0))
+        g.lookahead.set("1")
+        g.refresh()
+        self.assertEqual(str(g.continue_button.cget("state")), "normal")
+        g.continue_button.invoke()
+        self.root.update()
+        self.assertEqual(g.session.grid["visits"][1][2], 1)
+        self.assertIn("valid paths", g.message.get())
+        g.undo()
+        self.assertIsNone(g.session.grid["visits"][1][2])
+        for dialog in list(g.winfo_children()):
+            if isinstance(dialog, tk.Toplevel):
+                dialog.destroy()

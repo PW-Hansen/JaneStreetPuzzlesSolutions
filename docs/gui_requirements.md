@@ -100,3 +100,27 @@ These requirements establish the common GUI behavior for grid-based Jane Street 
 - If all but one cell of a region are non-towers, designate the remaining cell as its tower.
 - Apply these deductions through shared backend operations for manual edits and analysis alike. Save the resulting markings and include the initiating action and its deductions in one undo operation.
 - Reject contradictions without partially changing the grid. Recompute deductions when explicit markings or borders change.
+
+## Retained continuation paths
+
+- Retain multiple valid paths found by Continue path while applying their shared deductions.
+- Check retained alternatives after grid edits. When only one is still possible, automatically apply its scores, visit numbers, and tower information in the same undoable action.
+- After eliminating alternatives, also apply any new deductions shared by every remaining path, even when more than one path remains.
+- Display remaining alternative counts and report when no retained alternative remains possible.
+- Preserve alternatives in autosaves, snapshots, and undo/redo. Resetting visits clears them.
+
+## Valid path combinations
+
+- Add **Find valid combinations** beneath Continue path. Check combinations choosing one alternative from every retained group, independent of the selected cell.
+- Reject conflicting cell visits or values, incompatible tower states, multiple towers in a region, and combinations leaving all cells in a region as non-towers. A shared endpoint with the same visit, score, and tower state represents one visit and is permitted.
+- Report the number of valid combinations, retain them together for later checks, and apply deductions shared by all combinations as one undoable, automatically saved action.
+- Allow aborting without applying partial results. Reject stale results. If no combination is valid, report it and leave the grid and retained paths unchanged.
+- When a combination supplies a continuous path from visit 0 through its current endpoint, also require that the path can continue to visit every region's tower. Check legal knight moves, integer arithmetic, known cell information, and the prohibition on revisiting cells. Separate fragments do not establish the current endpoint and must not be rejected as completed paths.
+
+## Attempt tower placements
+
+- Add **attempt tower placements** beneath Find valid combinations, independent of the selected cell.
+- In each region without a confirmed tower, temporarily assert each unknown cell as a tower. Check whether at least one combination of all retained path groups remains valid, including visit conflicts and region tower constraints.
+- Mark impossible placements as non-towers and apply resulting tower/path deductions in one undoable, automatically saved action. Leave possible placements unknown unless deductions confirm them.
+- Report candidate counts and rejected cells. Allow aborting without applying partial results and reject stale results or an already inconsistent set of retained paths.
+- Without retained paths, check region constraints only. A surviving trial establishes compatibility with the retained information, rather than proving a full puzzle solution.

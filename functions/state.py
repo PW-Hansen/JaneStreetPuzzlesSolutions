@@ -5,6 +5,7 @@ import re
 
 from functions.constants import MODES
 from functions.regions import region_map, check_tower_regions, propagate_towers
+from functions.path_candidates import recheck_paths, validate_paths
 
 
 def valid_name(name):
@@ -103,14 +104,18 @@ class Session:
         self.selected = None
         self.mode = "Select"
         self._typing = None
+        self.pending_paths = []
+        self.path_notice = ""
 
     def _frame(self):
-        return {"grid": deepcopy(self.grid), "selected": self.selected}
+        return {"grid": deepcopy(self.grid), "selected": self.selected,
+                "pending_paths": deepcopy(self.pending_paths)}
 
     def _change(self, operation):
         before = self._frame()
         operation()
-        if before["grid"] == self.grid:
+        recheck_paths(self)
+        if before["grid"] == self.grid and before["pending_paths"] == self.pending_paths:
             return False
         self.undo_stack.append(before)
         self.redo_stack.clear()
@@ -247,8 +252,10 @@ class Session:
         return self.mark_tower(self.selected, is_tower=False)
 
     def reset_visits(self):
-        return self._change(lambda: self.grid.__setitem__("visits", [
-            [None] * self.grid["columns"] for _ in range(self.grid["rows"])]))
+        def operation():
+            self.pending_paths = []
+            self.grid["visits"] = [[None] * self.grid["columns"] for _ in range(self.grid["rows"])]
+        return self._change(operation)
 
     def history(self, redo=False):
         source, target = ((self.redo_stack, self.undo_stack) if redo
@@ -258,21 +265,26 @@ class Session:
         target.append(self._frame())
         frame = source.pop()
         self.grid, self.selected = deepcopy(frame["grid"]), frame["selected"]
+        self.pending_paths = deepcopy(frame.get("pending_paths", []))
+        self.path_notice = ""
         self._typing = None
         return True
 
     def serialize(self):
         return {"version": 1, "grid": deepcopy(self.grid),
                 "undo": deepcopy(self.undo_stack), "redo": deepcopy(self.redo_stack),
-                "selected": self.selected, "mode": self.mode}
+                "selected": self.selected, "mode": self.mode,
+                "pending_paths": deepcopy(self.pending_paths)}
 
     @classmethod
     def deserialize(cls, data):
         if not isinstance(data, dict) or data.get("version") != 1:
             raise ValueError("Unsupported saved-state format.")
-        if set(data) != {"version", "grid", "undo", "redo", "selected", "mode"}:
+        required = {"version", "grid", "undo", "redo", "selected", "mode"}
+        if not required <= set(data) or set(data) - required - {"pending_paths"}:
             raise ValueError("Saved-state fields are missing or unsupported.")
         session = cls(data["grid"])
+        session.pending_paths = validate_paths(data.get("pending_paths", []), session.grid)
         def selection(value, grid):
             if value is None:
                 return None
@@ -289,10 +301,12 @@ class Session:
             if not isinstance(data[field], list):
                 raise ValueError("Invalid history.")
             for frame in data[field]:
-                if not isinstance(frame, dict) or set(frame) != {"grid", "selected"}:
+                if (not isinstance(frame, dict) or not {"grid", "selected"} <= set(frame)
+                        or set(frame) - {"grid", "selected", "pending_paths"}):
                     raise ValueError("Invalid history frame.")
                 grid = validate_grid(frame["grid"])
                 if any(grid[key] != session.grid[key] for key in ("name", "rows", "columns")):
                     raise ValueError("History belongs to another grid.")
-                target.append({"grid": grid, "selected": selection(frame["selected"], grid)})
+                target.append({"grid": grid, "selected": selection(frame["selected"], grid),
+                               "pending_paths": validate_paths(frame.get("pending_paths", []), grid)})
         return session
