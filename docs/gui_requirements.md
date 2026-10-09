@@ -71,9 +71,22 @@ These requirements establish the common GUI behavior for grid-based Jane Street 
 - **Score:** Allow entering a score value into a cell. Accept integers only.
 - **Cell border drawing:** Clicking an edge shared by two orthogonally adjacent cells toggles that border between thin and thick. Thick cell borders use the same thickness as the outer grid border.
 - **Visit number:** Allow entering a visit number into a cell. Accept integers only. Store this value separately from the cell's score so both can coexist.
+- **Tower:** Allow marking or unmarking a cell as a tower. Each region requires exactly one tower, as specified in `docs/rules.md`; do not permit placing a second tower in a region that already has one. Tower markings coexist with scores and visit numbers.
 
 ## Cell contents
 
 - Unless otherwise specified, display the score in the middle of the cell and the visit number as a smaller number in the top right corner.
 - While Visit number mode is active, display the visit number in the middle of the cell and the score as a smaller number in the top left corner.
 - Switching modes changes the placement and size of the displayed values without changing the values themselves.
+- Mark each tower with a thin black horizontal bar at the top of its cell, just below its northern border. The bar remains visible in every mode and is distinct from the cell border.
+
+## Tower-mode shading
+
+- Determine regions using orthogonal cell connectivity, with thick internal borders separating regions and the outer grid border enclosing the board.
+- Only while Tower mode is active, shade cells as follows:
+  - **Blue:** the cell contains a tower.
+  - **Light green:** the cell's region has no tower, so the cell could contain that region's tower.
+  - **Light grey:** the cell does not contain a tower, but its region already contains one.
+- Give blue shading precedence for tower cells within a region that has a tower.
+- Recompute tower-mode shading when tower markings or region borders change.
+- Leaving Tower mode removes this mode's shading while preserving tower bars, cell values, borders, and unrelated visual markings.
