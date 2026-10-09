@@ -1,0 +1,10 @@
+## Reflections on this project
+Going into this specific project, I wanted to experiment with having an AGENTS.md in place, which was supposed to restrict the AI to prevent issues that propped up in prior software solutions to Jane Street puzzles - such as just writing everything in one single files or having mutual imports - and instructed Codex to always consult this file before carrying out a task.
+
+I also created docs/gui_requirements.md to specify what I wanted from the GUI to make development a bit more structured there.
+
+I also initially worked with a ticket system, with the GUI creation being broken into something like a dozen different tickets, but ended up dropping that and instructed Codex to look at gui_requirements.md and build the entire thing in one go, and then manually inspected it afterward to ensure that it worked to my satisfaction. 
+
+The reason for this is that despite only taking a minute or two to implement, individual tickets wound up taking ~5% of my 5h usage on a Plus plan. As such, I judged that the tradeoff for greater attention to one aspect or feature of the GUI and its backend wasn't worth burning through 50% or more of my allotted 5h usage in ~30 minutes. This is especially true since the GUI is just a tool to help me visualize and study the puzzle if I get stumped on how to make progress or speed up the solving time, rather than a significant focus in and of itself.
+
+My suspicion is that instructing Codex to check AGENTS.md before each task is to blame for these higher-than-expected usage costs, rather than the existence of the file in the first place, and that total usage would have been lower, had I merely asked Codex to consult it at the start of the project and then again if I made any changes to it. This is something I intend to test in my next solution of a Jane Street Puzzle.
