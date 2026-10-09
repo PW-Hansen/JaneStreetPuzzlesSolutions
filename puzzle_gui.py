@@ -124,9 +124,9 @@ class PuzzleGUI(ttk.Frame):
             r, c = selected
             score, visit = self.session.grid["scores"][r][c], self.session.grid["visits"][r][c]
             self.details.set(f"Mode: {self.session.mode}\nRow {r + 1}, column {c + 1}\nScore: {score if score is not None else '—'}\nVisit number: {visit if visit is not None else '—'}")
-            self.details.set(self.details.get() + f"\nTower: {'yes' if [r, c] in self.session.grid['towers'] else 'no'}")
-            if [r, c] in self.session.grid["non_towers"]:
-                self.details.set(self.details.get() + " (confirmed non-tower)")
+            tower_status = ("yes" if [r, c] in self.session.grid["towers"] else
+                            "no" if [r, c] in self.session.grid["non_towers"] else "unknown")
+            self.details.set(self.details.get() + f"\nTower: {tower_status}")
             value = visit if self.session.mode == "Visit number" else score
             self.value.set("" if value is None else str(value))
         editable = selected is not None and self.session.mode in ("Score", "Visit number")
