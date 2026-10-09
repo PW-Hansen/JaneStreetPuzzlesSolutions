@@ -14,6 +14,22 @@ def results(score, visit, moves=3):
 
 
 class MovementTests(unittest.TestCase):
+    def test_cell_tower_state_sets_initial_last_operation(self):
+        grid = {"scores": [[8]], "visits": [[3]], "towers": [], "non_towers": []}
+        for field, expected in ((None, {"+": 12, "*": 32, "/": 2}),
+                                ("towers", {"+": 12, "/": 2}),
+                                ("non_towers", {"+": 12, "*": 32})):
+            grid["towers"], grid["non_towers"] = [], []
+            if field:
+                grid[field] = [[0, 0]]
+            search = MovementSearch.from_cell(grid, (0, 0), 1)
+            found = {}
+            while search.worklist:
+                result = search.advance()
+                if result is not None:
+                    found[result[2]] = result[0]
+            self.assertEqual(found, expected)
+
     def test_first_move_uses_one_and_retains_all_sequences(self):
         self.assertEqual(results(0, 0, 1), {"+": 1, "*": 0, "/": 0})
 

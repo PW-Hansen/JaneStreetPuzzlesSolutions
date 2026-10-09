@@ -146,9 +146,7 @@ class PuzzleGUI(ttk.Frame):
             return
         row, column = selected
         try:
-            search = MovementSearch(self.session.grid["scores"][row][column],
-                                    self.session.grid["visits"][row][column],
-                                    int(self.lookahead.get()))
+            search = MovementSearch.from_cell(self.session.grid, selected, int(self.lookahead.get()))
         except ValueError as error:
             self.message.set(str(error))
             return
