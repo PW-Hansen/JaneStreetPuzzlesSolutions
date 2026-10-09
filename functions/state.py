@@ -4,7 +4,7 @@ from copy import deepcopy
 import re
 
 from functions.constants import MODES
-from functions.regions import region_map, check_tower_regions
+from functions.regions import region_map, check_tower_regions, propagate_towers
 
 
 def valid_name(name):
@@ -24,7 +24,8 @@ def new_grid(name, rows, columns):
         raise ValueError("Rows and columns must be positive integers.")
     return {"name": name, "rows": rows, "columns": columns,
             "scores": [[None] * columns for _ in range(rows)],
-            "visits": [[None] * columns for _ in range(rows)], "borders": [], "towers": []}
+            "visits": [[None] * columns for _ in range(rows)], "borders": [], "towers": [],
+            "non_towers": [], "tower_marks": [], "non_tower_marks": []}
 
 
 def edge_key(first, second):
@@ -37,7 +38,7 @@ def validate_grid(grid):
     if not isinstance(grid, dict):
         raise ValueError("Invalid grid data.")
     required = {"name", "rows", "columns", "scores", "visits", "borders"}
-    if set(grid) not in (required, required | {"towers"}):
+    if not required <= set(grid) or set(grid) - required - {"towers", "non_towers", "tower_marks", "non_tower_marks"}:
         raise ValueError("Grid fields are missing or unsupported.")
     new_grid(grid["name"], grid["rows"], grid["columns"])
     rows, columns = grid["rows"], grid["columns"]
@@ -76,6 +77,21 @@ def validate_grid(grid):
             raise ValueError("Invalid tower cell.")
         seen_towers.add(tuple(cell))
     check_tower_regions(grid)
+    grid.setdefault("tower_marks", deepcopy(grid["towers"]))
+    grid.setdefault("non_tower_marks", deepcopy(grid.get("non_towers", [])))
+    for field in ("tower_marks", "non_tower_marks", "non_towers"):
+        marks = grid.get(field, [])
+        if not isinstance(marks, list):
+            raise ValueError("Invalid tower markings.")
+        marked = set()
+        for cell in marks:
+            if (not isinstance(cell, list) or len(cell) != 2
+                    or any(type(n) is not int for n in cell)
+                    or not (0 <= cell[0] < rows and 0 <= cell[1] < columns)
+                    or tuple(cell) in marked):
+                raise ValueError("Invalid tower marking cell.")
+            marked.add(tuple(cell))
+    propagate_towers(grid)
     return grid
 
 
@@ -168,28 +184,67 @@ class Session:
                 prospective["borders"].remove(edge)
             elif not clear:
                 prospective["borders"].append(edge)
+            propagate_towers(prospective)
             check_tower_regions(prospective)
             if edge in self.grid["borders"]:
                 self.grid["borders"].remove(edge)
             elif not clear:
                 self.grid["borders"].append(edge)
+            self.grid = prospective
         return self._change(operation)
 
     def toggle_tower(self, clear=False):
         if self.mode != "Tower" or self.selected is None:
             return False
         cell = list(self.selected)
-        towers = self.grid["towers"]
-        if cell not in towers and not clear:
-            regions = region_map(self.grid)
-            if any(regions[tuple(tower)] == regions[self.selected] for tower in towers):
-                raise ValueError("This region already has a tower. Remove it before placing another.")
-        def operation():
-            if cell in towers:
-                towers.remove(cell)
-            elif not clear:
-                towers.append(cell)
-        return self._change(operation)
+        if cell in self.grid["towers"] or clear:
+            return self.clear_tower(self.selected)
+        return self.mark_tower(self.selected)
+
+    def _tower_change(self, edit):
+        prospective = deepcopy(self.grid)
+        edit(prospective)
+        propagate_towers(prospective)
+        return self._change(lambda: setattr(self, "grid", prospective))
+
+    def mark_tower(self, cell, is_tower=True):
+        """Shared assertion API for manual edits and analysis; deductions are atomic."""
+        cell = list(cell)
+        if (len(cell) != 2 or any(type(n) is not int for n in cell)
+                or not (0 <= cell[0] < self.grid["rows"] and 0 <= cell[1] < self.grid["columns"])):
+            raise ValueError("Cell is outside the grid.")
+        def edit(grid):
+            target = "tower_marks" if is_tower else "non_tower_marks"
+            opposite = "non_tower_marks" if is_tower else "tower_marks"
+            if cell in grid[opposite]:
+                grid[opposite].remove(cell)
+            if cell not in grid[target]:
+                grid[target].append(cell)
+        return self._tower_change(edit)
+
+    def clear_tower(self, cell):
+        cell = list(cell)
+        def edit(grid):
+            if cell in grid["tower_marks"]:
+                grid["tower_marks"].remove(cell)
+            # Clearing a forced tower also clears exclusions that would force it again.
+            if cell in grid["towers"]:
+                regions = region_map(grid)
+                region = regions[tuple(cell)]
+                grid["non_tower_marks"] = [mark for mark in grid["non_tower_marks"]
+                                           if regions[tuple(mark)] != region]
+        return self._tower_change(edit)
+
+    def toggle_non_tower(self, clear=False):
+        if self.mode != "Tower" or self.selected is None:
+            return False
+        cell = list(self.selected)
+        if cell in self.grid["non_towers"] or clear:
+            def edit(grid):
+                if cell in grid["non_tower_marks"]:
+                    grid["non_tower_marks"].remove(cell)
+            return self._tower_change(edit)
+        return self.mark_tower(self.selected, is_tower=False)
 
     def reset_visits(self):
         return self._change(lambda: self.grid.__setitem__("visits", [

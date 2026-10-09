@@ -57,6 +57,9 @@ def primitives(session):
     for r, c in grid.get("towers", []):
         x, y = pad + c * size, pad + r * size
         yield "line", (x + 18, y + 8, x + size - 18, y + 8), {"fill": "black", "width": 2}
+    for r, c in grid.get("non_towers", []):
+        x, y = pad + c * size, pad + r * size
+        yield "line", (x + 18, y + size - 8, x + size - 18, y + size - 8), {"fill": "black", "width": 2}
     borders = {tuple(edge) for edge in grid["borders"]}
     for r in range(grid["rows"]):
         for c in range(grid["columns"]):

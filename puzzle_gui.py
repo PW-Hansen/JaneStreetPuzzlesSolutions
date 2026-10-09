@@ -72,7 +72,7 @@ class PuzzleGUI(ttk.Frame):
                      "Delete or right-click clears that mode’s value. Signed integers are allowed.\n\n"
                      "Borders: click near a shared edge to toggle it. Right-click makes it thin. "
                      "Typing, Backspace, and Delete do nothing in border mode.\n\n"
-                     "Tower: click to toggle a tower. Right-click or Delete removes it. "
+                     "Tower: click the upper half to toggle a tower; click the lower half to toggle a non-tower. Right-click clears the corresponding mark; Delete removes a tower. "
                      "Blue = tower; light green = available region; light grey = region already has a tower.")
         help_frame = ttk.Frame(inspector)
         help_frame.pack(fill="both", expand=True)
@@ -125,6 +125,8 @@ class PuzzleGUI(ttk.Frame):
             score, visit = self.session.grid["scores"][r][c], self.session.grid["visits"][r][c]
             self.details.set(f"Mode: {self.session.mode}\nRow {r + 1}, column {c + 1}\nScore: {score if score is not None else '—'}\nVisit number: {visit if visit is not None else '—'}")
             self.details.set(self.details.get() + f"\nTower: {'yes' if [r, c] in self.session.grid['towers'] else 'no'}")
+            if [r, c] in self.session.grid["non_towers"]:
+                self.details.set(self.details.get() + " (confirmed non-tower)")
             value = visit if self.session.mode == "Visit number" else score
             self.value.set("" if value is None else str(value))
         editable = selected is not None and self.session.mode in ("Score", "Visit number")
@@ -257,7 +259,10 @@ class PuzzleGUI(ttk.Frame):
                 self.session.select(cell)
                 if self.session.mode == "Tower":
                     try:
-                        self.session.toggle_tower(clear=right)
+                        if y - (PADDING + cell[0] * CELL_SIZE) >= CELL_SIZE / 2:
+                            self.session.toggle_non_tower(clear=right)
+                        else:
+                            self.session.toggle_tower(clear=right)
                     except ValueError as error:
                         self.changed()
                         self.message.set(str(error))

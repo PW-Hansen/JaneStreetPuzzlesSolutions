@@ -39,6 +39,34 @@ def tower_colors(grid):
     regions = region_map(grid)
     towers = {tuple(cell) for cell in grid.get("towers", [])}
     occupied = {regions[cell] for cell in towers}
+    non_towers = {tuple(cell) for cell in grid.get("non_towers", [])}
     return {cell: "#93c5fd" if cell in towers else
-            "#e5e7eb" if region in occupied else "#dcfce7"
+            "#e5e7eb" if region in occupied or cell in non_towers else "#dcfce7"
             for cell, region in regions.items()}
+
+
+def propagate_towers(grid):
+    """Recompute all consequences of explicit tower/non-tower assertions."""
+    regions = region_map(grid)
+    groups = {}
+    for cell, region in regions.items():
+        groups.setdefault(region, set()).add(cell)
+    towers = {tuple(cell) for cell in grid["tower_marks"]}
+    excluded = {tuple(cell) for cell in grid["non_tower_marks"]}
+    if towers & excluded:
+        raise ValueError("A cell cannot be both a tower and a non-tower.")
+    for cells in groups.values():
+        present = cells & towers
+        if len(present) > 1:
+            raise ValueError("This region already has a tower.")
+        if present:
+            excluded.update(cells - present)
+        else:
+            candidates = cells - excluded
+            if not candidates:
+                raise ValueError("A region must have a possible tower cell.")
+            if len(candidates) == 1:
+                towers.update(candidates)
+                excluded.update(cells - candidates)
+    grid["towers"] = [list(cell) for cell in sorted(towers)]
+    grid["non_towers"] = [list(cell) for cell in sorted(excluded)]

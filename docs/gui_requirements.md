@@ -72,6 +72,7 @@ These requirements establish the common GUI behavior for grid-based Jane Street 
 - **Cell border drawing:** Clicking an edge shared by two orthogonally adjacent cells toggles that border between thin and thick. Thick cell borders use the same thickness as the outer grid border.
 - **Visit number:** Allow entering a visit number into a cell. Accept integers only. Store this value separately from the cell's score so both can coexist.
 - **Tower:** Allow marking or unmarking a cell as a tower. Each region requires exactly one tower, as specified in `docs/rules.md`; do not permit placing a second tower in a region that already has one. Tower markings coexist with scores and visit numbers.
+- In Tower mode, upper-half clicks retain the tower toggle behavior; lower-half clicks toggle a non-tower designation. Right-click clears the designation associated with that half.
 
 ## Cell contents
 
@@ -79,6 +80,7 @@ These requirements establish the common GUI behavior for grid-based Jane Street 
 - While Visit number mode is active, display the visit number in the middle of the cell and the score as a smaller number in the top left corner.
 - Switching modes changes the placement and size of the displayed values without changing the values themselves.
 - Mark each tower with a thin black horizontal bar at the top of its cell, just below its northern border. The bar remains visible in every mode and is distinct from the cell border.
+- Mark each confirmed non-tower with a thin black horizontal line near the bottom of the cell, visible in every mode.
 
 ## Tower-mode shading
 
@@ -87,6 +89,14 @@ These requirements establish the common GUI behavior for grid-based Jane Street 
   - **Blue:** the cell contains a tower.
   - **Light green:** the cell's region has no tower, so the cell could contain that region's tower.
   - **Light grey:** the cell does not contain a tower, but its region already contains one.
+  - Explicitly designated or deduced non-towers are also light grey, even when their region's tower has not yet been located.
 - Give blue shading precedence for tower cells within a region that has a tower.
 - Recompute tower-mode shading when tower markings or region borders change.
 - Leaving Tower mode removes this mode's shading while preserving tower bars, cell values, borders, and unrelated visual markings.
+
+## Tower deductions
+
+- Designating a tower immediately marks all other cells in its region as non-towers.
+- If all but one cell of a region are non-towers, designate the remaining cell as its tower.
+- Apply these deductions through shared backend operations for manual edits and analysis alike. Save the resulting markings and include the initiating action and its deductions in one undo operation.
+- Reject contradictions without partially changing the grid. Recompute deductions when explicit markings or borders change.

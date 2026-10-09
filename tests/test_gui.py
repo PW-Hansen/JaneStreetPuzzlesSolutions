@@ -121,3 +121,18 @@ class GuiTests(unittest.TestCase):
         self.root.update()
         self.assertEqual(g.session.grid["scores"][1][2], 12)
         self.assertTrue(g.session.undo_stack)
+
+    def test_lower_half_non_tower_and_upper_half_tower(self):
+        g = self.gui
+        g.change_mode("Tower")
+        g.canvas.event_generate("<Button-1>", x=30, y=60)
+        self.root.update()
+        self.assertIn([0, 0], g.session.grid["non_towers"])
+        self.assertFalse(g.session.grid["towers"])
+        g.canvas.event_generate("<Button-3>", x=30, y=60)
+        self.root.update()
+        self.assertNotIn([0, 0], g.session.grid["non_towers"])
+        g.canvas.event_generate("<Button-1>", x=30, y=30)
+        self.root.update()
+        self.assertEqual(g.session.grid["towers"], [[0, 0]])
+        self.assertEqual(len(g.session.grid["non_towers"]), 23)
