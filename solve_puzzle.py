@@ -7,6 +7,7 @@ from time import perf_counter
 from functions.persistence import puzzles, read_session, snapshot_path, working_path, write_session
 from functions.solver import solve
 from functions.solver_output import save_solver_result
+from functions.answer_key import compute_answer_key
 
 
 def main(argv=None):
@@ -34,6 +35,10 @@ def main(argv=None):
         print(result.message)
         if result.status == "failed":
             return 1
+        if result.status == "solved":
+            print(f"Answer key: {compute_answer_key(result.session.grid)}", flush=True)
+        else:
+            print("Answer key: undetermined (multiple solutions remain).", flush=True)
         if not args.dry_run:
             output = args.output or snapshot_path(result.session.grid["name"], "solver_result")
             output, png = save_solver_result(result.session, output, args.png)

@@ -48,6 +48,17 @@ class SolverOutputTests(unittest.TestCase):
         save.assert_called_once_with(s, Path("result.json"), Path("result.png"))
         self.assertIn("Final state PNG: result.png", stream.getvalue())
         self.assertIn("Total time: 2.50 seconds.", stream.getvalue())
+        self.assertIn("Answer key: 0", stream.getvalue())
+
+    def test_ambiguous_result_does_not_print_a_partial_grid_answer(self):
+        s = Session(new_grid("output", 2, 3))
+        stream = StringIO()
+        with patch("solve_puzzle.read_session", return_value=s), \
+                patch("solve_puzzle.solve", return_value=SolveResult(s, "ambiguous", 7, 2, "Two solutions.")), \
+                patch("solve_puzzle.compute_answer_key") as answer, redirect_stdout(stream):
+            self.assertEqual(main(["output", "--dry-run"]), 0)
+        answer.assert_not_called()
+        self.assertIn("Answer key: undetermined", stream.getvalue())
 
     def test_dry_run_and_failed_search_log_time_without_writing(self):
         s = Session(new_grid("output", 2, 3))
