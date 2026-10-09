@@ -1,5 +1,7 @@
 """Shared layout for canvas rendering, hit testing, and PNG export."""
 
+from pathlib import Path
+
 from functions.constants import CELL_SIZE, PADDING, THICK_WIDTH, PROJECT_ROOT
 from functions.state import edge_key, valid_name
 from functions.regions import tower_colors
@@ -86,7 +88,7 @@ def draw_grid(canvas, session):
         getattr(canvas, "create_" + kind)(*coordinates, tags="grid", **style)
 
 
-def export_png(session, name):
+def export_png(session, name, path=None):
     from PIL import Image, ImageDraw, ImageFont
     image = Image.new("RGB", dimensions(session.grid), "white")
     draw = ImageDraw.Draw(image)
@@ -103,6 +105,7 @@ def export_png(session, name):
         else:
             draw.rectangle(coordinates, fill=style.get("fill"), outline=style.get("outline") or None,
                            width=style.get("width", 1))
-    path = PROJECT_ROOT / (valid_name(name) + ".png")
-    image.save(path)
+    path = Path(path) if path is not None else PROJECT_ROOT / (valid_name(name) + ".png")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    image.save(path, format="PNG")
     return path
