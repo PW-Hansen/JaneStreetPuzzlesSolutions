@@ -12,6 +12,29 @@ def search(session):
 
 
 class CombinationTests(unittest.TestCase):
+    def test_ordered_search_matches_original_search(self):
+        import random
+        rng = random.Random(47)
+        for case in range(40):
+            with self.subTest(case=case):
+                s = Session(new_grid("ordering", 2, 4))
+                cells = [(r, c) for r in range(2) for c in range(4)]
+                for group in range(rng.randint(2, 4)):
+                    alternatives = []
+                    for alternative in range(rng.randint(2, 4)):
+                        path = [[r, c, 10 + group + index, 1 + 3 * group + index,
+                                 int(rng.random() < 0.15)]
+                                for index, (r, c) in enumerate(rng.sample(cells, rng.randint(1, 3)))]
+                        alternatives.append(path)
+                    s.pending_paths.append(alternatives)
+                results = []
+                for ordered in (False, True):
+                    result = CombinationSearch(s, ordered=ordered)
+                    while not result.done:
+                        result.advance()
+                    results.append({tuple(tuple(cell) for cell in path) for path in result.combinations})
+                self.assertEqual(results[0], results[1])
+
     def test_cell_conflict_and_later_elimination_preserve_combinations(self):
         s = Session(new_grid("combinations", 2, 3))
         s.pending_paths = [

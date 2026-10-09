@@ -114,6 +114,7 @@ These requirements establish the common GUI behavior for grid-based Jane Street 
 - Add **Find valid combinations** beneath Continue path. Check combinations choosing one alternative from every retained group, independent of the selected cell.
 - Reject conflicting cell visits or values, incompatible tower states, multiple towers in a region, and combinations leaving all cells in a region as non-towers. A shared endpoint with the same visit, score, and tower state represents one visit and is permitted.
 - Report the number of valid combinations, retain them together for later checks, and apply deductions shared by all combinations as one undoable, automatically saved action.
+- Consider the most restricted remaining group first and reject branches early when another group has no compatible alternatives. Changing search order must preserve the complete set of valid combinations.
 - Allow aborting without applying partial results. Reject stale results. If no combination is valid, report it and leave the grid and retained paths unchanged.
 - When a combination supplies a continuous path from visit 0 through its current endpoint, also require that the path can continue to visit every region's tower. Check legal knight moves, integer arithmetic, known cell information, and the prohibition on revisiting cells. Separate fragments do not establish the current endpoint and must not be rejected as completed paths.
 

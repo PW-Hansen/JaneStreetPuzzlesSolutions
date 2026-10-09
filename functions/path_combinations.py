@@ -4,10 +4,11 @@ from copy import deepcopy
 
 from functions.path_candidates import compatible_grid
 from functions.path_completion import CompletionSearch
+from functions.path_ordering import PathCompatibility
 
 
 class CombinationSearch:
-    def __init__(self, session):
+    def __init__(self, session, ordered=True):
         self.original = deepcopy(session.grid)
         self.groups = deepcopy(session.pending_paths)
         self.worklist = [(self.original, 0, [], 0)] if self.groups else []
@@ -15,6 +16,11 @@ class CombinationSearch:
         self._seen = set()
         self.completion = None
         self._completion_cells = None
+        self.ordered = ordered
+        if ordered:
+            self.compatibility = PathCompatibility(self.original, self.groups)
+            allowed = tuple(frozenset(range(len(group))) for group in self.groups)
+            self.worklist = [(self.original, allowed, [])] if self.groups else []
 
     @property
     def done(self):
@@ -31,6 +37,9 @@ class CombinationSearch:
                     self._accept(self._completion_cells)
                 self.completion = None
             return
+        if self.ordered:
+            self._advance_ordered()
+            return
         grid, group_index, cells, choice = self.worklist.pop()
         if group_index == len(self.groups):
             self.completion = CompletionSearch(grid)
@@ -45,6 +54,34 @@ class CombinationSearch:
             # A shared endpoint at the same visit is one visit, not a revisited cell.
             combined = cells + [cell for cell in path if cell not in cells]
             self.worklist.append((candidate, group_index + 1, combined, 0))
+
+    def _advance_ordered(self):
+        grid, allowed, cells = self.worklist.pop()
+        remaining = [i for i, choices in enumerate(allowed) if choices is not None]
+        if not remaining:
+            self.completion = CompletionSearch(grid)
+            self._completion_cells = cells
+            return
+        group_index = min(remaining, key=lambda i: (len(allowed[i]), i))
+        choices = allowed[group_index]
+        choice = min(choices)
+        siblings = list(allowed)
+        siblings[group_index] = choices - {choice}
+        if siblings[group_index]:
+            self.worklist.append((grid, tuple(siblings), cells))
+        following = list(allowed)
+        following[group_index] = None
+        for other in remaining:
+            if other == group_index:
+                continue
+            following[other] &= self.compatibility.allowed(group_index, choice, other)
+            if not following[other]:
+                return
+        path = self.groups[group_index][choice]
+        candidate = compatible_grid(grid, path)
+        if candidate is not None:
+            combined = cells + [cell for cell in path if cell not in cells]
+            self.worklist.append((candidate, tuple(following), combined))
 
     def _accept(self, cells):
         key = tuple(sorted(tuple(cell) for cell in cells))
