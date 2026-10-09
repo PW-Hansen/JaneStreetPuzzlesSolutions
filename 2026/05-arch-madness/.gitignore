@@ -1,0 +1,4 @@
+__pycache__/
+puzzle_state.json
+puzzle_state.json.tmp
+grids/

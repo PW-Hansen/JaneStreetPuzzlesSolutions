@@ -1,0 +1,1209 @@
+"""A persistent Jane Street arc puzzle editor with clue-local region analysis."""
+
+import argparse
+import copy
+import json
+import math
+import os
+import threading
+from time import perf_counter
+from queue import Empty, Queue
+from pathlib import Path
+from datetime import datetime
+import tkinter as tk
+from tkinter import messagebox, simpledialog, ttk
+
+from PIL import ImageTk
+
+from functions.constants import (DEFAULT_STATE, DATA_DIRECTORY, SOLUTION_ORDER_PATH,
+                     SAVED_STATES_DIRECTORY, ARC_CYCLE, MINIMUM_REGION_PIECES,
+                     DEFAULT_ANALYSIS_WEIGHTS)
+from functions.puzzle_model import (allowed_arc_configurations, clue_factorizations,
+                                    arc_endpoints, smooth_arc_groups, determine_regions,
+                                    Region, compute_answer_key, determine_region_areas,
+                                    region_area_positions)
+from functions.puzzle_state import (grid_name, parse_grid_size, read_state, prepare_grid,
+                                    blank_grid, ordered_clues, fixed_clue_order,
+                                    save_accepted_states, prune_saved_states, validate_state)
+from functions.rendering import render_grid
+from functions.dialogs import AnalysisWeightsDialog
+
+
+def choose_grid(root):
+    dialog = tk.Toplevel(root)
+    dialog.title("Open puzzle grid")
+    dialog.resizable(False, False)
+    form = ttk.Frame(dialog, padding=20)
+    form.pack(fill="both", expand=True)
+    name, size = tk.StringVar(), tk.StringVar(value="10")
+    ttk.Label(form, text="Puzzle name").grid(row=0, column=0, sticky="w", padx=(0, 12))
+    entry = ttk.Entry(form, textvariable=name, width=32)
+    entry.grid(row=0, column=1, pady=5)
+    ttk.Label(form, text="Grid size").grid(row=1, column=0, sticky="w")
+    ttk.Entry(form, textvariable=size, width=32).grid(row=1, column=1, pady=5)
+    ttk.Label(form, text="For example: 10 for a square, or 8x12 for rows x columns.").grid(row=2, column=0, columnspan=2, pady=5)
+    result = []
+
+    def open_grid(event=None):
+        try:
+            chosen = grid_name(name.get().strip())
+            path = prepare_grid(chosen, parse_grid_size(size.get()))
+            result.append((chosen, path))
+            dialog.destroy()
+        except (ValueError, OSError, argparse.ArgumentTypeError) as exc:
+            messagebox.showerror("Could not open grid", str(exc), parent=dialog)
+
+    ttk.Button(form, text="Open grid", command=open_grid).grid(row=3, column=0, columnspan=2, sticky="ew", pady=(10, 0))
+    dialog.bind("<Return>", open_grid)
+    dialog.bind("<Escape>", lambda event: dialog.destroy())
+    entry.focus_set()
+    root.wait_window(dialog)
+    return result[0] if result else None
+
+
+class PuzzleEditor:
+    def __init__(self, root, path, name=None):
+        self.puzzle_name = name or path.stem
+        self.root, self.path = root, path
+        self.state = {"version": 1, "rows": 10, "columns": 10,
+                      "cells": blank_grid(10, 10)}
+        load_error = None
+        if path.exists():
+            try:
+                self.state = validate_state(json.loads(path.read_text(encoding="utf-8")))
+            except (ValueError, KeyError, TypeError, OSError) as exc:
+                load_error = str(exc)
+        self.undo_stack, self.redo_stack = [], []
+        self.smooth_colors = None
+        self.region_colors = None
+        self.area_labels = None
+        self.analysis_cancel = None
+        self.analysis_result = None
+        self.analysis_started_at = None
+        self.analysis_elapsed_seconds = None
+        self.preview_index = 0
+        self.selected = None
+        self.fresh_entry = True
+        self.mode = tk.StringVar(value="select")
+        self.status = tk.StringVar()
+        root.title(f"Jane Street — Arc Puzzle Editor — {self.puzzle_name}")
+        root.geometry("1110x850")
+        toolbar = ttk.Frame(root, padding=8)
+        toolbar.pack(fill="x")
+        for label, value in [("Select (Ctrl+0)", "select"), ("Green cells (Ctrl+1)", "green"), ("Digits (Ctrl+2)", "digit"), ("Arcs (Ctrl+3)", "arc"), ("Map (Ctrl+4)", "map")]:
+            ttk.Radiobutton(toolbar, text=label, value=value, variable=self.mode,
+                            command=self.mode_changed).pack(side="left", padx=5)
+        self.undo_button = ttk.Button(toolbar, text="Undo", command=self.undo)
+        self.undo_button.pack(side="left", padx=(20, 4))
+        self.redo_button = ttk.Button(toolbar, text="Redo", command=self.redo)
+        self.redo_button.pack(side="left", padx=4)
+        ttk.Button(toolbar, text="Save", command=self.save).pack(side="right")
+        saved_controls = ttk.Frame(root, padding=(8, 0, 8, 6))
+        saved_controls.pack(fill='x')
+        ttk.Button(saved_controls, text='Save state', command=self.save_named_state).pack(side='left', padx=4)
+        ttk.Button(saved_controls, text='Load state', command=self.choose_saved_state).pack(side='left', padx=4)
+        ttk.Button(saved_controls, text='Print state', command=self.print_state).pack(side='left', padx=4)
+        ttk.Button(toolbar, text="Reset arcs", command=self.reset_arcs).pack(side="right", padx=4)
+        dimensions = ttk.Frame(root, padding=(8, 0, 8, 8))
+        dimensions.pack(fill="x")
+        ttk.Label(dimensions, text=f"{self.state['rows']}x{self.state['columns']} grid").pack(side="left", padx=(4, 12))
+        ttk.Button(dimensions, text="Check smooth arcs", command=self.check_smooth_arcs).pack(side="left", padx=4)
+        ttk.Button(dimensions, text="Determine regions", command=self.check_regions).pack(side="left", padx=4)
+        ttk.Button(dimensions, text="Verify regions", command=self.verify_regions).pack(side="left", padx=4)
+        ttk.Button(dimensions, text="Compute region areas", command=self.compute_region_areas).pack(side="left", padx=4)
+        ttk.Button(dimensions, text="Compute scores", command=self.compute_region_scores).pack(side="left", padx=4)
+        ttk.Button(dimensions, text='Compute answer key', command=self.compute_answer_key).pack(side='left', padx=4)
+        ttk.Button(dimensions, text="Clear colors", command=self.clear_arc_colors).pack(side="left", padx=4)
+        analysis_controls = ttk.Frame(root, padding=(8, 0, 8, 8))
+        analysis_controls.pack(fill="x")
+        ttk.Button(analysis_controls, text="Abort analysis",
+                   command=self.abort_clue_analysis).pack(side="left", padx=4)
+        self.analysis_button = ttk.Button(analysis_controls, text="Analyze selected clue",
+                                          command=self.analyze_selected_clue)
+        self.analysis_button.pack(side="left", padx=4)
+        ttk.Button(analysis_controls, text='Analyze selected clue (greedy)',
+                   command=self.analyze_selected_clue_greedy).pack(side='left', padx=4)
+        ttk.Button(analysis_controls, text="Factorization", command=self.show_factorizations).pack(side="left", padx=4)
+        local_controls = ttk.Frame(root, padding=(8, 0, 8, 6))
+        local_controls.pack(fill='x')
+        ttk.Button(local_controls, text='Scan local conditionals (3 cells)',
+                   command=self.scan_local_conditionals).pack(side='left', padx=4)
+        ttk.Button(local_controls, text='Wipe local conditionals',
+                   command=self.wipe_local_conditionals).pack(side='left', padx=4)
+        self.analyze_all_button = ttk.Button(local_controls, text='Analyze all clues (dynamic order)',
+                                             command=self.analyze_all_dynamic)
+        self.analyze_all_button.pack(side='left', padx=4)
+        self.analyze_set_button = ttk.Button(local_controls, text='Analyze all clues (set order)',
+                                             command=self.analyze_all_set)
+        self.analyze_set_button.pack(side='left', padx=4)
+        options = self.state.get("analysis_options", {})
+        self.simplify_arcs = tk.BooleanVar(value=options.get("simplify_arcs", True))
+        self.prioritize_cells = tk.BooleanVar(value=options.get("prioritize_cells", True))
+        self.check_other_clues = tk.BooleanVar(value=options.get("check_other_clues", True))
+        ttk.Checkbutton(analysis_controls, text="Simplify arcs", variable=self.simplify_arcs,
+                        command=self.save).pack(side="left", padx=8)
+        ttk.Checkbutton(analysis_controls, text="Prioritize cells", variable=self.prioritize_cells,
+                        command=self.save).pack(side="left", padx=8)
+        ttk.Checkbutton(analysis_controls, text="Check other clues", variable=self.check_other_clues,
+                        command=self.save).pack(side="left", padx=8)
+        analysis_details = ttk.Frame(root, padding=(8, 0, 8, 8))
+        analysis_details.pack(fill="x")
+        self.domain_text = tk.StringVar(value="Select a cell to view allowed arc configurations.")
+        self.implication_text = tk.StringVar()
+        ttk.Label(analysis_details, textvariable=self.domain_text).pack(side="left", padx=8)
+        self.search_time_text = tk.StringVar(value="Search time: —")
+        ttk.Label(analysis_details, textvariable=self.search_time_text).pack(side="right", padx=12)
+        self.batch_time_text = tk.StringVar(value='Total analysis time: —')
+        ttk.Label(analysis_details, textvariable=self.batch_time_text).pack(side='right', padx=8)
+        preview_controls = ttk.Frame(root, padding=(8, 0, 8, 8))
+        self.preview_controls = preview_controls
+        self.map_controls = ttk.Frame(root, padding=(8, 0, 8, 8))
+        ttk.Label(self.map_controls, text="Allowed in selected cell:").pack(side="left", padx=4)
+        self.map_options = {}
+        for orientation, label in zip(ARC_CYCLE, ('No arc', 'Top-left', 'Top-right', 'Bottom-right', 'Bottom-left')):
+            variable = tk.BooleanVar()
+            button = ttk.Checkbutton(self.map_controls, text=label, variable=variable,
+                                      command=lambda arc=orientation: self.toggle_domain(arc))
+            button.pack(side="left", padx=4)
+            self.map_options[orientation] = (variable, button)
+        preview_controls.pack(fill="x")
+        ttk.Label(preview_controls, text="Accepted state:").pack(side="left", padx=4)
+        self.previous_state_button = ttk.Button(preview_controls, text="Previous",
+                                               command=lambda: self.set_preview(self.preview_index - 1))
+        self.previous_state_button.pack(side="left", padx=4)
+        self.preview_choice = ttk.Combobox(preview_controls, state="readonly", width=28)
+        self.preview_choice.pack(side="left", padx=4)
+        self.preview_choice.bind("<<ComboboxSelected>>",
+                                 lambda event: self.set_preview(self.preview_choice.current()))
+        self.next_state_button = ttk.Button(preview_controls, text="Next",
+                                           command=lambda: self.set_preview(self.preview_index + 1))
+        self.next_state_button.pack(side="left", padx=4)
+        ttk.Label(preview_controls, text="Blue arcs are speculative; State 0 shows confirmed arcs.").pack(side="left", padx=8)
+        self.factorization_text = tk.StringVar()
+        self.factorization_selection = None
+        ttk.Label(root, textvariable=self.factorization_text, wraplength=800,
+                  padding=(12, 0, 12, 4)).pack(fill="x")
+        ttk.Label(root, text="Green: click to toggle • Digits: select a cell and type • "
+                  "Arcs: click to cycle through four curves, then no arc\n"
+                  "Backspace edits a clue • Delete clears the current mode’s mark • "
+                  "Right-click removes a mark • Ctrl+Z / Ctrl+Y undo / redo",
+                  padding=(12, 0, 12, 8)).pack(fill="x")
+        body = ttk.Frame(root)
+        body.pack(fill="both", expand=True)
+        conditional_panel = ttk.Frame(body, width=260, padding=12)
+        conditional_panel.pack(side="right", fill="y")
+        conditional_panel.pack_propagate(False)
+        ttk.Label(conditional_panel, text="Local conditionals").pack(anchor="w", pady=(0, 8))
+        conditional_view = tk.Text(conditional_panel, wrap="word", width=28,
+                                   state="disabled", relief="flat", background="#e9edf1")
+        conditional_scroll = ttk.Scrollbar(conditional_panel, command=conditional_view.yview)
+        conditional_scroll.pack(side="right", fill="y")
+        conditional_view.configure(yscrollcommand=conditional_scroll.set)
+        conditional_view.pack(fill="both", expand=True)
+        def update_conditionals(*args):
+            conditional_view.configure(state="normal")
+            conditional_view.delete("1.0", "end")
+            conditional_view.insert("1.0", self.implication_text.get())
+            conditional_view.configure(state="disabled")
+            conditional_view.yview_moveto(0)
+        self.implication_text.trace_add("write", update_conditionals)
+        frame = ttk.Frame(body)
+        frame.pack(side="left", fill="both", expand=True)
+        self.canvas = tk.Canvas(frame, background="#e9edf1", highlightthickness=0, takefocus=True)
+        vertical = ttk.Scrollbar(frame, orient="vertical", command=self.canvas.yview)
+        horizontal = ttk.Scrollbar(frame, orient="horizontal", command=self.canvas.xview)
+        self.canvas.configure(yscrollcommand=vertical.set, xscrollcommand=horizontal.set)
+        frame.rowconfigure(0, weight=1)
+        frame.columnconfigure(0, weight=1)
+        self.canvas.grid(row=0, column=0, sticky="nsew")
+        vertical.grid(row=0, column=1, sticky="ns")
+        horizontal.grid(row=1, column=0, sticky="ew")
+        ttk.Label(root, textvariable=self.status, padding=8).pack(fill="x")
+        self.canvas.bind("<Configure>", lambda event: self.draw())
+        self.canvas.bind("<Button-1>", self.click)
+        self.canvas.bind("<Button-3>", lambda event: self.click(event, erase=True))
+        self.canvas.bind("<Key>", self.key)
+        root.bind("<Control-z>", lambda event: self.undo())
+        root.bind("<Control-y>", lambda event: self.redo())
+        root.bind("<Control-Shift-Z>", lambda event: self.redo())
+        root.bind("<Control-s>", lambda event: self.save())
+        for number, mode in enumerate(("select", "green", "digit", "arc", "map")):
+            root.bind(f"<Control-Key-{number}>",
+                      lambda event, chosen=mode: self.set_mode(chosen))
+        root.bind("<Escape>", self.clear_selection)
+        root.protocol("WM_DELETE_WINDOW", self.close)
+        self.draw()
+        self.status.set(f"Autosave: {self.path}")
+        if load_error:
+            messagebox.showwarning("Could not load saved puzzle",
+                                   f"{load_error}\nThe saved file has not been overwritten.")
+
+    def mode_changed(self):
+        self.fresh_entry = True
+        self.canvas.focus_set()
+        self.draw()
+
+    def toggle_domain(self, orientation):
+        if self.selected is None:
+            return
+        r, c = self.selected
+        cell = self.state['cells'][r][c]
+        if cell['green'] or cell['arc'] is not None:
+            self.status.set('Green cells and drawn arcs are fixed. Clear the marking before editing possibilities.')
+            self.draw()
+            return
+        previous = copy.deepcopy(self.state)
+        domains = self.state.setdefault('arc_domains',
+            [[list(ARC_CYCLE) for _ in range(self.state['columns'])] for _ in range(self.state['rows'])])
+        allowed = domains[r][c]
+        if orientation in allowed:
+            if len(allowed) == 1:
+                self.state = previous
+                self.status.set('Keep at least one possible configuration in each cell.')
+                self.draw()
+                return
+            allowed.remove(orientation)
+        else:
+            allowed.append(orientation)
+        domains[r][c] = [arc for arc in ARC_CYCLE if arc in allowed]
+        from functions.arc_constraints import propagate_arc_domains
+        if propagate_arc_domains(self.state) is None:
+            self.state = previous
+            self.status.set('This edit conflicts with a recorded conditional deduction.')
+            self.draw()
+            return
+        self.commit(previous, preserve_domains=True)
+
+    def set_mode(self, mode):
+        if mode != "select" and self.mode.get() == mode:
+            mode = "select"
+        self.mode.set(mode)
+        self.mode_changed()
+        return "break"
+
+    def clear_selection(self, event=None):
+        self.selected = None
+        self.fresh_entry = True
+        self.draw()
+        return "break"
+
+    def commit(self, previous, preserve_domains=False):
+        if previous == self.state:
+            return
+        if preserve_domains and self.state.get('arc_implications'):
+            from functions.arc_constraints import apply_arc_deductions
+            try:
+                apply_arc_deductions(self.state)
+            except ValueError as exc:
+                self.state = previous
+                self.status.set(str(exc))
+                self.draw()
+                return
+        if not preserve_domains:
+            # Clue/green edits change the puzzle; arc placements retain deductions.
+            self.state.pop("arc_domains", None)
+            self.state.pop('arc_implications', None)
+            self.state.pop('saved_analyses', None)
+        else:
+            prune_saved_states(self.state)
+        self.cancel_clue_analysis()
+        self.analysis_result = None
+        self.preview_index = 0
+        if getattr(self, 'selected', None) is not None:
+            self.load_saved_clue(self.selected)
+        self.undo_stack.append(previous)
+        self.redo_stack.clear()
+        self.smooth_colors = None
+        self.region_colors = None
+        self.area_labels = None
+        self.draw()
+        self.save()
+
+    def wipe_local_conditionals(self):
+        previous = copy.deepcopy(self.state)
+        self.state.pop('arc_implications', None)
+        self.commit(previous, preserve_domains=True)
+        self.status.set('Local conditionals cleared. Arcs and excluded configurations preserved.')
+
+    def reset_arcs(self):
+        previous = copy.deepcopy(self.state)
+        self.state.pop("arc_domains", None)
+        self.state.pop('arc_implications', None)
+        for row in self.state["cells"]:
+            for cell in row:
+                cell["arc"] = None
+        self.commit(previous)
+
+    def print_state(self):
+        self.save_named_state(picture=True)
+
+    def render_current_state(self):
+        display, speculative = self.preview_grid()
+        previewing = getattr(self, 'preview_index', 0) > 0
+        map_mode = self.mode.get() == 'map'
+        if map_mode:
+            display = {**self.state, 'cells': [[{**cell, 'arc': None} for cell in row]
+                                               for row in self.state['cells']]}
+        return render_grid(display, 80, speculative if previewing else self.smooth_colors,
+                None if previewing or map_mode else self.region_colors, map_mode=map_mode,
+                active_clue=getattr(self, 'active_clue', None) if self.analysis_cancel is not None else None,
+                include_labels=True, area_labels=None if previewing or map_mode else self.area_labels)
+
+    def named_snapshot(self):
+        state = copy.deepcopy(self.state)
+        state['analysis_options'] = {'simplify_arcs': self.simplify_arcs.get(),
+            'prioritize_cells': self.prioritize_cells.get(), 'check_other_clues': self.check_other_clues.get()}
+        result = self.analysis_result
+        return {'puzzle_name': self.puzzle_name, 'state': state,
+            'undo': copy.deepcopy(self.undo_stack), 'redo': copy.deepcopy(self.redo_stack),
+            'view': {'selected': self.selected, 'mode': self.mode.get(), 'preview_index': self.preview_index,
+                'accepted_states': result.accepted_states if result is not None else [],
+                'source_clue': result.source_clue if result is not None else None,
+                'smooth_colors': [[list(key), color] for key, color in (self.smooth_colors or {}).items()],
+                'region_colors': [[list(key), color] for key, color in (self.region_colors or {}).items()],
+                'area_labels': self.area_labels, 'search_time': self.analysis_elapsed_seconds,
+                'total_time': getattr(self, 'batch_elapsed_seconds', None)}}
+
+    def save_named_state(self, picture=False):
+        if self.analysis_cancel is not None or getattr(self, 'batch_token', None) is not None:
+            self.status.set('Wait for analysis to finish before saving a state.')
+            return
+        title = 'Print state' if picture else 'Save state'
+        name = simpledialog.askstring(title, 'Name for this picture and state:' if picture else 'Name for this saved state:',
+            parent=self.root, initialvalue=datetime.now().strftime('%Y-%m-%d_%H-%M-%S'))
+        if name is None:
+            return
+        try:
+            name = grid_name(name.strip())
+            folder = SAVED_STATES_DIRECTORY / self.puzzle_name
+            path = folder / f'{name}.json'
+            picture_path = Path(__file__).parent / f'{name}.png'
+            if (path.exists() or picture and picture_path.exists()) and not messagebox.askyesno(
+                    title, f"Replace existing files named '{name}'?", parent=self.root):
+                return
+            snapshot = self.named_snapshot()
+            folder.mkdir(parents=True, exist_ok=True)
+            if picture:
+                temporary_picture = picture_path.with_suffix('.png.tmp')
+                self.render_current_state().save(temporary_picture, format='PNG')
+                os.replace(temporary_picture, picture_path)
+            temporary = path.with_suffix('.json.tmp')
+            temporary.write_text(json.dumps(snapshot, indent=2) + '\n', encoding='utf-8')
+            os.replace(temporary, path)
+            self.status.set(f'Saved state — {path}' + (f'; PNG — {picture_path}' if picture else ''))
+        except (OSError, ValueError, argparse.ArgumentTypeError) as exc:
+            self.status.set(f'Could not save state: {exc}')
+
+    def choose_saved_state(self):
+        if self.analysis_cancel is not None or getattr(self, 'batch_token', None) is not None:
+            self.status.set('Wait for analysis to finish before loading a state.')
+            return
+        paths = sorted((SAVED_STATES_DIRECTORY / self.puzzle_name).glob('*.json'))
+        if not paths:
+            self.status.set('No saved states for this grid yet.')
+            return
+        dialog = tk.Toplevel(self.root)
+        dialog.title('Load state')
+        dialog.transient(self.root)
+        dialog.grab_set()
+        ttk.Label(dialog, text='Saved state:').pack(anchor='w', padx=16, pady=(16, 4))
+        selection = ttk.Combobox(dialog, state='readonly', values=[path.stem for path in paths], width=40)
+        selection.pack(padx=16, pady=4)
+        selection.current(0)
+        def load():
+            if self.load_named_state(paths[selection.current()]):
+                dialog.destroy()
+        ttk.Button(dialog, text='Load', command=load).pack(padx=16, pady=16)
+
+    def load_named_state(self, path):
+        if self.analysis_cancel is not None or getattr(self, 'batch_token', None) is not None:
+            self.status.set('Wait for analysis to finish before loading a state.')
+            return False
+        try:
+            snapshot = json.loads(Path(path).read_text(encoding='utf-8'))
+            state = validate_state(snapshot['state'])
+            if snapshot['puzzle_name'] != self.puzzle_name or (state['rows'], state['columns']) != (self.state['rows'], self.state['columns']):
+                raise ValueError('Saved state belongs to a different puzzle or grid size.')
+            undo = [validate_state(item) for item in snapshot['undo']]
+            redo = [validate_state(item) for item in snapshot['redo']]
+            view = snapshot['view']
+            selected = tuple(view['selected']) if view['selected'] is not None else None
+            if selected is not None and (len(selected) != 2 or any(type(v) is not int for v in selected)
+                    or not (0 <= selected[0] < state['rows'] and 0 <= selected[1] < state['columns'])):
+                raise ValueError('Invalid saved selection.')
+            if view['mode'] not in ('select', 'green', 'digit', 'arc', 'map'):
+                raise ValueError('Invalid saved mode.')
+            accepted = [tuple(tuple(placement) for placement in values) for values in view['accepted_states']]
+            for values in accepted:
+                for r, c, arc in values:
+                    if not (0 <= r < state['rows'] and 0 <= c < state['columns']) or arc not in ARC_CYCLE:
+                        raise ValueError('Invalid saved preview.')
+            smooth = {tuple(key): color for key, color in view['smooth_colors']} or None
+            colors = {tuple(key): color for key, color in view['region_colors']} or None
+            areas = [(tuple(position), label) for position, label in view['area_labels']] if view['area_labels'] is not None else None
+            from functions.clue_analysis import ClueAnalysis
+            result = ClueAnalysis(accepted_states=accepted,
+                source_clue=tuple(view['source_clue']) if view['source_clue'] is not None else None) if accepted else None
+            index = int(view['preview_index'])
+            if not 0 <= index <= len(accepted):
+                raise ValueError('Invalid saved preview index.')
+        except (OSError, ValueError, KeyError, TypeError, IndexError) as exc:
+            self.status.set(f'Could not load state: {exc}')
+            return False
+        self.state, self.undo_stack, self.redo_stack = state, undo, redo
+        self.selected, self.analysis_result, self.preview_index = selected, result, index
+        self.mode.set(view['mode'])
+        self.smooth_colors, self.region_colors, self.area_labels = smooth, colors, areas
+        self.factorization_selection = None
+        self.fresh_entry = True
+        options = state.get('analysis_options', {})
+        for key in ('simplify_arcs', 'prioritize_cells', 'check_other_clues'):
+            getattr(self, key).set(options.get(key, True))
+        if view['search_time'] is not None:
+            self.update_analysis_time(view['search_time'])
+        if view['total_time'] is not None:
+            self.update_batch_time(view['total_time'])
+        self.draw()
+        self.save()
+        self.status.set(f'Loaded state — {Path(path).stem}')
+        return True
+
+    def save(self):
+        if hasattr(self, "simplify_arcs"):
+            self.state["analysis_options"] = {"simplify_arcs": self.simplify_arcs.get(),
+                                               "prioritize_cells": self.prioritize_cells.get(),
+                                               "check_other_clues": self.check_other_clues.get()}
+        temporary = self.path.with_name(self.path.name + ".tmp")
+        try:
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+            temporary.write_text(json.dumps(self.state, indent=2) + "\n", encoding="utf-8")
+            os.replace(temporary, self.path)
+            self.status.set(f"Saved automatically — {self.path.name}")
+            return True
+        except OSError as exc:
+            self.status.set(f"Save failed: {exc}")
+            return False
+
+    def close(self):
+        # Every edit is already saved; closing an untouched invalid file preserves it.
+        self.cancel_clue_analysis()
+        self.root.destroy()
+
+    def undo(self):
+        if self.undo_stack:
+            self.redo_stack.append(copy.deepcopy(self.state))
+            self.state = self.undo_stack.pop()
+            self.after_history()
+        return "break"
+
+    def redo(self):
+        if self.redo_stack:
+            self.undo_stack.append(copy.deepcopy(self.state))
+            self.state = self.redo_stack.pop()
+            self.after_history()
+        return "break"
+
+    def after_history(self):
+        self.cancel_clue_analysis()
+        self.analysis_result = None
+        self.preview_index = 0
+        self.smooth_colors = None
+        self.region_colors = None
+        self.area_labels = None
+        self.selected = None
+        self.fresh_entry = True
+        self.draw()
+        self.save()
+
+    def show_factorizations(self, update_status=True):
+        if self.selected is None:
+            self.status.set("Select a numbered clue cell first.")
+            return
+        r, c = self.selected
+        clue = self.state["cells"][r][c]["number"]
+        if clue is None:
+            self.status.set("The selected cell has no clue.")
+            return
+        pairs = clue_factorizations(self.state, self.selected)
+        self.factorization_selection = (self.selected, clue)
+        expressions = "  •  ".join(f"{area} × {pieces}" for area, pieces in pairs)
+        self.factorization_text.set(f"Clue {clue} — area × smooth perimeter pieces: " +
+                                    (expressions or "No positive integer factor pairs within the grid bounds."))
+        if update_status:
+            self.status.set("Factorizations satisfy arithmetic and grid bounds; geometric feasibility still requires analysis.")
+
+    def scan_local_conditionals(self):
+        from functions.local_conditionals import scan_local_conditionals
+        self.cancel_clue_analysis()
+        previous = copy.deepcopy(self.state)
+        started = perf_counter()
+        try:
+            scanned, counts = scan_local_conditionals(previous, max_distance=3)
+        except ValueError as exc:
+            self.status.set(f'Local scan: {exc}')
+            return False
+        self.state = scanned
+        self.commit(previous, preserve_domains=True)
+        self.draw()
+        self.status.set(f"Local scan: {counts['clues']} clues; {counts['pairs']} pairs checked; "
+                        f"{counts['implications']} conditional deductions recorded; "
+                        f"{counts['removed']} configurations removed in {perf_counter() - started:.2f} s; "
+                        f"{counts['cutoffs']} checks inconclusive.")
+        return True
+
+    def check_smooth_arcs(self):
+        self.preview_index = 0
+        groups, self.smooth_colors, conflicts = smooth_arc_groups(self.state)
+        self.draw()
+        message = f"{len(set(groups.values()))} smooth arc pieces across {len(groups)} arcs."
+        if conflicts:
+            message += (f" {len(conflicts)} sharp self-joins: a smooth chain returns to itself; "
+                        "its two ends cannot have different colors while keeping the chain one color.")
+        self.status.set(message)
+
+    def cancel_clue_analysis(self):
+        if not getattr(self, '_batch_applying', False):
+            self.stop_batch_analysis()
+        event = getattr(self, "analysis_cancel", None)
+        if event is not None:
+            event.set()
+            self.analysis_cancel = None
+            started = getattr(self, "analysis_started_at", None)
+            if started is not None:
+                self.update_analysis_time(perf_counter() - started, "cancelled")
+            self.analysis_started_at = None
+            self.reset_analysis_buttons()
+            if hasattr(self, 'canvas'):
+                self.draw()
+
+    def reset_analysis_buttons(self):
+        self.analysis_button.configure(text="Analyze selected clue")
+
+    def stop_batch_analysis(self):
+        if getattr(self, 'batch_token', None) is not None and getattr(self, 'batch_started_at', None) is not None:
+            self.update_batch_time(perf_counter() - self.batch_started_at)
+            self.batch_started_at = None
+        self.batch_token = None
+        self.batch_clues = []
+        if hasattr(self, 'analyze_all_button'):
+            self.analyze_all_button.configure(text='Analyze all clues (dynamic order)')
+        if hasattr(self, 'analyze_set_button'):
+            self.analyze_set_button.configure(text='Analyze all clues (set order)')
+
+    def analyze_all_dynamic(self):
+        if getattr(self, 'batch_token', None) is not None:
+            self.abort_clue_analysis()
+            return
+        dialog = AnalysisWeightsDialog(self.root, title='Dynamic analysis weights')
+        if dialog.result is not None:
+            self.analyze_all_clues(weights=dialog.result)
+
+    def analyze_all_set(self):
+        if getattr(self, 'batch_token', None) is not None:
+            self.abort_clue_analysis()
+            return
+        try:
+            fixed_clue_order(self.state, self.puzzle_name)
+        except ValueError as exc:
+            messagebox.showerror('Set order', str(exc), parent=self.root)
+            return
+        self.analyze_all_clues(order='set')
+
+    def batch_order(self):
+        return list(self.batch_set_order) if self.batch_order_mode == 'set' else ordered_clues(self.state, self.batch_weights)
+
+    def analyze_all_clues(self, order='dynamic', weights=DEFAULT_ANALYSIS_WEIGHTS):
+        if getattr(self, 'batch_token', None) is not None:
+            self.abort_clue_analysis()
+            return
+        self.cancel_clue_analysis()
+        self.batch_order_mode, self.batch_weights = order, weights
+        if order == 'set':
+            self.batch_set_order = fixed_clue_order(self.state, self.puzzle_name)
+        started = perf_counter()
+        self.update_batch_time(0.0)
+        if not self.scan_local_conditionals():
+            self.update_batch_time(perf_counter() - started)
+            return
+        self.batch_clues = self.batch_order()
+        if not self.batch_clues:
+            self.update_batch_time(perf_counter() - started)
+            self.status.set('No clues to analyze.')
+            return
+        self.batch_token = object()
+        self.batch_started_at = started
+        self.batch_total = len(self.batch_clues)
+        self.batch_completed = 0
+        self.batch_pass = 1
+        self.batch_pass_arcs = {(r, c, cell['arc']) for r, row in enumerate(self.state['cells'])
+                                for c, cell in enumerate(row) if cell['arc'] is not None}
+        if hasattr(self, 'analyze_all_button'):
+            self.analyze_all_button.configure(text='Stop analyzing all clues')
+        if hasattr(self, 'analyze_set_button'):
+            self.analyze_set_button.configure(text='Stop analyzing all clues')
+        self.poll_batch_time(self.batch_token)
+        self.next_batch_clue(self.batch_token)
+
+    def update_batch_time(self, elapsed):
+        self.batch_elapsed_seconds = elapsed
+        if hasattr(self, 'batch_time_text'):
+            self.batch_time_text.set(f'Total analysis time: {elapsed:.2f} s')
+
+    def poll_batch_time(self, token):
+        if getattr(self, 'batch_token', None) is not token:
+            return
+        self.update_batch_time(perf_counter() - self.batch_started_at)
+        self.root.after(100, lambda: self.poll_batch_time(token))
+
+    def next_batch_clue(self, token):
+        if getattr(self, 'batch_token', None) is not token:
+            return
+        if not self.batch_clues:
+            if self.batch_order_mode == 'set':
+                self.update_batch_time(perf_counter() - self.batch_started_at)
+                print(f'Set-order pass {self.batch_pass} complete: '
+                      f'{self.batch_elapsed_seconds:.2f} seconds total', flush=True)
+            regions = set(determine_regions(self.state)[0].values())
+            complete = all(region.verify(self.state) for region in regions)
+            arcs = {(r, c, cell['arc']) for r, row in enumerate(self.state['cells'])
+                    for c, cell in enumerate(row) if cell['arc'] is not None}
+            if complete or not arcs - self.batch_pass_arcs:
+                passes = self.batch_pass
+                self.stop_batch_analysis()
+                outcome = 'Puzzle verified complete.' if complete else 'No new arcs placed in the last pass.'
+                if self.batch_order_mode == 'set':
+                    print(f'Set-order analysis finished after {passes} passes: '
+                          f'{self.batch_elapsed_seconds:.2f} seconds total. {outcome}', flush=True)
+                self.status.set(f'Finished after {passes} passes. {outcome}')
+                return
+            self.batch_pass += 1
+            self.batch_pass_arcs = arcs
+            self.batch_clues = self.batch_order()
+            self.batch_completed = 0
+        if self.batch_order_mode == 'dynamic':
+            remaining = set(self.batch_clues)
+            self.batch_clues = [cell for cell in self.batch_order() if cell in remaining]
+        self.selected = self.batch_clues.pop(0)
+        self.load_saved_clue(self.selected)
+        self.analyze_selected_clue()
+
+    def batch_clue_finished(self):
+        token = getattr(self, 'batch_token', None)
+        if token is not None:
+            self.batch_completed += 1
+            self.root.after(0, lambda: self.next_batch_clue(token))
+
+    def update_analysis_time(self, elapsed, outcome=""):
+        self.analysis_elapsed_seconds = elapsed
+        suffix = f" ({outcome})" if outcome else ""
+        if hasattr(self, "search_time_text"):
+            self.search_time_text.set(f"Search time: {elapsed:.2f} s{suffix}")
+
+    def abort_clue_analysis(self):
+        if self.analysis_cancel is not None or getattr(self, 'batch_token', None) is not None:
+            self.cancel_clue_analysis()
+            self.status.set(f"Clue analysis aborted after {self.analysis_elapsed_seconds or 0:.2f} s. Completed deductions preserved.")
+
+    def analyze_selected_clue_greedy(self):
+        self.analyze_selected_clue(greedy=True)
+
+    def analyze_selected_clue(self, greedy=False):
+        if self.analysis_cancel is not None:
+            self.cancel_clue_analysis()
+            self.status.set(f"Clue analysis cancelled after {self.analysis_elapsed_seconds or 0:.2f} s.")
+            return
+        if self.selected is None:
+            self.status.set("Select a clue cell first, then click Analyze selected clue.")
+            return
+        r, c = self.selected
+        clue = self.state["cells"][r][c]["number"]
+        if clue is None:
+            self.status.set("The selected cell has no clue. Select a numbered cell.")
+            return
+        from functions.incremental_analysis import analyze_clue_with_sanity as analyze_clue
+        if greedy:
+            from functions.greedy_analysis import analyze_clue_greedy as analyze_clue
+        from functions.clue_analysis import analysis_timing_summary
+        if hasattr(self, "factorization_text"):
+            self.show_factorizations(update_status=False)
+        snapshot, selected = copy.deepcopy(self.state), self.selected
+        simplify_nonclue = self.simplify_arcs.get()
+        prioritize_frontier = self.prioritize_cells.get()
+        check_other_clues = self.check_other_clues.get()
+        event = self.analysis_cancel = threading.Event()
+        self.active_clue = selected
+        self.analysis_started_at = perf_counter()
+        self.update_analysis_time(0.0, "running")
+        self.analysis_result = None
+        self.preview_index = 0
+        self.draw()
+        messages = Queue()
+        self.analysis_button.configure(text="Cancel analysis")
+        engine_label = 'Greedy clue' if greedy else 'Clue'
+        progress_counts = [0, 0]
+        sanity_status = [None]
+        self.status.set(f"Analyzing clue {clue} at ({r + 1}, {c + 1})…")
+        if getattr(self, 'batch_token', None) is not None:
+            self.status.set(f'Pass {self.batch_pass}: analyzing clue {self.batch_completed + 1}/{self.batch_total}: '
+                            f'{clue} at ({r + 1}, {c + 1})…')
+
+        def worker():
+            started = perf_counter()
+            print(f'Starting analysis of clue {clue} at r{selected[0] + 1}c{selected[1] + 1}', flush=True)
+            try:
+                result = analyze_clue(snapshot, selected, stop_event=event,
+                                      timer=perf_counter, started_at=started,
+                                      sanity_progress=lambda text: messages.put(('sanity', text)),
+                                      simplify_nonclue=simplify_nonclue,
+                                      prioritize_frontier=prioritize_frontier,
+                                      check_other_clues=check_other_clues,
+                                      progress=lambda visited, accepted: messages.put(("progress", (visited, accepted))))
+                if result.sanity_pruned:
+                    print(f'Sanity checks rejected {result.sanity_pruned} accepted states '
+                          f'for clue {clue} at r{selected[0] + 1}c{selected[1] + 1}.', flush=True)
+                outcome = ' (aborted)' if result.cancelled else ' (stopped early)' if result.limit_reached or result.worklist_limit_reached else ''
+                print(f'Clue {clue} at r{selected[0] + 1}c{selected[1] + 1}: '
+                      f'{result.elapsed_seconds:.2f} seconds{outcome}; '
+                      f'{analysis_timing_summary(result)}', flush=True)
+                messages.put(("done", result))
+            except Exception as exc:
+                elapsed = perf_counter() - started
+                print(f'Clue {clue} at r{selected[0] + 1}c{selected[1] + 1}: '
+                      f'{elapsed:.2f} seconds (failed: {exc})', flush=True)
+                messages.put(("error", (str(exc), elapsed)))
+
+        def poll():
+            if self.analysis_cancel is not event:
+                return
+            self.update_analysis_time(perf_counter() - self.analysis_started_at, "running")
+            try:
+                while True:
+                    kind, value = messages.get_nowait()
+                    if kind == "progress":
+                        visited, accepted = value
+                        progress_counts[:] = [visited, accepted]
+                    elif kind == 'sanity':
+                        sanity_status[0] = value
+                        self.status.set(value)
+                    else:
+                        self.analysis_cancel = None
+                        self.analysis_started_at = None
+                        self.reset_analysis_buttons()
+                        self.draw()
+                        elapsed = value[1] if kind == "error" else value.elapsed_seconds
+                        self.update_analysis_time(elapsed, "failed" if kind == "error" else "")
+                        if kind == "error":
+                            self.stop_batch_analysis()
+                            self.status.set(f"Clue analysis failed after {elapsed:.2f} s: {value[0]}")
+                        else:
+                            suffix = " Stopped early: more than 25 accepted states." if value.limit_reached else " Search complete."
+                            if value.heuristic:
+                                suffix += ' Greedy previews only; master domains and confirmed arcs are unchanged.'
+                            from functions.clue_analysis import incorporate_analysis
+                            previous = copy.deepcopy(self.state)
+                            updated = copy.deepcopy(self.state)
+                            try:
+                                changes = incorporate_analysis(updated, value)
+                                save_accepted_states(updated, selected, value)
+                            except ValueError as exc:
+                                self.stop_batch_analysis()
+                                self.analysis_result = value
+                                self.preview_index = 0
+                                self.draw()
+                                self.status.set(f'Clue {clue}: {len(value.accepted_states)} accepted states; '
+                                                f'could not apply deductions: {exc}')
+                                return
+                            self.state = updated
+                            self._batch_applying = True
+                            try:
+                                self.commit(previous, preserve_domains=True)
+                            finally:
+                                self._batch_applying = False
+                            self.analysis_result = value
+                            self.preview_index = 0
+                            self.draw()
+                            if changes["removed"]:
+                                suffix += f" Removed {changes['removed']} configurations from the master list."
+                            if changes.get('implications'):
+                                suffix += f" Recorded {changes['implications']} conditional deductions."
+                            if changes["applied"]:
+                                suffix += " Applied the unique accepted state."
+                            elif changes.get("forced"):
+                                suffix += f" Applied {changes['forced']} forced cell configurations."
+                            if value.factorization_pruned:
+                                suffix += f" Factorization bounds rejected {value.factorization_pruned} branches."
+                            if value.sanity_checks:
+                                suffix += (f' Sanity checks: {value.sanity_checks}; '
+                                           f'{value.sanity_pruned} states rejected; '
+                                           f'{value.sanity_cutoffs} clue checks inconclusive at the branch limit.')
+                            if value.secondary_checks:
+                                suffix += (f" Other-clue checks: {value.secondary_checks}; "
+                                           f"{value.secondary_cache_hits} reused from cache; "
+                                           f"rejected {value.secondary_pruned} branches; "
+                                           f"{value.secondary_cutoffs} checks exceeded 25 pending worklist states.")
+                            if not value.accepted_states and not value.limit_reached and not value.cancelled:
+                                suffix += " No configuration satisfies this clue under the current constraints."
+                            self.status.set(f"{engine_label} {clue}: {len(value.accepted_states)} accepted states; "
+                                            f"{value.explored} branches checked in {elapsed:.2f} s.{suffix}")
+                            self.batch_clue_finished()
+                        return
+            except Empty:
+                if sanity_status[0] is not None:
+                    self.status.set(f'{sanity_status[0]}; {self.analysis_elapsed_seconds:.2f} s elapsed…')
+                    self.root.after(100, poll)
+                    return
+                visited, accepted = progress_counts
+                self.status.set(f"{engine_label} {clue}: {accepted} accepted states; {visited} branches checked; "
+                                f"{self.analysis_elapsed_seconds:.2f} s elapsed…")
+                self.root.after(100, poll)
+
+        threading.Thread(target=worker, daemon=True).start()
+        self.root.after(100, poll)
+
+    def load_saved_clue(self, selected):
+        self.preview_index = 0
+        self.analysis_result = None
+        entry = self.state.get('saved_analyses', {}).get(f'{selected[0]},{selected[1]}')
+        if entry is None:
+            return False
+        from functions.clue_analysis import ClueAnalysis
+        self.analysis_result = ClueAnalysis(
+            accepted_states=[tuple(tuple(placement) for placement in accepted) for accepted in entry['states']],
+            source_clue=selected)
+        return True
+
+    def update_preview_controls(self):
+        if not hasattr(self, "preview_choice"):
+            return
+        result = self.analysis_result
+        count = len(result.accepted_states) if result is not None else 0
+        self.preview_index = max(0, min(self.preview_index, count))
+        self.preview_choice.configure(values=["State 0 — confirmed grid"] +
+                                      [f"State {i} — preview" for i in range(1, count + 1)])
+        self.preview_choice.current(self.preview_index)
+        self.previous_state_button.configure(state="normal" if self.preview_index > 0 else "disabled")
+        self.next_state_button.configure(state="normal" if self.preview_index < count else "disabled")
+
+    def set_preview(self, index):
+        result = self.analysis_result
+        count = len(result.accepted_states) if result is not None else 0
+        self.preview_index = max(0, min(index, count))
+        self.draw()
+
+    def preview_grid(self):
+        """Build a display-only state; never mutate saved cells or domains."""
+        result = self.analysis_result
+        index = getattr(self, "preview_index", 0)
+        if result is None or index == 0 or index > len(result.accepted_states):
+            return self.state, {}
+        display = copy.deepcopy(self.state)
+        speculative = {}
+        for r, c, orientation in result.accepted_states[index - 1]:
+            if orientation != self.state["cells"][r][c]["arc"]:
+                speculative[(r, c)] = "#1769aa"
+            display["cells"][r][c]["arc"] = orientation
+        return display, speculative
+
+    def check_regions(self):
+        self.preview_index = 0
+        regions, self.region_colors, invalid_arcs = determine_regions(self.state)
+        self.region_colors = {fragment: color for fragment, color in self.region_colors.items()
+                              if regions[fragment].has_valid_arc_separation()}
+        self.area_labels = None
+        unique_regions = set(regions.values())
+        self.draw()
+        count = len(unique_regions)
+        if invalid_arcs:
+            cells = ", ".join(f"({r + 1}, {c + 1})" for r, c in invalid_arcs)
+            self.status.set(f"{count} regions — INVALID: both sides of an arc reconnect in cells (row, column): {cells}.")
+        else:
+            self.status.set(f"{count} regions — every arc separates distinct regions. "
+                            f"{sum(region.determine_validity() for region in unique_regions)}/{count} regions are valid (integer area).")
+
+    def verify_regions(self):
+        self.preview_index = 0
+        regions, _, _ = determine_regions(self.state)
+        validity = {region: region.verify(self.state) for region in set(regions.values())}
+        self.region_colors = {fragment: '#a8dfac' if validity[region] else '#c4c4c4'
+                              for fragment, region in regions.items()}
+        self.smooth_colors = None
+        self.area_labels = None
+        self.draw()
+        self.status.set(f"Verified regions: {sum(validity.values())} valid (green); "
+                        f"{sum(not valid for valid in validity.values())} invalid (grey).")
+
+    def compute_region_areas(self):
+        self.preview_index = 0
+        regions, self.region_colors, invalid_arcs = determine_regions(self.state)
+        self.region_colors = {fragment: color for fragment, color in self.region_colors.items()
+                              if regions[fragment].has_valid_arc_separation()}
+        unique_regions = set(regions.values())
+        self.area_labels = [(position, str(region.area))
+                            for region, position in region_area_positions(self.state, regions).items()
+                            if region.has_valid_arc_separation()]
+        self.draw()
+        self.status.set(f"Areas computed for {len(unique_regions)} regions; "
+                        f"{sum(region.is_integer for region in unique_regions)} have integer area. "
+                        f"{len(invalid_arcs)} arcs have both sides in one region. Blue labels show areas.")
+
+    def clear_arc_colors(self):
+        self.preview_index = 0
+        self.smooth_colors = None
+        self.region_colors = None
+        self.area_labels = None
+        self.draw()
+        self.status.set("Analysis colors cleared.")
+
+    def compute_answer_key(self):
+        try:
+            key = compute_answer_key(self.state)
+        except ValueError as exc:
+            self.status.set(str(exc))
+            return
+        self.preview_index = 0
+        self.mode.set('select')
+        self.area_labels = [((r, c, .5, .5, .8), str(value))
+                            for r, row in enumerate(key['values']) for c, value in enumerate(row)
+                            if self.state['cells'][r][c]['number'] is None]
+        self.draw()
+        message = (f'Answer: {key["answer"]} — row sums: {", ".join(map(str, key["row_sums"]))}; '
+                   f'column sums: {", ".join(map(str, key["column_sums"]))}.')
+        self.status.set(message)
+        print(message, flush=True)
+
+    def compute_region_scores(self):
+        self.preview_index = 0
+        regions, self.region_colors, _ = determine_regions(self.state)
+        unique_regions = set(regions.values())
+        for region in unique_regions:
+            region.determine_score(self.state)
+        self.area_labels = [(position, f"S: {region.score}" if region.score is not None else "Invalid")
+                            for region, position in region_area_positions(self.state, regions).items()]
+        self.draw()
+        self.status.set(f"Scores computed for {sum(region.score is not None for region in unique_regions)}"
+                        f"/{len(unique_regions)} regions. Score = area × smooth perimeter pieces.")
+
+    def draw(self):
+        self.update_preview_controls()
+        if hasattr(self, "factorization_text") and self.factorization_selection is not None:
+            selected, clue = self.factorization_selection
+            if self.selected != selected or self.state["cells"][selected[0]][selected[1]]["number"] != clue:
+                self.factorization_text.set("")
+                self.factorization_selection = None
+            else:
+                # Keep grid-bound candidates current after master-list changes.
+                self.show_factorizations(update_status=False)
+        self.canvas.delete("all")
+        rows, columns = self.state["rows"], self.state["columns"]
+        from functions.arc_constraints import propagate_arc_domains
+        effective_domains = propagate_arc_domains(self.state)
+        self.size = max(36, min(80, (self.canvas.winfo_width() - 32) / columns,
+                                (self.canvas.winfo_height() - 32) / rows))
+        size, margin = self.size, 16
+        self.canvas.configure(scrollregion=(0, 0, columns * size + 32, rows * size + 32))
+        display, speculative = self.preview_grid()
+        map_mode = self.mode.get() == 'map'
+        if map_mode:
+            display = {**self.state, 'cells': [[{**cell, 'arc': None} for cell in row]
+                                               for row in self.state['cells']]}
+        previewing = getattr(self, "preview_index", 0) > 0
+        arc_colors = speculative if previewing else self.smooth_colors
+        self.grid_image = ImageTk.PhotoImage(render_grid(display, size, arc_colors,
+                                                        None if previewing or map_mode else self.region_colors,
+                                                        map_mode=map_mode,
+                                                        active_clue=(getattr(self, 'active_clue', None)
+                                                                     if self.analysis_cancel is not None else None)),
+                                               master=self.canvas)
+        self.canvas.create_image(0, 0, image=self.grid_image, anchor="nw")
+        for r, row in enumerate(self.state["cells"]):
+            for c, cell in enumerate(row):
+                x, y = margin + c * size, margin + r * size
+                if cell["number"] is not None:
+                    self.canvas.create_text(x + size / 2, y + size * (.16 if map_mode else .5),
+                        text=str(cell["number"]), font=("Segoe UI", max(10, int(size * .24)), "bold"))
+                if map_mode:
+                    allowed = effective_domains[(r, c)] if effective_domains is not None else ()
+                    for arc, dx, dy in ((None, .5, .5), ('tl', .78, .27), ('tr', .22, .27),
+                                        ('br', .22, .76), ('bl', .78, .76)):
+                        cx, cy, radius = x + dx * size, y + dy * size, size * .12
+                        color = '#172b4d' if arc in allowed else '#c8c8c8'
+                        if arc is None:
+                            self.canvas.create_text(cx, cy, text='—', fill=color,
+                                                    font=('Segoe UI', max(9, int(size * .2)), 'bold'))
+                        else:
+                            start = {'tl': 0, 'tr': 90, 'br': 180, 'bl': 270}[arc]
+                            points = []
+                            for step in range(13):
+                                angle = math.radians(start + step * 7.5)
+                                points.extend((cx + radius * math.cos(angle), cy - radius * math.sin(angle)))
+                            self.canvas.create_line(*points, fill=color, width=2, smooth=True)
+                        if arc not in allowed:
+                            self.canvas.create_line(cx - radius, cy - radius, cx + radius, cy + radius,
+                                                    fill='#c84646', width=1)
+                if self.selected == (r, c):
+                    self.canvas.create_rectangle(x + 3, y + 3, x + size - 3, y + size - 3,
+                                                 outline="#e89520", width=3)
+        for (r, c, x, y, width), area in ([] if previewing or map_mode else self.area_labels or []):
+            self.canvas.create_text(margin + (c + x) * size, margin + (r + y) * size,
+                                    text=area, fill="#174377",
+                                    font=("Segoe UI", max(7, min(11, int(size * .14)))),
+                                    width=max(16, int(width * size)), justify="center")
+        self.undo_button.configure(state="normal" if self.undo_stack else "disabled")
+        self.redo_button.configure(state="normal" if self.redo_stack else "disabled")
+        if hasattr(self, 'map_controls'):
+            if map_mode:
+                self.map_controls.pack(fill='x', before=self.preview_controls)
+            else:
+                self.map_controls.pack_forget()
+            allowed = effective_domains[self.selected] if self.selected and effective_domains is not None else ()
+            for arc, (variable, button) in self.map_options.items():
+                variable.set(arc in allowed)
+                fixed = self.selected and (self.state['cells'][self.selected[0]][self.selected[1]]['green']
+                                            or self.state['cells'][self.selected[0]][self.selected[1]]['arc'] is not None)
+                button.configure(state='disabled' if self.selected is None or fixed else 'normal')
+        if hasattr(self, "domain_text"):
+            if self.selected is None:
+                self.domain_text.set("Select a cell to view allowed arc configurations.")
+            else:
+                r, c = self.selected
+                names = {None: "no arc", "tl": "top-left", "tr": "top-right",
+                         "br": "bottom-right", "bl": "bottom-left"}
+                allowed = effective_domains[(r, c)] if effective_domains is not None else ()
+                self.domain_text.set(f"({r + 1}, {c + 1}) allowed: " + ", ".join(names[o] for o in allowed))
+        if hasattr(self, 'implication_text'):
+            from functions.arc_constraints import describe_arc_implications
+            self.implication_text.set(describe_arc_implications(self.state, self.selected))
+
+    def click(self, event, erase=False):
+        mode = self.mode.get()
+        if mode == "select" and erase:
+            return
+        self.canvas.focus_set()
+        x, y = self.canvas.canvasx(event.x) - 16, self.canvas.canvasy(event.y) - 16
+        r, c = int(y // self.size), int(x // self.size)
+        if not (0 <= r < self.state["rows"] and 0 <= c < self.state["columns"]):
+            return
+        self.selected = (r, c)
+        self.fresh_entry = True
+        if not erase and self.state['cells'][r][c]['number'] is not None:
+            if self.load_saved_clue(self.selected):
+                self.draw()
+                return
+        if mode == 'map':
+            if erase:
+                dx, dy = (x % self.size) / self.size, (y % self.size) / self.size
+                orientation = (None if .33 <= dx <= .67 and .33 <= dy <= .67 else
+                               'tr' if dx < .5 and dy < .5 else 'tl' if dy < .5 else
+                               'br' if dx < .5 else 'bl')
+                self.toggle_domain(orientation)
+            self.draw()
+            return
+        previous = copy.deepcopy(self.state)
+        cell = self.state["cells"][r][c]
+        if mode == "green":
+            cell["green"] = False if erase else not cell["green"]
+            if cell["green"]:
+                cell["arc"] = None
+        elif mode == "digit":
+            if erase:
+                cell["number"] = None
+        elif mode == "arc" and erase:
+            cell["arc"] = None
+        elif mode == "arc" and not cell["green"]:
+            domains = self.state.get('arc_domains')
+            allowed = domains[r][c] if domains is not None else ARC_CYCLE
+            from functions.arc_constraints import propagate_arc_domains
+            effective = propagate_arc_domains(self.state)
+            if effective is not None:
+                # Test alternatives without the currently drawn arc pinning the
+                # source cell; retained master domains and implications still apply.
+                unmarked = {**self.state, 'cells': [list(row) for row in self.state['cells']]}
+                unmarked['cells'][r][c] = {**cell, 'arc': None}
+                effective = propagate_arc_domains(unmarked)
+                if effective is not None:
+                    allowed = effective[(r, c)]
+            # None clears the drawn mark; it does not add no-arc to the domain.
+            cycle = (None,) + tuple(arc for arc in ARC_CYCLE[1:] if arc in allowed)
+            index = cycle.index(cell['arc']) if cell['arc'] in cycle else 0
+            cell['arc'] = cycle[(index + 1) % len(cycle)]
+        self.commit(previous, preserve_domains=mode == 'arc')
+        self.draw()
+
+    def key(self, event):
+        if event.keysym == "Escape":
+            return self.clear_selection(event)
+        if self.selected is None or event.state & 4:
+            return
+        r, c = self.selected
+        if event.keysym in ("Left", "Right", "Up", "Down"):
+            dr, dc = {"Left": (0, -1), "Right": (0, 1), "Up": (-1, 0), "Down": (1, 0)}[event.keysym]
+            self.selected = (max(0, min(self.state["rows"] - 1, r + dr)),
+                             max(0, min(self.state["columns"] - 1, c + dc)))
+            self.fresh_entry = True
+            if self.state['cells'][self.selected[0]][self.selected[1]]['number'] is not None:
+                self.load_saved_clue(self.selected)
+            self.draw()
+            return "break"
+        if self.mode.get() in ('select', 'map'):
+            return "break"
+        previous = copy.deepcopy(self.state)
+        cell = self.state["cells"][r][c]
+        if event.keysym == "Delete":
+            cell[{"digit": "number", "arc": "arc", "green": "green"}[self.mode.get()]] = False if self.mode.get() == "green" else None
+            self.fresh_entry = True
+        elif self.mode.get() == "digit":
+            if event.keysym == "BackSpace":
+                text = str(cell["number"])[:-1] if cell["number"] is not None else ""
+                cell["number"] = int(text) if text else None
+                self.fresh_entry = False
+            elif event.char in "0123456789" and event.char:
+                prefix = "" if self.fresh_entry or cell["number"] is None else str(cell["number"])
+                cell["number"] = int(prefix + event.char)
+                self.fresh_entry = False
+        self.commit(previous, preserve_domains=self.mode.get() == 'arc')
+        return "break"
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("name", nargs="?", type=grid_name,
+                        help="Puzzle name; omit to open the name-and-size prompt")
+    parser.add_argument("--state", type=Path,
+                        help="JSON file to load and automatically save")
+    args = parser.parse_args()
+    if args.name and args.state:
+        parser.error("Use a puzzle name or --state, rather than both.")
+    root = tk.Tk()
+    root.withdraw()
+    try:
+        if args.state:
+            path = args.state.resolve()
+            if path.exists():
+                read_state(path)
+            choice = (path.stem, path)
+        elif args.name:
+            size = None
+            if not (DATA_DIRECTORY / f"{args.name}.json").exists():
+                value = simpledialog.askstring("New puzzle", f"Grid size for '{args.name}' (10 or 8x12):",
+                                               parent=root, initialvalue="10")
+                if value is None:
+                    root.destroy()
+                    return
+                size = parse_grid_size(value)
+            choice = (args.name, prepare_grid(args.name, size))
+        else:
+            choice = choose_grid(root)
+        if choice is None:
+            root.destroy()
+            return
+        name, path = choice
+        PuzzleEditor(root, path, name=name)
+        root.deiconify()
+        root.mainloop()
+    except (ValueError, OSError) as exc:
+        messagebox.showerror("Could not open puzzle", str(exc), parent=root)
+        root.destroy()
+
+
+if __name__ == "__main__":
+    main()
