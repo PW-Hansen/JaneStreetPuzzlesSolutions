@@ -1,0 +1,103 @@
+from pathlib import Path
+import tempfile
+import tkinter as tk
+import unittest
+from unittest.mock import patch
+
+from puzzle_gui import Launcher
+
+
+class GuiTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        path = Path(self.temp.name)
+        self.patches = [patch("functions.persistence.GRIDS_DIRECTORY", path / "grids"),
+                        patch("functions.persistence.SNAPSHOTS_DIRECTORY", path / "states")]
+        for item in self.patches:
+            item.start()
+        self.root = tk.Tk()
+        self.launcher = Launcher(self.root)
+        self.launcher.name.set("GUI test")
+        self.launcher.rows.set("4")
+        self.launcher.columns.set("6")
+        self.launcher.create()
+        self.gui = self.launcher.editor
+        self.root.update()
+        self.gui.canvas.focus_force()
+        self.root.update()
+
+    def tearDown(self):
+        self.gui.flush_save()
+        self.root.destroy()
+        for item in reversed(self.patches):
+            item.stop()
+        self.temp.cleanup()
+
+    def test_modes_mouse_keyboard_and_null_protection(self):
+        g = self.gui
+        g.canvas.event_generate("<Button-1>", x=30, y=30)
+        self.root.update()
+        self.assertEqual(g.session.selected, (0, 0))
+        g.canvas.event_generate("<Control-Key-1>")
+        g.canvas.event_generate("<KeyPress-2>")
+        g.canvas.event_generate("<KeyPress-7>")
+        self.root.update()
+        self.assertEqual(g.session.grid["scores"][0][0], 27)
+        g.change_mode("Visit number")
+        g.canvas.event_generate("<KeyPress-4>")
+        self.root.update()
+        self.assertEqual(g.session.grid["visits"][0][0], 4)
+        texts = [g.canvas.itemcget(i, "text") for i in g.canvas.find_all() if g.canvas.type(i) == "text"]
+        self.assertEqual(texts[:2], ["4", "27"])
+        g.change_mode("Visit number")
+        before = g.session.serialize()
+        g.canvas.event_generate("<KeyPress-Delete>")
+        g.canvas.event_generate("<KeyPress-8>")
+        g.canvas.event_generate("<Button-3>", x=30, y=30)
+        self.root.update()
+        self.assertEqual(g.session.grid, before["grid"])
+        g.canvas.event_generate("<KeyPress-Right>")
+        self.root.update()
+        self.assertEqual(g.session.selected, (0, 1))
+        g.canvas.event_generate("<KeyPress-Escape>")
+        self.root.update()
+        self.assertIsNone(g.session.selected)
+
+    def test_border_edits_and_undo(self):
+        g = self.gui
+        g.change_mode("Cell border drawing")
+        g.canvas.event_generate("<Button-1>", x=74, y=30)
+        self.root.update()
+        self.assertEqual(g.session.grid["borders"], [[0, 0, 0, 1]])
+        g.canvas.event_generate("<Control-Key-z>")
+        self.root.update()
+        self.assertFalse(g.session.grid["borders"])
+        g.canvas.event_generate("<Control-Key-y>")
+        self.root.update()
+        self.assertEqual(g.session.grid["borders"], [[0, 0, 0, 1]])
+        g.canvas.event_generate("<Button-3>", x=74, y=30)
+        self.root.update()
+        self.assertFalse(g.session.grid["borders"])
+
+    def test_invalid_value_status_and_snapshot_dialog(self):
+        g = self.gui
+        g.session.select((1, 2))
+        g.change_mode("Score")
+        g.value.set("2.5")
+        g.apply_value()
+        self.assertIsNone(g.session.grid["scores"][1][2])
+        self.assertIn("integer", g.message.get())
+        g.value.set("12")
+        g.apply_value()
+        with patch("puzzle_gui.simpledialog.askstring", return_value="checkpoint"):
+            g.save_state()
+        g.value.set("20")
+        g.apply_value()
+        g.load_state()
+        self.root.update()
+        dialog = next(widget for widget in g.winfo_children() if isinstance(widget, tk.Toplevel))
+        button = next(widget for widget in dialog.winfo_children() if widget.winfo_class() == "TButton")
+        button.invoke()
+        self.root.update()
+        self.assertEqual(g.session.grid["scores"][1][2], 12)
+        self.assertTrue(g.session.undo_stack)
