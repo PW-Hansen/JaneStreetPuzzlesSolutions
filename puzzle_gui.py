@@ -71,7 +71,9 @@ class PuzzleGUI(ttk.Frame):
                      "The first digit replaces the old value. Backspace removes a digit. "
                      "Delete or right-click clears that mode’s value. Signed integers are allowed.\n\n"
                      "Borders: click near a shared edge to toggle it. Right-click makes it thin. "
-                     "Typing, Backspace, and Delete do nothing in border mode.")
+                     "Typing, Backspace, and Delete do nothing in border mode.\n\n"
+                     "Tower: click to toggle a tower. Right-click or Delete removes it. "
+                     "Blue = tower; light green = available region; light grey = region already has a tower.")
         help_frame = ttk.Frame(inspector)
         help_frame.pack(fill="both", expand=True)
         help_widget = tk.Text(help_frame, width=30, height=12, wrap="word", font=("Segoe UI", 10))
@@ -122,6 +124,7 @@ class PuzzleGUI(ttk.Frame):
             r, c = selected
             score, visit = self.session.grid["scores"][r][c], self.session.grid["visits"][r][c]
             self.details.set(f"Mode: {self.session.mode}\nRow {r + 1}, column {c + 1}\nScore: {score if score is not None else '—'}\nVisit number: {visit if visit is not None else '—'}")
+            self.details.set(self.details.get() + f"\nTower: {'yes' if [r, c] in self.session.grid['towers'] else 'no'}")
             value = visit if self.session.mode == "Visit number" else score
             self.value.set("" if value is None else str(value))
         editable = selected is not None and self.session.mode in ("Score", "Visit number")
@@ -244,12 +247,22 @@ class PuzzleGUI(ttk.Frame):
         self.canvas.focus_set()
         x, y = self.canvas.canvasx(event.x), self.canvas.canvasy(event.y)
         if self.session.mode == "Cell border drawing":
-            self.changed(self.session.toggle_edge(edge_at(self.session.grid, x, y), clear=right))
+            try:
+                self.changed(self.session.toggle_edge(edge_at(self.session.grid, x, y), clear=right))
+            except ValueError as error:
+                self.message.set(str(error))
         else:
             cell = cell_at(self.session.grid, x, y)
             if cell is not None:
                 self.session.select(cell)
-                if right and self.session.mode != "Select":
+                if self.session.mode == "Tower":
+                    try:
+                        self.session.toggle_tower(clear=right)
+                    except ValueError as error:
+                        self.changed()
+                        self.message.set(str(error))
+                        return
+                elif right and self.session.mode != "Select":
                     self.session.set_value(None)
                 self.changed()
 
@@ -279,7 +292,10 @@ class PuzzleGUI(ttk.Frame):
             self.changed()
         else:
             key = event.keysym if event.keysym in ("BackSpace", "Delete") else event.char
-            self.changed(self.session.type_key(key))
+            if self.session.mode == "Tower" and key == "Delete":
+                self.changed(self.session.toggle_tower(clear=True))
+            else:
+                self.changed(self.session.type_key(key))
         return "break"
 
     def apply_value(self):

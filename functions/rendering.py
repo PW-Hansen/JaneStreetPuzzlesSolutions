@@ -2,6 +2,7 @@
 
 from functions.constants import CELL_SIZE, PADDING, THICK_WIDTH, PROJECT_ROOT
 from functions.state import edge_key, valid_name
+from functions.regions import tower_colors
 
 
 def dimensions(grid):
@@ -35,7 +36,11 @@ def primitives(session):
     """Yield rectangles, lines and text in drawing order."""
     grid = session.grid
     pad, size = PADDING, CELL_SIZE
-    if session.selected is not None:
+    if session.mode == "Tower":
+        for (r, c), color in tower_colors(grid).items():
+            x, y = pad + c * size, pad + r * size
+            yield "rectangle", (x, y, x + size, y + size), {"fill": color, "outline": ""}
+    if session.selected is not None and session.mode != "Tower":
         r, c = session.selected
         x, y = pad + c * size, pad + r * size
         yield "rectangle", (x + 2, y + 2, x + size - 2, y + size - 2), {"fill": "#fff3cd", "outline": ""}
@@ -49,6 +54,9 @@ def primitives(session):
             if corner is not None:
                 left = session.mode == "Visit number"
                 yield "text", (x + 7 if left else x + size - 7, y + 6), {"text": str(corner), "size": 11, "anchor": "nw" if left else "ne"}
+    for r, c in grid.get("towers", []):
+        x, y = pad + c * size, pad + r * size
+        yield "line", (x + 18, y + 8, x + size - 18, y + 8), {"fill": "black", "width": 2}
     borders = {tuple(edge) for edge in grid["borders"]}
     for r in range(grid["rows"]):
         for c in range(grid["columns"]):

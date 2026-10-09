@@ -4,6 +4,7 @@ from copy import deepcopy
 import re
 
 from functions.constants import MODES
+from functions.regions import region_map, check_tower_regions
 
 
 def valid_name(name):
@@ -23,7 +24,7 @@ def new_grid(name, rows, columns):
         raise ValueError("Rows and columns must be positive integers.")
     return {"name": name, "rows": rows, "columns": columns,
             "scores": [[None] * columns for _ in range(rows)],
-            "visits": [[None] * columns for _ in range(rows)], "borders": []}
+            "visits": [[None] * columns for _ in range(rows)], "borders": [], "towers": []}
 
 
 def edge_key(first, second):
@@ -36,7 +37,7 @@ def validate_grid(grid):
     if not isinstance(grid, dict):
         raise ValueError("Invalid grid data.")
     required = {"name", "rows", "columns", "scores", "visits", "borders"}
-    if set(grid) != required:
+    if set(grid) not in (required, required | {"towers"}):
         raise ValueError("Grid fields are missing or unsupported.")
     new_grid(grid["name"], grid["rows"], grid["columns"])
     rows, columns = grid["rows"], grid["columns"]
@@ -62,7 +63,20 @@ def validate_grid(grid):
         if edge != edge_key(first, second) or tuple(edge) in seen:
             raise ValueError("Duplicate or noncanonical border.")
         seen.add(tuple(edge))
-    return deepcopy(grid)
+    grid = deepcopy(grid)
+    grid.setdefault("towers", [])  # Older working files and history had no tower field.
+    if not isinstance(grid["towers"], list):
+        raise ValueError("Invalid towers.")
+    seen_towers = set()
+    for cell in grid["towers"]:
+        if (not isinstance(cell, list) or len(cell) != 2
+                or any(type(n) is not int for n in cell)
+                or not (0 <= cell[0] < rows and 0 <= cell[1] < columns)
+                or tuple(cell) in seen_towers):
+            raise ValueError("Invalid tower cell.")
+        seen_towers.add(tuple(cell))
+    check_tower_regions(grid)
+    return grid
 
 
 class Session:
@@ -149,10 +163,32 @@ class Session:
         if self.mode != "Cell border drawing" or edge is None:
             return False
         def operation():
+            prospective = deepcopy(self.grid)
+            if edge in prospective["borders"]:
+                prospective["borders"].remove(edge)
+            elif not clear:
+                prospective["borders"].append(edge)
+            check_tower_regions(prospective)
             if edge in self.grid["borders"]:
                 self.grid["borders"].remove(edge)
             elif not clear:
                 self.grid["borders"].append(edge)
+        return self._change(operation)
+
+    def toggle_tower(self, clear=False):
+        if self.mode != "Tower" or self.selected is None:
+            return False
+        cell = list(self.selected)
+        towers = self.grid["towers"]
+        if cell not in towers and not clear:
+            regions = region_map(self.grid)
+            if any(regions[tuple(tower)] == regions[self.selected] for tower in towers):
+                raise ValueError("This region already has a tower. Remove it before placing another.")
+        def operation():
+            if cell in towers:
+                towers.remove(cell)
+            elif not clear:
+                towers.append(cell)
         return self._change(operation)
 
     def reset_visits(self):

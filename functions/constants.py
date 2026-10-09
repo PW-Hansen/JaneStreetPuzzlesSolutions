@@ -6,4 +6,4 @@ SNAPSHOTS_DIRECTORY = PROJECT_ROOT / "saved states"
 CELL_SIZE = 64
 PADDING = 10
 THICK_WIDTH = 4
-MODES = ("Select", "Score", "Cell border drawing", "Visit number")
+MODES = ("Select", "Score", "Cell border drawing", "Visit number", "Tower")
