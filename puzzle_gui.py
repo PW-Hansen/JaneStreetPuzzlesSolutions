@@ -1,10 +1,12 @@
 """Tkinter puzzle editor. Backend operations live in functions/."""
 
 import argparse
+from time import perf_counter
 import tkinter as tk
 from tkinter import ttk, messagebox, simpledialog
 
 from functions.constants import MODES, CELL_SIZE, PADDING
+from functions.movements import MovementSearch
 from functions.persistence import puzzles, snapshots, snapshot_path
 from functions.rendering import dimensions, draw_grid, cell_at, edge_at
 from functions.workflow import (
@@ -57,6 +59,13 @@ class PuzzleGUI(ttk.Frame):
         self.entry.bind("<Return>", lambda event: self.apply_value())
         self.apply_button = ttk.Button(inspector, text="Set value", command=self.apply_value)
         self.apply_button.pack(fill="x", pady=(0, 14))
+        movement_controls = ttk.LabelFrame(inspector, text="Arithmetic lookahead", padding=6)
+        movement_controls.pack(fill="x", pady=(0, 10))
+        self.lookahead = tk.StringVar(value="3")
+        ttk.Label(movement_controls, text="Moves ahead:").pack(side="left")
+        ttk.Entry(movement_controls, textvariable=self.lookahead, width=5).pack(side="left", padx=6)
+        self.movement_button = ttk.Button(inspector, text="Generate valid movements", command=self.generate_movements)
+        self.movement_button.pack(fill="x", pady=(0, 10))
         help_text = ("Select: click to inspect.\nArrow keys: move selection.\nEscape: clear selection.\n\n"
                      "Score / Visit number: type digits into the selected cell or use Set value. "
                      "The first digit replaces the old value. Backspace removes a digit. "
@@ -120,6 +129,88 @@ class PuzzleGUI(ttk.Frame):
         self.apply_button.configure(state="normal" if editable else "disabled")
         self.undo_button.configure(state="normal" if self.session.undo_stack else "disabled")
         self.redo_button.configure(state="normal" if self.session.redo_stack else "disabled")
+        movement_ready = (selected is not None
+                          and self.session.grid["scores"][selected[0]][selected[1]] is not None
+                          and self.session.grid["visits"][selected[0]][selected[1]] is not None
+                          and self.session.grid["visits"][selected[0]][selected[1]] >= 0)
+        self.movement_button.configure(state="normal" if movement_ready else "disabled")
+
+    def generate_movements(self):
+        selected = self.session.selected
+        if selected is None:
+            return
+        row, column = selected
+        try:
+            search = MovementSearch(self.session.grid["scores"][row][column],
+                                    self.session.grid["visits"][row][column],
+                                    int(self.lookahead.get()))
+        except ValueError as error:
+            self.message.set(str(error))
+            return
+        window = tk.Toplevel(self)
+        window.title(f"Movements from r{row + 1}c{column + 1}")
+        window.geometry("540x440")
+        window.columnconfigure(0, weight=1)
+        window.rowconfigure(1, weight=1)
+        start_score, start_visit = search.worklist[0][:2]
+        ttk.Label(window, text=f"Score {start_score}, visit {start_visit} → visit {search.max_visit}",
+                  padding=10).grid(row=0, column=0, columnspan=2, sticky="w")
+        output = tk.Text(window, wrap="word", state="disabled")
+        output.grid(row=1, column=0, sticky="nsew", padx=(10, 0))
+        scroll = ttk.Scrollbar(window, command=output.yview)
+        scroll.grid(row=1, column=1, sticky="ns", padx=(0, 10))
+        output.configure(yscrollcommand=scroll.set)
+        status = tk.StringVar()
+        ttk.Label(window, textvariable=status, wraplength=500, padding=10).grid(row=2, column=0, columnspan=2, sticky="ew")
+        started = perf_counter()
+        count = 0
+        integers = set()
+        pending = None
+        stopped = False
+
+        def finish(label):
+            nonlocal stopped, pending
+            stopped = True
+            if pending is not None:
+                window.after_cancel(pending)
+                pending = None
+            abort.configure(state="disabled")
+            status.set(f"{label}: {count} valid sequences, {len(integers)} distinct integers. {perf_counter() - started:.2f} seconds.")
+
+        def batch():
+            nonlocal count, pending
+            pending = None
+            lines = []
+            for _ in range(200):
+                if not search.worklist:
+                    break
+                result = search.advance()
+                if result is not None:
+                    score, visit, operations, last = result
+                    count += 1
+                    integers.add(score)
+                    lines.append(f"{operations or '(no moves)'} → {score}\n")
+            if lines:
+                output.configure(state="normal")
+                output.insert("end", "".join(lines))
+                output.configure(state="disabled")
+            if not search.worklist:
+                output.configure(state="normal")
+                output.insert("end", "\nValid integers: " + ", ".join(map(str, sorted(integers))) + "\n")
+                output.configure(state="disabled")
+                finish("Complete")
+            else:
+                status.set(f"{count} valid sequences so far. {perf_counter() - started:.2f} seconds.")
+                pending = window.after(10, batch)
+
+        abort = ttk.Button(window, text="Abort", command=lambda: finish("Aborted (partial results)"))
+        abort.grid(row=3, column=0, columnspan=2, pady=(0, 10))
+        def close():
+            if not stopped:
+                finish("Aborted")
+            window.destroy()
+        window.protocol("WM_DELETE_WINDOW", close)
+        batch()
 
     def queue_save(self):
         if self._save_pending:

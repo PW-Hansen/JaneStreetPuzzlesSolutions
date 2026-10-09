@@ -79,6 +79,26 @@ class GuiTests(unittest.TestCase):
         self.root.update()
         self.assertFalse(g.session.grid["borders"])
 
+    def test_movement_button_and_results(self):
+        g = self.gui
+        self.assertEqual(str(g.movement_button.cget("state")), "disabled")
+        g.session.select((0, 0))
+        g.change_mode("Score")
+        g.session.set_value(0)
+        g.change_mode("Visit number")
+        g.session.set_value(0)
+        g.refresh()
+        self.assertEqual(str(g.movement_button.cget("state")), "normal")
+        g.movement_button.invoke()
+        self.root.update()
+        dialog = next(widget for widget in g.winfo_children() if isinstance(widget, tk.Toplevel))
+        output = next(widget for widget in dialog.winfo_children() if isinstance(widget, tk.Text))
+        text = output.get("1.0", "end")
+        self.assertIn("+++ → 6", text)
+        self.assertIn("Valid integers:", text)
+        self.assertNotIn("*+* →", text)
+        dialog.destroy()
+
     def test_invalid_value_status_and_snapshot_dialog(self):
         g = self.gui
         g.session.select((1, 2))
