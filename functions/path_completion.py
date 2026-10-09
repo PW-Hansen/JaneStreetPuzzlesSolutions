@@ -6,8 +6,10 @@ from functions.regions import propagate_towers, region_map
 
 
 class CompletionSearch:
-    def __init__(self, grid):
+    def __init__(self, grid, collect=False):
         self.possible = False
+        self.collect = collect
+        self.solutions = []
         self.worklist = []
         visits = {value: (r, c) for r, row in enumerate(grid["visits"])
                   for c, value in enumerate(row) if value is not None}
@@ -28,7 +30,7 @@ class CompletionSearch:
 
     @property
     def done(self):
-        return self.possible or not self.worklist
+        return (self.possible and not self.collect) or not self.worklist
 
     @staticmethod
     def _height(grid, cell, height):
@@ -51,7 +53,7 @@ class CompletionSearch:
         visited_towers = {self.regions[tuple(tower)] for tower in grid["towers"]
                           if grid["visits"][tower[0]][tower[1]] is not None}
         if visited_towers == set(self.regions.values()):
-            self.possible = True
+            self._accept(grid)
             return
         move = visit + 1
         for next_height in (height, 1 - height):
@@ -78,3 +80,8 @@ class CompletionSearch:
                     candidate["scores"][r][c] = next_score
                     candidate["visits"][r][c] = move
                     self.worklist.append((candidate, (r, c), next_height, next_score, move))
+
+    def _accept(self, grid):
+        self.possible = True
+        if self.collect:
+            self.solutions.append(grid)

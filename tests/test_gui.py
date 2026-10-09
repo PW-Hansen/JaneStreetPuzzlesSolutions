@@ -79,13 +79,19 @@ class GuiTests(unittest.TestCase):
         self.assertIn("1 valid combinations", g.message.get())
         self.assertEqual(str(g.combinations_button["state"]), "disabled")
 
-    def test_attempt_tower_placements_button_applies_exclusions(self):
+    def test_visit_final_tower_button_applies_unique_path(self):
         g = self.gui
-        g.session.pending_paths = [[[[0, 0, 10, 1, 0]], [[0, 0, 20, 1, 0]]]]
-        g.tower_placements_button.invoke()
+        from functions.state import Session, new_grid
+        g.session = Session(new_grid("GUI test", 1, 3))
+        g.session.grid["scores"][0][0] = 2
+        g.session.grid["visits"][0][0] = 0
+        g.session.mark_tower((0, 0), False)
+        self.assertEqual(g.final_tower_button["text"], "visit final tower")
+        g.final_tower_button.invoke()
         self.root.update()
-        self.assertIn([0, 0], g.session.grid["non_towers"])
-        self.assertIn("1 impossible", g.message.get())
+        self.assertEqual(g.session.grid["visits"][0][2], 1)
+        self.assertIn([0, 2], g.session.grid["towers"])
+        self.assertIn("1 legal paths", g.message.get())
 
     def test_border_edits_and_undo(self):
         g = self.gui

@@ -117,10 +117,10 @@ These requirements establish the common GUI behavior for grid-based Jane Street 
 - Allow aborting without applying partial results. Reject stale results. If no combination is valid, report it and leave the grid and retained paths unchanged.
 - When a combination supplies a continuous path from visit 0 through its current endpoint, also require that the path can continue to visit every region's tower. Check legal knight moves, integer arithmetic, known cell information, and the prohibition on revisiting cells. Separate fragments do not establish the current endpoint and must not be rejected as completed paths.
 
-## Attempt tower placements
+## Visit final tower
 
-- Add **attempt tower placements** beneath Find valid combinations, independent of the selected cell.
-- In each region without a confirmed tower, temporarily assert each unknown cell as a tower. Check whether at least one combination of all retained path groups remains valid, including visit conflicts and region tower constraints.
-- Mark impossible placements as non-towers and apply resulting tower/path deductions in one undoable, automatically saved action. Leave possible placements unknown unless deductions confirm them.
-- Report candidate counts and rejected cells. Allow aborting without applying partial results and reject stale results or an already inconsistent set of retained paths.
-- Without retained paths, check region constraints only. A surviving trial establishes compatibility with the retained information, rather than proving a full puzzle solution.
+- Add **Visit final tower** beneath Find valid combinations, replacing attempt tower placements and independent of the selected cell.
+- Require a continuous path from visit 0 with a scored endpoint and exactly one region whose tower has not been visited.
+- Search legal continuations from the highest visit to the region's confirmed tower or a cell that could be its tower. Respect cell scores, integer arithmetic, tower regions, retained path combinations, and no revisiting. Stop each path when the final tower is reached.
+- Apply a unique path's scores, visit numbers, and tower information. Retain multiple paths and apply shared deductions using existing history and autosave behavior.
+- Report the number of legal paths. Permit abort without applying partial results; reject stale results. No legal path leaves the grid unchanged.

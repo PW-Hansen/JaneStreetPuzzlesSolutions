@@ -9,7 +9,7 @@ from functions.constants import MODES, CELL_SIZE, PADDING
 from functions.movements import MovementSearch
 from functions.path_analysis import ContinuationSearch, apply_continuation
 from functions.path_combinations import CombinationSearch, apply_combinations
-from functions.tower_placements import TowerPlacementSearch, apply_tower_placements
+from functions.final_tower import FinalTowerSearch, apply_final_tower
 from functions.persistence import puzzles, snapshots, snapshot_path
 from functions.rendering import dimensions, draw_grid, cell_at, edge_at
 from functions.workflow import (
@@ -73,8 +73,8 @@ class PuzzleGUI(ttk.Frame):
         self.continue_button.pack(fill="x", pady=(0, 10))
         self.combinations_button = ttk.Button(inspector, text="Find valid combinations", command=self.find_combinations)
         self.combinations_button.pack(fill="x", pady=(0, 10))
-        self.tower_placements_button = ttk.Button(inspector, text="Attempt tower placements", command=self.attempt_tower_placements)
-        self.tower_placements_button.pack(fill="x", pady=(0, 10))
+        self.final_tower_button = ttk.Button(inspector, text="Visit final tower", command=self.visit_final_tower)
+        self.final_tower_button.pack(fill="x", pady=(0, 10))
         help_text = ("Select: click to inspect.\nArrow keys: move selection.\nEscape: clear selection.\n\n"
                      "Score / Visit number: type digits into the selected cell or use Set value. "
                      "The first digit replaces the old value. Backspace removes a digit. "
@@ -154,11 +154,15 @@ class PuzzleGUI(ttk.Frame):
         self.continue_button.configure(state="normal" if movement_ready else "disabled")
         self.combinations_button.configure(state="normal" if self.session.pending_paths else "disabled")
 
-    def attempt_tower_placements(self):
-        search = TowerPlacementSearch(self.session)
+    def visit_final_tower(self):
+        try:
+            search = FinalTowerSearch(self.session)
+        except ValueError as error:
+            self.message.set(str(error))
+            return
         window = tk.Toplevel(self)
-        window.title("Attempt tower placements")
-        status = tk.StringVar(value="Checking tower candidates against retained paths…")
+        window.title("Visit final tower")
+        status = tk.StringVar(value="Searching for legal paths to the final tower…")
         ttk.Label(window, textvariable=status, wraplength=440, padding=16).pack(fill="x")
         pending = None
         stopped = False
@@ -181,23 +185,17 @@ class PuzzleGUI(ttk.Frame):
             if search.done:
                 stopped = True
                 try:
-                    changed = apply_tower_placements(self.session, search)
+                    changed = apply_final_tower(self.session, search)
                     self.changed(changed)
-                    summary = (f"{len(search.cells)} tower candidates checked: "
-                               f"{len(search.possible)} possible, {len(search.impossible)} impossible.")
+                    summary = f"{len(search.paths)} legal paths to the final tower."
                     summary += " Deductions applied." if changed else " Grid unchanged."
-                    if not search.groups:
-                        summary += " No retained paths; only region constraints were checked."
-                    rejected = ", ".join(f"r{r + 1}c{c + 1}" for r, c in search.impossible)
-                    if rejected:
-                        summary += f"\nRejected: {rejected}."
                 except ValueError as error:
                     summary = str(error)
                 status.set(summary)
                 self.message.set(summary)
                 button.configure(state="disabled")
             else:
-                status.set(f"{search.phase}: {search.index}/{len(search.cells)} cells checked.")
+                status.set(f"Searching: {len(search.paths)} legal paths found.")
                 pending = window.after(10, batch)
         def close():
             if not stopped:
