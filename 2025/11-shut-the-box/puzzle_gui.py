@@ -16,6 +16,7 @@ from functions.dimensions import possible_dimension_totals
 from functions.folding import folding_trials, largest_box_region, configured_anchor, face_name
 from functions.fold_application import apply_unique_fold
 from functions.answer_key import compute_answer_key
+from functions.state_export import print_state
 
 ROOT = Path(__file__).resolve().parent
 
@@ -229,8 +230,10 @@ class Editor:
             path = self.storage.snapshot_path(self.puzzle.name, name)
             png = ROOT / (name + '.png')
             if (path.exists() or (printing and png.exists())) and not messagebox.askyesno('Replace state', 'Replace the existing state or PNG with this name?', parent=self.root): return
-            if printing: export_png(self.puzzle, png)
-            self.storage.save(self.puzzle, path)
+            if printing:
+                print_state(self.puzzle, self.storage, name)
+            else:
+                self.storage.save(self.puzzle, path)
             self.status.set(f'Saved {name}' + (' and matching PNG.' if printing else '.'))
         except (OSError, ValueError, ImportError) as exc:
             messagebox.showerror('Save failed', str(exc), parent=self.root)

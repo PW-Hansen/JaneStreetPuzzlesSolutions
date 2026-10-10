@@ -14,7 +14,7 @@ The editor starts in **Select** mode. Ctrl+0 selects this mode; Ctrl+1 through C
 
 Arrows cannot coexist with digits or shapes. Incompatible additions are ignored, preserving existing content. Digits can coexist with shapes and render on top. Shading sits below all content. Blue outlines indicate selection and appear in Print state exports.
 
-Edits autosave to `grids/<name>.json`. Save state writes a separate snapshot to `saved states/<name>/<state>.json`; Load state lists only the current puzzle's snapshots and restores their history. Print state saves the matching snapshot and `<state>.png` in the project root. Existing files require confirmation before replacement. A failed load leaves the current puzzle intact.
+Edits autosave to `grids/<name>.json`. Save state writes a separate snapshot to `saved_states/<name>/<state>.json`; Load state lists only the current puzzle's snapshots and restores their history. Print state saves the matching snapshot and `<state>.png` in the project root. Existing files require confirmation before replacement. A failed load leaves the current puzzle intact.
 
 Ctrl+Z undoes, and Ctrl+Y or Ctrl+Shift+Z redoes. New edits discard redo history. Reset edits restores the original cell data; Reset shading restores only original shading. Both are undoable and retain the puzzle name, dimensions, and original clues. Working history is cleared on normal close; saved snapshots retain their captured history. Newly created puzzles have blank original clues. Automatic arrow, number, and region deductions are supported as described below; there is no full box solver; region-fold candidates can be inspected in the separate 3D viewer.
 
@@ -70,3 +70,12 @@ Face colors appear in the editor, PNG exports, and 3D viewer. Face labels persis
 
 
 **Compute answer key** is available in both GUIs. After a unique fold has been applied, it displays the sum of numbered cells on each of the six faces and their product, as specified in docs/rules.md. Blank cells contribute zero; a face with no numbered cells has sum zero. Unknown cells, missing face assignments, or existing contradictions prevent calculation and explain what must be resolved. The button does not change the grid or undo history.
+
+Load state also discovers snapshots in the older "saved states" directory. If both directories contain the same snapshot name, the file under saved_states takes precedence. Existing snapshot files are not moved or modified.
+
+
+Run `python solve_puzzle.py <name>` for the command-line workflow. It first loads `saved_states_<name>/initial_state.json` if present, then searches the normal snapshot folders for `initial_state.json` (preferring `saved_states/<name>/` over the older `saved states/<name>/`). If no initial snapshot exists, it uses the original clues stored in `grids/<name>.json`, rather than the current edits. An invalid existing initial snapshot reports an error instead of silently using another state.
+
+Loading immediately recomputes the shared arrow, number, and region deductions. The solver then runs Attempt placements to stability, tries region folds with the configured anchor, includes all confirmed cells, and fills the complete surface using unknown cells. A single surviving fold is applied, its six face sums and answer-key product are printed, and the shared Print state function writes `saved_states/<name>/solved_state.json` and `solved_state.png` in the project root. These outputs replace existing files with the same names; the working grid and initial snapshot remain unchanged. The saved solution includes face colors and undo history and can be opened with Load state.
+
+Zero or multiple surviving folds produce a clear unresolved result and no solved export. Exit codes are 0 for a unique result, 2 for unresolved results, 1 for errors/contradictions, and 130 for interruption. Circle/square pairing rules remain outside the implemented folding checks; the script applies the same checks as the GUI.
