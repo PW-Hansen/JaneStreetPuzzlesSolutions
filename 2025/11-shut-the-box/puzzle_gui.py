@@ -19,6 +19,7 @@ class Editor:
         self.status = tk.StringVar(value='Ready. Select a cell to inspect it.')
         self.details = tk.StringVar()
         self.help = tk.StringVar()
+        self.analysis_status = tk.StringVar()
         outer = ttk.Frame(root, padding=12)
         outer.pack(fill='both', expand=True)
         outer.rowconfigure(0, weight=1)
@@ -45,7 +46,7 @@ class Editor:
         ttk.Label(side, text='Cell details', font=('Segoe UI', 12, 'bold')).pack(anchor='w', pady=(14, 5))
         ttk.Label(side, textvariable=self.details, wraplength=270, justify='left').pack(anchor='w')
         ttk.Label(side, text='Analysis', font=('Segoe UI', 12, 'bold')).pack(anchor='w', pady=(20, 5))
-        ttk.Label(side, text='No analysis rules have been defined for this puzzle yet.',
+        ttk.Label(side, textvariable=self.analysis_status,
                   wraplength=270, justify='left').pack(anchor='w')
         controls = ttk.Frame(outer)
         controls.grid(row=1, column=0, columnspan=2, sticky='ew', pady=(10, 0))
@@ -89,6 +90,13 @@ class Editor:
         draw_canvas(self.canvas, self.puzzle)
         self.undo_button.state(['!disabled'] if self.puzzle.undo_stack else ['disabled'])
         self.redo_button.state(['!disabled'] if self.puzzle.redo_stack else ['disabled'])
+        analysis = self.puzzle.analysis
+        if analysis.conflicts:
+            self.analysis_status.set(f'Contradiction ({len(analysis.conflicts)}):\n' + '\n'.join(analysis.conflicts[:3]))
+        else:
+            deduced = sum(source == 'arrow rules' for source in analysis.sources)
+            unknown = sum(box is None for box in analysis.boxes)
+            self.analysis_status.set(f'Arrow rules updated automatically.\n{deduced} deduced cells; {unknown} unknown.\nNo arrow contradictions found.')
         if self.puzzle.selected is None:
             self.details.set('No cell selected.')
         else:
@@ -97,7 +105,11 @@ class Editor:
             cell = self.puzzle.cells[index]
             self.details.set(f'Row {row + 1}, column {col + 1}\nDigit: {cell["digit"] if cell["digit"] is not None else "none"}\n'
                              f'Arrows: {", ".join(cell["arrows"]) or "none"}\nShape: {cell["shape"] or "none"}\n'
-                             f'Shading: {("none", "light grey", "light green")[cell["shading"]]}')
+                             f'Box: {"unknown" if analysis.boxes[index] is None else "yes" if analysis.boxes[index] else "no"}\n'
+                             f'Source: {analysis.sources[index]}')
+            if cell['arrows'] and index in analysis.distances:
+                candidates = ', '.join(map(str, analysis.distances[index])) or 'none'
+                self.details.set(self.details.get() + f'\nPossible nearest distances: {candidates}')
 
     def persist(self, text='Working puzzle saved.'):
         self.refresh()

@@ -1,6 +1,7 @@
 """Validated puzzle state, edit rules, and history; independent of the GUI."""
 from copy import deepcopy
 from .constants import DIRECTIONS
+from .arrows import analyze_arrows
 
 
 def blank_cell():
@@ -44,6 +45,16 @@ class Puzzle:
         self.original = deepcopy(self.cells)
         self.undo_stack, self.redo_stack = [], []
         self.selected = None
+        self.update_analysis()
+
+    def update_analysis(self):
+        self.analysis = analyze_arrows(self.cells, self.rows, self.columns)
+
+    def display_cells(self):
+        cells = deepcopy(self.cells)
+        for cell, box in zip(cells, self.analysis.boxes):
+            cell['shading'] = 0 if box is None else 2 if box else 1
+        return cells
 
     def to_dict(self):
         return deepcopy(dict(version=1, name=self.name, rows=self.rows, columns=self.columns,
@@ -69,6 +80,7 @@ class Puzzle:
             puzzle.cells, puzzle.original = deepcopy(data['cells']), deepcopy(data['original'])
             puzzle.undo_stack, puzzle.redo_stack = deepcopy(data['undo']), deepcopy(data['redo'])
             puzzle.selected = selected
+            puzzle.update_analysis()
             return puzzle
         except (KeyError, TypeError) as exc:
             raise ValueError('Incomplete or invalid puzzle file.') from exc
@@ -80,6 +92,7 @@ class Puzzle:
             return False
         self.undo_stack.append(before)
         self.redo_stack.clear()
+        self.update_analysis()
         return True
 
     def edit(self, index, mode, action='click', direction=None, digit=None):
@@ -116,6 +129,7 @@ class Puzzle:
             return False
         self.redo_stack.append(deepcopy(self.cells))
         self.cells = self.undo_stack.pop()
+        self.update_analysis()
         return True
 
     def redo(self):
@@ -123,6 +137,7 @@ class Puzzle:
             return False
         self.undo_stack.append(deepcopy(self.cells))
         self.cells = self.redo_stack.pop()
+        self.update_analysis()
         return True
 
     def reset(self, shading_only=False):
