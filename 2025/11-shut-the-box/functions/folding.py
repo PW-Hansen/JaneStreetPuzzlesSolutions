@@ -232,10 +232,20 @@ def symmetric_anchor_key(cell, dimensions):
     return min(equivalents)
 
 
-def folding_trials(boxes, rows, columns, anchor_index, cells=None):
+def folding_trials(boxes, rows, columns, anchor_index, cells=None, *, use_anchor_region=False):
     if type(anchor_index) is not int or not 0 <= anchor_index < len(boxes):
         raise ValueError('The fold anchor is outside the grid.')
     region = largest_box_region(boxes, rows, columns)
+    if use_anchor_region:
+        if boxes[anchor_index] is not True:
+            raise ValueError('The anchor must be a confirmed box cell.')
+        region = {anchor_index}
+        pending = [anchor_index]
+        while pending:
+            for neighbor in orthogonal_neighbors(pending.pop(), rows, columns):
+                if boxes[neighbor] is True and neighbor not in region:
+                    region.add(neighbor)
+                    pending.append(neighbor)
     if anchor_index not in region:
         raise ValueError('The anchor must be a confirmed box cell in the largest region.')
     in_box = sum(box is True for box in boxes)

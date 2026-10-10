@@ -36,6 +36,9 @@ class SolverTests(unittest.TestCase):
         with tempfile.TemporaryDirectory(dir=Path(__file__).parent) as directory:
             storage = Storage(directory)
             puzzle = Puzzle('test', 2, 2)
+            puzzle.cells[0]['shading'] = 2
+            puzzle.original[0]['shading'] = 2
+            puzzle.update_analysis()
             puzzle.selected = 0
             storage.save(puzzle)
             before = storage.working_path('test').read_bytes()

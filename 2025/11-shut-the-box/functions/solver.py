@@ -10,6 +10,7 @@ from .folding import folding_trials, configured_anchor
 from .fold_application import apply_unique_fold
 from .answer_key import compute_answer_key
 from .state_export import print_state
+from .anchors import select_solver_anchor
 
 
 @dataclass
@@ -36,7 +37,7 @@ def load_initial_puzzle(storage, name):
     return puzzle, None
 
 
-def solve_named_puzzle(storage, name, report=print):
+def solve_named_puzzle(storage, name, report=print, *, anchor_coordinates=None):
     started = perf_counter()
     puzzle, source = load_initial_puzzle(storage, name)
     report(f'Loaded initial state: {source if source else "original clues from working puzzle"}')
@@ -56,12 +57,15 @@ def solve_named_puzzle(storage, name, report=print):
     puzzle.apply_placements(placements.cells)
     report(f'Placement analysis complete: {placements.forced} forced placements; '
            f'{placements.tested} cells tested in {placements.passes} passes.')
-    anchor = configured_anchor(storage.load_configuration(name), puzzle.selected, puzzle.rows, puzzle.columns)
+    anchor = select_solver_anchor(puzzle.analysis.boxes, puzzle.rows, puzzle.columns, anchor_coordinates)
+    row, column = divmod(anchor, puzzle.columns)
+    report(f'Fold anchor: R{row+1}C{column+1}')
     report('Trying region folds and complete surface fillings...')
     survivors = []
     rejected = Counter()
     checked = 0
-    for trial in folding_trials(puzzle.analysis.boxes, puzzle.rows, puzzle.columns, anchor, puzzle.cells):
+    for trial in folding_trials(puzzle.analysis.boxes, puzzle.rows, puzzle.columns, anchor, puzzle.cells,
+                               use_anchor_region=True):
         checked += 1
         if trial.reason:
             rejected[trial.reason] += 1
