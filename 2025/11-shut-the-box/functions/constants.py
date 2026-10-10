@@ -12,3 +12,6 @@ MODES = ('Select', 'Digit Entering', 'Arrow Entering', 'Circle/Square', 'Shading
 SHADING = ('#ffffff', '#e6e6e6', '#cce8cc')
 SHAPE_COLOR = '#a0a0a0'
 DIRECTIONS = ('north', 'east', 'south', 'west')
+FACE_COLORS = {'+X': '#d98b8b', '-X': '#8bcaca',
+               '+Y': '#91bf91', '-Y': '#c591c5',
+               '+Z': '#8fadd1', '-Z': '#d6ca8b'}

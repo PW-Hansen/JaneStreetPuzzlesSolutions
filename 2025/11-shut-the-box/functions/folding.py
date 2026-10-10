@@ -277,3 +277,27 @@ def configured_anchor(configuration, selected, rows, columns):
 def face_name(cell):
     axis = next(i for i, value in enumerate(cell.normal) if value)
     return ('+' if cell.normal[axis] > 0 else '-') + 'XYZ'[axis]
+
+
+def folded_cells(trial, cells, rows, columns):
+    """Validate and prepare one complete fold as persisted grid assignments."""
+    if trial.reason is not None or trial.mapping is None:
+        raise ValueError('Cannot apply a rejected fold.')
+    surface = set(cuboid_surface(trial.dimensions))
+    if (len(trial.mapping) != len(surface) or
+            {p.cell for p in trial.mapping.values()} != surface or
+            any(type(i) is not int or not 0 <= i < len(cells) for i in trial.mapping)):
+        raise ValueError('The fold must cover the entire surface without overlaps.')
+    current = analyze_grid(cells, rows, columns)
+    if current.conflicts or any(box is not None and box != (i in trial.mapping)
+                                for i, box in enumerate(current.boxes)):
+        raise ValueError('The fold contradicts the current grid.')
+    result = deepcopy(cells)
+    for i, cell in enumerate(result):
+        cell.pop('face', None)
+        cell['shading'] = 2 if i in trial.mapping else 1
+        if i in trial.mapping:
+            cell['face'] = face_name(trial.mapping[i].cell)
+    if analyze_grid(result, rows, columns).conflicts:
+        raise ValueError('The fold contradicts the puzzle rules.')
+    return result

@@ -9,6 +9,7 @@ from PIL import ImageTk
 from functions.storage import Storage
 from functions.folding import folding_trials, configured_anchor, largest_box_region, face_name
 from functions.view3d import render_fold, pick_cell
+from functions.fold_application import apply_unique_fold
 
 ROOT = Path(__file__).resolve().parent
 
@@ -16,6 +17,7 @@ ROOT = Path(__file__).resolve().parent
 class FoldViewer:
     def __init__(self, root, puzzle, storage):
         self.root, self.puzzle = root, puzzle
+        self.storage = storage
         if puzzle.analysis.conflicts:
             raise ValueError('Resolve the grid contradictions before viewing folds.')
         self.anchor = configured_anchor(storage.load_configuration(puzzle.name), puzzle.selected, puzzle.rows, puzzle.columns)
@@ -64,7 +66,7 @@ class FoldViewer:
         views = [('+X', -pi/2, 0), ('-X', pi/2, 0), ('+Y', 0, pi/2), ('-Y', 0, -pi/2), ('+Z', 0, 0), ('-Z', pi, 0)]
         for label, yaw, pitch in views:
             ttk.Button(side, text=label, command=lambda y=yaw, p=pitch: self.set_view(y, p)).pack(fill='x', pady=2)
-        ttk.Label(side, text='Drag to rotate.\nMouse wheel to zoom.\nClick a cell to inspect it.\n\nGreen: mapped region\nBlue: anchor\nGrey: uncovered surface', wraplength=220, justify='left').pack(anchor='w', pady=12)
+        ttk.Label(side, text='Drag to rotate.\nMouse wheel to zoom.\nClick a cell to inspect it.\n\n+X red / -X cyan\n+Y green / -Y magenta\n+Z blue / -Z yellow\nWhite outline: anchor', wraplength=220, justify='left').pack(anchor='w', pady=12)
         ttk.Label(side, textvariable=self.details, wraplength=220, justify='left').pack(anchor='w')
         ttk.Label(side, textvariable=self.progress, wraplength=220, justify='left').pack(anchor='w', pady=12)
         ttk.Label(side, text='Surface-complete placements. Circle/square pairing rules are not checked.', wraplength=220, justify='left').pack(anchor='w')
@@ -102,9 +104,20 @@ class FoldViewer:
         self.abort.state(['disabled'])
         outcome = 'Search complete' if complete else 'Search aborted; incomplete results'
         self.progress.set(f'{outcome}\n{self.checked} trials\n{len(self.candidates)} surviving folds\nElapsed: {time.perf_counter()-self.started:.1f}s')
+        if complete and len(self.candidates) == 1:
+            try:
+                latest = self.storage.load(self.storage.working_path(self.puzzle.name), self.puzzle.name)
+                if latest.cells != self.puzzle.cells:
+                    raise ValueError('The saved grid changed during search. Reopen the viewer before applying.')
+                if apply_unique_fold(self.puzzle, self.candidates):
+                    self.storage.save(self.puzzle)
+                self.progress.set(self.progress.get() + '\nUnique fold applied and saved.')
+            except (ValueError, OSError) as exc:
+                self.progress.set(self.progress.get() + f'\nCould not apply fold: {exc}')
         if not self.candidates:
             self.summary.set('No surviving folds found.' if complete else 'No surviving folds found before cancellation.')
         self.update_controls()
+        self.schedule_draw()
 
     def update_controls(self):
         self.previous.state(['disabled'] if self.current == 0 else ['!disabled'])

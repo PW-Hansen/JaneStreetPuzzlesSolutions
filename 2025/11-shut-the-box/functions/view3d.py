@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from math import sin, cos, hypot, pi
 from .folding import cuboid_surface, initial_placement, face_name
 from .rendering import digit_font
-from .constants import SHAPE_COLOR, SHAPE_SIZE_RATIO
+from .constants import SHAPE_COLOR, SHAPE_SIZE_RATIO, FACE_COLORS
 
 
 @dataclass
@@ -80,7 +80,9 @@ def render_fold(trial, cells, columns, anchor, width, height, yaw, pitch,
     for item in projected:
         light = .65 + .35 * rotate(item.surface.normal, yaw, pitch)[2]
         base = (208, 234, 207) if item.index is not None else (238, 241, 246)
-        if item.index == anchor: base = (137, 204, 244)
+        if item.index is not None:
+            color = FACE_COLORS[face_name(item.surface)]
+            base = tuple(int(color[i:i+2], 16) for i in (1, 3, 5))
         fill = tuple(round(value * light) for value in base)
         polygon = points(item.polygon)
         draw.polygon(polygon, fill=fill)
@@ -108,7 +110,10 @@ def render_fold(trial, cells, columns, anchor, width, height, yaw, pitch,
                     bbox = font.getbbox(label)
                     position = (item.center[0]*supersample - (bbox[0]+bbox[2])/2,
                                 item.center[1]*supersample - (bbox[1]+bbox[3])/2)
-                    draw.text(position, label, font=font, fill='#111111')
+                    ink = '#111111'
+                    draw.text(position, label, font=font, fill=ink)
+        if item.index == anchor:
+            draw.line(polygon + [polygon[0]], fill='#ffffff', width=2 * supersample)
         if item.surface == selected:
             draw.line(polygon + [polygon[0]], fill='#e46b16', width=3 * supersample)
     return image.resize((width, height), Image.Resampling.LANCZOS), projected

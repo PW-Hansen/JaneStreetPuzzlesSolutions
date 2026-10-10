@@ -1,7 +1,8 @@
 """Validated puzzle state, edit rules, and history; independent of the GUI."""
 from copy import deepcopy
-from .constants import DIRECTIONS
+from .constants import DIRECTIONS, FACE_COLORS
 from .analysis import analyze_grid
+from .folding import folded_cells
 
 
 def blank_cell():
@@ -22,8 +23,10 @@ def validate_cells(cells, rows, columns):
     if not isinstance(cells, list) or len(cells) != rows * columns:
         raise ValueError('The cell count does not match the dimensions.')
     for cell in cells:
-        if not isinstance(cell, dict) or set(cell) != {'digit', 'arrows', 'shape', 'shading'}:
+        if not isinstance(cell, dict) or set(cell) - {'face'} != {'digit', 'arrows', 'shape', 'shading'}:
             raise ValueError('Invalid cell data.')
+        if 'face' in cell and (cell['face'] not in FACE_COLORS or cell['shading'] != 2):
+            raise ValueError('A face label requires an in-box cell and a valid face.')
         if cell['digit'] is not None and (not isinstance(cell['digit'], str) or len(cell['digit']) != 1 or cell['digit'] not in '0123456789'):
             raise ValueError('Digits must be a single character from 0 to 9.')
         arrows = cell['arrows']
@@ -85,11 +88,14 @@ class Puzzle:
         except (KeyError, TypeError) as exc:
             raise ValueError('Incomplete or invalid puzzle file.') from exc
 
-    def change(self, operation):
+    def change(self, operation, preserve_faces=False):
         before = deepcopy(self.cells)
         operation()
         if before == self.cells:
             return False
+        if not preserve_faces:
+            for cell in self.cells:
+                cell.pop('face', None)
         self.undo_stack.append(before)
         self.redo_stack.clear()
         self.update_analysis()
@@ -130,6 +136,13 @@ class Puzzle:
             self.cells = deepcopy(cells)
         return self.change(apply)
 
+    def apply_fold(self, trial):
+        cells = folded_cells(trial, self.cells, self.rows, self.columns)
+        validate_cells(cells, self.rows, self.columns)
+        def apply():
+            self.cells = cells
+        return self.change(apply, preserve_faces=True)
+
     def undo(self):
         if not self.undo_stack:
             return False
@@ -151,6 +164,7 @@ class Puzzle:
             if shading_only:
                 for cell, original in zip(self.cells, self.original):
                     cell['shading'] = original['shading']
+                    cell.pop('face', None)
             else:
                 self.cells = deepcopy(self.original)
         return self.change(apply)

@@ -14,6 +14,7 @@ from functions.rendering import draw_canvas, export_png
 from functions.placements import attempt_placements
 from functions.dimensions import possible_dimension_totals
 from functions.folding import folding_trials, largest_box_region, configured_anchor, face_name
+from functions.fold_application import apply_unique_fold
 
 ROOT = Path(__file__).resolve().parent
 
@@ -144,6 +145,8 @@ class Editor:
                 count = analysis.numbers[index]
                 self.details.set(self.details.get() + f'\nNumber count: {count.yes} yes, {count.unknown} unknown; '
                                  f'{count.target} required (including this cell).')
+            if cell.get('face'):
+                self.details.set(self.details.get() + f'\nFace: {cell["face"]}')
 
     def persist(self, text='Working puzzle saved.'):
         self.refresh()
@@ -462,7 +465,7 @@ class Editor:
         table.configure(yscrollcommand=scroll.set)
         feedback = tk.StringVar(value='Starting fold trials…')
         ttk.Label(body, textvariable=feedback, wraplength=700, justify='left').pack(anchor='w', pady=8)
-        ttk.Label(body, text='Surviving trials place only this region. Other regions, unknown cells, and remaining shape rules are not solved.',
+        ttk.Label(body, text='Surviving trials fill the surface. A unique result is applied to the grid. Circle/square pairing rules are not checked.',
                   wraplength=700, justify='left').pack(anchor='w')
         buttons = ttk.Frame(body)
         buttons.pack(anchor='e', pady=(8, 0))
@@ -492,6 +495,13 @@ class Editor:
                        f'{rejected["severed connection"]} severed connections.\n'
                        f'Elapsed: {time.perf_counter() - started:.1f}s')
             feedback.set(summary)
+            if not cancelled and len(survivors) == 1:
+                try:
+                    if apply_unique_fold(self.puzzle, survivors):
+                        self.persist('Unique fold applied.')
+                    feedback.set(summary + '\nUnique fold applied to the grid with face colors.')
+                except ValueError as exc:
+                    feedback.set(summary + f'\nCould not apply fold: {exc}')
             print(summary.replace('\n', ' '))
         def close_dialog():
             if self.folding_running: finish(True)
@@ -513,7 +523,7 @@ class Editor:
                     return
                 checked += 1
                 if trial.reason:
-                    rejected[trial.reason] += 1
+                    rejected[trial.reason] = rejected.get(trial.reason, 0) + 1
                 else:
                     identity = str(len(survivors))
                     survivors.append(trial)

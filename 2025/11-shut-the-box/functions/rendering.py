@@ -1,5 +1,6 @@
 """Shared drawing geometry for the interactive grid and PNG export."""
 from functools import lru_cache
+from .constants import FACE_COLORS
 from math import floor, ceil
 from .constants import CELL_SIZE, SHADING, SHAPE_COLOR, SHAPE_SIZE_RATIO, DIGIT_SIZE_RATIO, ANTIALIAS_SCALE, ARROW_PROFILE, ARROW_COLOR
 
@@ -12,7 +13,8 @@ def scene(puzzle, size=CELL_SIZE):
     for index, cell in enumerate(puzzle.display_cells()):
         row, col = divmod(index, puzzle.columns)
         x, y = margin + col * size, margin + row * size
-        add('rectangle', (x, y, x + size, y + size), SHADING[cell['shading']])
+        background = FACE_COLORS.get(cell.get('face'), SHADING[cell['shading']])
+        add('rectangle', (x, y, x + size, y + size), background)
         # Inclusive pixel bounds must have the same integer inset on both sides.
         # This adjusts the diameter slightly instead of rounding each edge separately.
         inset = max(1, round(size * (1 - SHAPE_SIZE_RATIO) / 2))
@@ -30,7 +32,8 @@ def scene(puzzle, size=CELL_SIZE):
                                               cy + size * (vy * along + vx * across)))
             add('polygon', points, ARROW_COLOR)
         if cell['digit'] is not None:
-            add('text', (x + size / 2, y + size / 2, cell['digit']), '#111111', max(1, round(size * DIGIT_SIZE_RATIO)))
+            ink = '#111111'
+            add('text', (x + size / 2, y + size / 2, cell['digit']), ink, max(1, round(size * DIGIT_SIZE_RATIO)))
         if puzzle.analysis.sources[index] in ('clue', 'arrow rules', 'number rules', 'region rules'):
             add('line', (x + 3, y + size - 4, x + 7, y + size - 4), '#3377aa')
     w, h = puzzle.columns * size, puzzle.rows * size
