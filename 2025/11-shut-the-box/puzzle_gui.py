@@ -6,11 +6,13 @@ import time
 from pathlib import Path
 import tkinter as tk
 from tkinter import ttk, simpledialog, messagebox, filedialog
+from tkinter import font as tkfont
 from functions.constants import CELL_SIZE, DEFAULT_ROWS, DEFAULT_COLUMNS, MODES
 from functions.model import Puzzle, click_direction
 from functions.storage import Storage
 from functions.rendering import draw_canvas, export_png
 from functions.placements import attempt_placements
+from functions.dimensions import possible_dimension_totals
 
 ROOT = Path(__file__).resolve().parent
 
@@ -26,6 +28,7 @@ class Editor:
         self.analysis_status = tk.StringVar()
         self.placement_status = tk.StringVar(value='Placement analysis idle.')
         self.placement_running = False
+        self.dimension_running = False
         self.close_after_analysis = False
         outer = ttk.Frame(root, padding=12)
         outer.pack(fill='both', expand=True)
@@ -55,6 +58,8 @@ class Editor:
         ttk.Label(side, text='Analysis', font=('Segoe UI', 12, 'bold')).pack(anchor='w', pady=(20, 5))
         self.placement_button = ttk.Button(side, text='Attempt placements', command=self.start_placements)
         self.placement_button.pack(fill='x', pady=3)
+        self.dimension_button = ttk.Button(side, text='Determine valid box dimensions', command=self.determine_dimensions)
+        self.dimension_button.pack(fill='x', pady=3)
         self.abort_button = ttk.Button(side, text='Abort', command=self.abort_placements, state='disabled')
         self.abort_button.pack(fill='x', pady=3)
         ttk.Label(side, textvariable=self.placement_status, wraplength=270, justify='left').pack(anchor='w', pady=5)
@@ -243,13 +248,14 @@ class Editor:
         listing.bind('<Double-Button-1>', lambda event: load())
 
     def start_placements(self):
-        if self.placement_running: return
+        if self.placement_running or self.dimension_running: return
         self.placement_running = True
         self.placement_started = time.perf_counter()
         self.placement_cancel = threading.Event()
         self.placement_messages = queue.Queue()
         self.placement_progress = 'Starting placement analysis'
         self.placement_button.state(['disabled'])
+        self.dimension_button.state(['disabled'])
         self.abort_button.state(['!disabled'])
         for button in self.edit_controls: button.state(['disabled'])
         cells = self.puzzle.to_dict()['cells']
@@ -294,6 +300,7 @@ class Editor:
             return
         self.placement_running = False
         self.placement_button.state(['!disabled'])
+        self.dimension_button.state(['!disabled'])
         self.abort_button.state(['disabled'])
         for button in self.edit_controls: button.state(['!disabled'])
         kind, result = finished
@@ -320,6 +327,90 @@ class Editor:
         print(f'{summary.replace(chr(10), " ")} Elapsed: {elapsed:.1f}s')
         if self.close_after_analysis:
             self.close()
+
+    def determine_dimensions(self):
+        if self.placement_running or self.dimension_running: return
+        if self.puzzle.analysis.conflicts:
+            messagebox.showerror('Grid is inconsistent', 'Resolve the current contradictions before determining dimensions.', parent=self.root)
+            return
+        in_box = sum(box is True for box in self.puzzle.analysis.boxes)
+        unknown = sum(box is None for box in self.puzzle.analysis.boxes)
+        totals = iter(possible_dimension_totals(in_box, unknown))
+        self.dimension_running = True
+        self.dimension_button.state(['disabled'])
+        self.placement_button.state(['disabled'])
+        dialog = tk.Toplevel(self.root)
+        dialog.title('Valid box dimensions — ' + self.puzzle.name)
+        dialog.transient(self.root)
+        dialog.grab_set()
+        body = ttk.Frame(dialog, padding=12)
+        body.pack(fill='both', expand=True)
+        ttk.Label(body, text=f'{in_box} confirmed in-box cells; {unknown} unknown cells.\n'
+                            'Positive integers a ≥ b ≥ c; 2(ab + bc + ca) = box cells. Odd totals are skipped.').pack(anchor='w', pady=(0, 8))
+        table_frame = ttk.Frame(body)
+        table_frame.pack(fill='both', expand=True)
+        table_frame.rowconfigure(0, weight=1)
+        table_frame.columnconfigure(0, weight=1)
+        table = ttk.Treeview(table_frame, columns=('added', 'cells', 'count', 'triples'), show='headings', height=14)
+        result_font = tkfont.Font(root=dialog, font=ttk.Style(dialog).lookup('Treeview', 'font') or 'TkDefaultFont')
+        for column, label, width in [('added', 'Unknown cells included', 155), ('cells', 'Box cells', 85),
+                                     ('count', 'Triples', 70), ('triples', 'Dimensions (a, b, c)', 430)]:
+            table.heading(column, text=label)
+            table.column(column, width=width, minwidth=width, stretch=column == 'triples')
+        table.grid(row=0, column=0, sticky='nsew')
+        vertical = ttk.Scrollbar(table_frame, orient='vertical', command=table.yview)
+        vertical.grid(row=0, column=1, sticky='ns')
+        horizontal = ttk.Scrollbar(table_frame, orient='horizontal', command=table.xview)
+        horizontal.grid(row=1, column=0, sticky='ew')
+        table.configure(yscrollcommand=vertical.set, xscrollcommand=horizontal.set)
+        feedback = tk.StringVar()
+        ttk.Label(body, textvariable=feedback, wraplength=740, justify='left').pack(anchor='w', pady=8)
+        ttk.Label(body, text='These triples satisfy the cell-count formula; folding feasibility has not been tested.',
+                  wraplength=740).pack(anchor='w')
+        buttons = ttk.Frame(body)
+        buttons.pack(anchor='e', pady=(8, 0))
+        started = time.perf_counter()
+        checked = matches = viable_totals = 0
+        pending = None
+        def finish(cancelled=False):
+            nonlocal pending
+            if pending is not None:
+                dialog.after_cancel(pending)
+                pending = None
+            self.dimension_running = False
+            self.dimension_button.state(['!disabled'])
+            self.placement_button.state(['!disabled'])
+            abort.state(['disabled'])
+            outcome = 'Aborted; results are incomplete.' if cancelled else 'Complete.'
+            feedback.set(f'{outcome} {checked} even totals checked; {viable_totals} totals with matches; '
+                         f'{matches} dimension triples.\nElapsed: {time.perf_counter() - started:.1f}s')
+        def close_dialog():
+            if self.dimension_running: finish(True)
+            dialog.destroy()
+        abort = ttk.Button(buttons, text='Abort', command=lambda: finish(True))
+        abort.pack(side='left', padx=(0, 8))
+        ttk.Button(buttons, text='Close', command=close_dialog).pack(side='left')
+        dialog.protocol('WM_DELETE_WINDOW', close_dialog)
+        def step():
+            nonlocal checked, matches, viable_totals, pending
+            pending = None
+            try:
+                result = next(totals)
+            except StopIteration:
+                finish()
+                return
+            checked += 1
+            matches += len(result.triples)
+            viable_totals += bool(result.triples)
+            text = '; '.join(f'({a}, {b}, {c})' for a, b, c in result.triples) or 'None'
+            table.insert('', 'end', values=(result.added_unknown, result.cells, len(result.triples), text))
+            needed = max(430, result_font.measure(text) + 24)
+            if needed > table.column('triples', 'width'):
+                table.column('triples', width=needed)
+            feedback.set(f'Checking {result.cells} box cells ({result.added_unknown} unknown cells included).\n'
+                         f'Elapsed: {time.perf_counter() - started:.1f}s')
+            pending = dialog.after(1, step)
+        pending = dialog.after(1, step)
 
     def close(self):
         if self.placement_running:
