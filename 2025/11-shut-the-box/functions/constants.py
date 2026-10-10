@@ -8,6 +8,8 @@ ARROW_PROFILE = ((-.025, -.025), (.29, -.025), (.29, -.115),
                  (.46, 0), (.29, .115), (.29, .025), (-.025, .025))
 DEFAULT_ROWS = 20
 DEFAULT_COLUMNS = 20
+SNAPSHOT_DIRECTORY = 'saved_states'
+LEGACY_SNAPSHOT_DIRECTORY = 'saved states'
 MODES = ('Select', 'Digit Entering', 'Arrow Entering', 'Circle/Square', 'Shading')
 SHADING = ('#ffffff', '#e6e6e6', '#cce8cc')
 SHAPE_COLOR = '#a0a0a0'

@@ -98,3 +98,29 @@ class PuzzleTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+class SnapshotDiscoveryTests(unittest.TestCase):
+    def test_current_and_legacy_folders_are_discovered(self):
+        with tempfile.TemporaryDirectory(dir=Path(__file__).parent) as directory:
+            storage = Storage(directory)
+            puzzle = Puzzle('test', 2, 2)
+            current = storage.snapshot_path('test', 'current')
+            self.assertEqual(current.parent.parent.name, 'saved_states')
+            storage.save(puzzle, current)
+            legacy = Path(directory) / 'saved states' / 'test' / 'legacy.json'
+            storage.save(puzzle, legacy)
+            storage.save(Puzzle('other', 2, 2), storage.snapshot_path('other', 'unrelated'))
+            self.assertEqual(storage.snapshots('test'), [current, legacy])
+            self.assertEqual(storage.load(legacy, 'test').cells, puzzle.cells)
+
+    def test_current_folder_wins_duplicate_snapshot_names(self):
+        with tempfile.TemporaryDirectory(dir=Path(__file__).parent) as directory:
+            storage = Storage(directory)
+            puzzle = Puzzle('test', 2, 2)
+            legacy = Path(directory) / 'saved states' / 'test' / 'same.json'
+            storage.save(puzzle, legacy)
+            puzzle.edit(0, 'Digit Entering', digit='3')
+            current = storage.snapshot_path('test', 'same')
+            storage.save(puzzle, current)
+            self.assertEqual(storage.snapshots('test'), [current])
+            self.assertEqual(storage.load(current, 'test').cells[0]['digit'], '3')

@@ -3,6 +3,7 @@ import json
 import os
 from pathlib import Path
 from .model import Puzzle, validate_name
+from .constants import SNAPSHOT_DIRECTORY, LEGACY_SNAPSHOT_DIRECTORY
 
 
 class Storage:
@@ -13,7 +14,7 @@ class Storage:
         return self.root / 'grids' / (validate_name(name) + '.json')
 
     def snapshot_path(self, name, snapshot):
-        return self.root / 'saved states' / validate_name(name) / (validate_name(snapshot) + '.json')
+        return self.root / SNAPSHOT_DIRECTORY / validate_name(name) / (validate_name(snapshot) + '.json')
 
     def load(self, path, expected_name=None):
         with Path(path).open(encoding='utf-8') as stream:
@@ -40,7 +41,12 @@ class Storage:
         return sorted((self.root / 'grids').glob('*.json'))
 
     def snapshots(self, name):
-        return sorted((self.root / 'saved states' / validate_name(name)).glob('*.json'))
+        name = validate_name(name)
+        paths = {}
+        for directory in (LEGACY_SNAPSHOT_DIRECTORY, SNAPSHOT_DIRECTORY):
+            for path in (self.root / directory / name).glob('*.json'):
+                paths[path.name] = path
+        return [paths[key] for key in sorted(paths)]
 
     def load_configuration(self, name):
         path = self.root / 'configs' / (validate_name(name) + '.json')
