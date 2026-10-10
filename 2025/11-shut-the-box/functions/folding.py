@@ -219,6 +219,8 @@ def folding_trials(boxes, rows, columns, anchor_index, cells=None):
     for total in possible_dimension_totals(in_box, unknown):
         for dimensions in total.triples:
             for anchor_cell in cuboid_surface(dimensions):
+                if not any(value > 0 for value in anchor_cell.normal):
+                    continue
                 for rotation in range(4):
                     trial = fold_region(region, boxes, rows, columns, anchor_index, dimensions, anchor_cell, rotation)
                     yield extend_fold(trial, boxes, rows, columns, cells)

@@ -93,10 +93,11 @@ class FoldingTests(unittest.TestCase):
     def test_trials_cover_all_positions_and_four_rotations(self):
         boxes = [True, True, True, True, None, None]
         trials = list(folding_trials(boxes, 2, 3, 0))
-        self.assertEqual(len(trials), 24)  # Only surface area 6 has a candidate.
+        self.assertEqual(len(trials), 12)  # Three positive faces, four rotations each.
         self.assertEqual({t.dimensions for t in trials}, {(1, 1, 1)})
         counts = Counter(t.anchor for t in trials)
-        self.assertEqual(len(counts), 6)
+        self.assertEqual(len(counts), 3)
+        self.assertTrue(all(any(value > 0 for value in t.anchor.normal) for t in trials))
         self.assertTrue(all(count == 4 for count in counts.values()))
         self.assertEqual({t.rotation for t in trials}, {0, 1, 2, 3})
         self.assertTrue(all(t.reason == 'isolated anchor' for t in trials))
