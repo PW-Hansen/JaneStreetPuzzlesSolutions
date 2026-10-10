@@ -124,6 +124,12 @@ class Puzzle:
                 cell['shading'] = 0 if clear else (cell['shading'] + 1) % 3
         return self.change(apply)
 
+    def apply_placements(self, cells):
+        validate_cells(cells, self.rows, self.columns)
+        def apply():
+            self.cells = deepcopy(cells)
+        return self.change(apply)
+
     def undo(self):
         if not self.undo_stack:
             return False

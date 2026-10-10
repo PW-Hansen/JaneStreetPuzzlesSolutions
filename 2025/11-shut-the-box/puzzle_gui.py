@@ -1,5 +1,8 @@
 """Tkinter entry point for the named grid puzzle editor."""
 import sys
+import queue
+import threading
+import time
 from pathlib import Path
 import tkinter as tk
 from tkinter import ttk, simpledialog, messagebox, filedialog
@@ -7,6 +10,7 @@ from functions.constants import CELL_SIZE, DEFAULT_ROWS, DEFAULT_COLUMNS, MODES
 from functions.model import Puzzle, click_direction
 from functions.storage import Storage
 from functions.rendering import draw_canvas, export_png
+from functions.placements import attempt_placements
 
 ROOT = Path(__file__).resolve().parent
 
@@ -20,6 +24,9 @@ class Editor:
         self.details = tk.StringVar()
         self.help = tk.StringVar()
         self.analysis_status = tk.StringVar()
+        self.placement_status = tk.StringVar(value='Placement analysis idle.')
+        self.placement_running = False
+        self.close_after_analysis = False
         outer = ttk.Frame(root, padding=12)
         outer.pack(fill='both', expand=True)
         outer.rowconfigure(0, weight=1)
@@ -46,9 +53,15 @@ class Editor:
         ttk.Label(side, text='Cell details', font=('Segoe UI', 12, 'bold')).pack(anchor='w', pady=(14, 5))
         ttk.Label(side, textvariable=self.details, wraplength=270, justify='left').pack(anchor='w')
         ttk.Label(side, text='Analysis', font=('Segoe UI', 12, 'bold')).pack(anchor='w', pady=(20, 5))
+        self.placement_button = ttk.Button(side, text='Attempt placements', command=self.start_placements)
+        self.placement_button.pack(fill='x', pady=3)
+        self.abort_button = ttk.Button(side, text='Abort', command=self.abort_placements, state='disabled')
+        self.abort_button.pack(fill='x', pady=3)
+        ttk.Label(side, textvariable=self.placement_status, wraplength=270, justify='left').pack(anchor='w', pady=5)
         ttk.Label(side, textvariable=self.analysis_status,
                   wraplength=270, justify='left').pack(anchor='w')
         controls = ttk.Frame(outer)
+        self.edit_controls = []
         controls.grid(row=1, column=0, columnspan=2, sticky='ew', pady=(10, 0))
         for text, command in [('Save state', self.save_state), ('Load state', self.load_state),
                               ('Print state', lambda: self.save_state(printing=True)),
@@ -56,10 +69,10 @@ class Editor:
                               ('Reset edits', self.reset), ('Reset shading', lambda: self.reset(True))]:
             button = ttk.Button(controls, text=text, command=command)
             button.pack(side='left', padx=(0, 5))
+            self.edit_controls.append(button)
             if text == 'Undo': self.undo_button = button
             if text == 'Redo': self.redo_button = button
-        ttk.Label(outer, textvariable=self.status, wraplength=880, justify='left').grid(
-            row=2, column=0, columnspan=2, sticky='ew', pady=(8, 0))
+        ttk.Label(side, textvariable=self.status, wraplength=270, justify='left').pack(anchor='w', pady=(8, 0))
         self.canvas.bind('<Button-1>', self.click)
         self.canvas.bind('<Button-3>', lambda event: self.click(event, right=True))
         root.bind('<KeyPress>', self.key)
@@ -90,6 +103,9 @@ class Editor:
         draw_canvas(self.canvas, self.puzzle)
         self.undo_button.state(['!disabled'] if self.puzzle.undo_stack else ['disabled'])
         self.redo_button.state(['!disabled'] if self.puzzle.redo_stack else ['disabled'])
+        if self.placement_running:
+            for button in self.edit_controls:
+                button.state(['disabled'])
         analysis = self.puzzle.analysis
         if analysis.conflicts:
             self.analysis_status.set(f'Contradiction ({len(analysis.conflicts)}):\n' + '\n'.join(analysis.conflicts[:3]))
@@ -130,6 +146,7 @@ class Editor:
             messagebox.showerror('Save failed', str(exc), parent=self.root)
 
     def click(self, event, right=False):
+        if self.placement_running: return
         self.canvas.focus_set()
         x, y = self.canvas.canvasx(event.x) - 3, self.canvas.canvasy(event.y) - 3
         row, col = int(y // CELL_SIZE), int(x // CELL_SIZE)
@@ -140,6 +157,7 @@ class Editor:
         self.persist('Edit saved.' if changed else 'Cell selected. Incompatible content is preserved.')
 
     def key(self, event):
+        if self.placement_running: return 'break'
         if event.state & 4: return
         index = self.puzzle.selected
         if event.keysym == 'Escape':
@@ -168,17 +186,21 @@ class Editor:
         return 'break'
 
     def undo(self):
+        if self.placement_running: return 'break'
         if self.puzzle.undo(): self.persist('Undo saved.')
         return 'break'
 
     def redo(self):
+        if self.placement_running: return 'break'
         if self.puzzle.redo(): self.persist('Redo saved.')
         return 'break'
 
     def reset(self, shading_only=False):
+        if self.placement_running: return
         if self.puzzle.reset(shading_only): self.persist('Shading reset.' if shading_only else 'Edits reset to original clues.')
 
     def save_state(self, printing=False):
+        if self.placement_running: return
         name = simpledialog.askstring('Print state' if printing else 'Save state', 'State name:', parent=self.root)
         if name is None: return
         try:
@@ -193,6 +215,7 @@ class Editor:
             self.status.set(f'Save failed: {exc}')
 
     def load_state(self):
+        if self.placement_running: return
         paths = self.storage.snapshots(self.puzzle.name)
         if not paths:
             self.status.set('No saved states for this puzzle.')
@@ -219,7 +242,90 @@ class Editor:
         ttk.Button(dialog, text='Load', command=load).pack(pady=(0, 12))
         listing.bind('<Double-Button-1>', lambda event: load())
 
+    def start_placements(self):
+        if self.placement_running: return
+        self.placement_running = True
+        self.placement_started = time.perf_counter()
+        self.placement_cancel = threading.Event()
+        self.placement_messages = queue.Queue()
+        self.placement_progress = 'Starting placement analysis'
+        self.placement_button.state(['disabled'])
+        self.abort_button.state(['!disabled'])
+        for button in self.edit_controls: button.state(['disabled'])
+        cells = self.puzzle.to_dict()['cells']
+        rows, columns = self.puzzle.rows, self.puzzle.columns
+        def work():
+            try:
+                result = attempt_placements(cells, rows, columns,
+                                            cancelled=self.placement_cancel.is_set,
+                                            progress=lambda item: self.placement_messages.put(('progress', item)))
+                self.placement_messages.put(('done', result))
+            except Exception as exc:
+                self.placement_messages.put(('error', str(exc)))
+        threading.Thread(target=work, daemon=True).start()
+        self.poll_placements()
+
+    def abort_placements(self):
+        if self.placement_running:
+            self.placement_cancel.set()
+            self.abort_button.state(['disabled'])
+            self.placement_progress = 'Aborting placement analysis'
+
+    def poll_placements(self):
+        latest = None
+        finished = None
+        while True:
+            try:
+                kind, item = self.placement_messages.get_nowait()
+            except queue.Empty:
+                break
+            if kind == 'progress': latest = item
+            else: finished = (kind, item)
+        elapsed = time.perf_counter() - self.placement_started
+        if latest is not None and not self.placement_cancel.is_set():
+            row, column = divmod(latest.index, self.puzzle.columns)
+            assignment = 'forced placement found' if latest.assignment is None else 'testing in-box' if latest.assignment else 'testing out-box'
+            self.placement_progress = f'Pass {latest.pass_number}, R{row + 1}C{column + 1}: {assignment}.\n{latest.forced} forced placements'
+            self.puzzle.selected = latest.index
+            self.refresh()
+        if finished is None:
+            self.placement_status.set(f'{self.placement_progress}\nElapsed: {elapsed:.1f}s')
+            self.root.after(100, self.poll_placements)
+            return
+        self.placement_running = False
+        self.placement_button.state(['!disabled'])
+        self.abort_button.state(['disabled'])
+        for button in self.edit_controls: button.state(['!disabled'])
+        kind, result = finished
+        if kind == 'error':
+            summary = f'Placement analysis failed: {result}'
+            self.refresh()
+        else:
+            self.puzzle.apply_placements(result.cells)
+            if result.status == 'contradiction':
+                self.puzzle.selected = result.failed_cell
+                row, column = divmod(result.failed_cell, self.puzzle.columns)
+                summary = f'Contradiction: R{row + 1}C{column + 1} has no valid placements.'
+                messagebox.showerror('No valid placements', summary + '\n\n' + '\n'.join(result.conflicts), parent=self.root)
+            elif result.status == 'invalid':
+                summary = 'Placement analysis stopped: the starting grid has contradictions.'
+                messagebox.showerror('Starting grid is inconsistent', '\n'.join(result.conflicts), parent=self.root)
+            elif result.status == 'cancelled':
+                summary = 'Placement analysis aborted; earlier forced placements retained.'
+            else:
+                summary = 'Placement analysis complete: a full pass made no changes.'
+            summary += f'\n{result.forced} forced placements; {result.tested} cells tested in {result.passes} passes.'
+            self.persist('Placement results saved.')
+        self.placement_status.set(f'{summary}\nElapsed: {elapsed:.1f}s')
+        print(f'{summary.replace(chr(10), " ")} Elapsed: {elapsed:.1f}s')
+        if self.close_after_analysis:
+            self.close()
+
     def close(self):
+        if self.placement_running:
+            self.close_after_analysis = True
+            self.abort_placements()
+            return
         data = self.puzzle.to_dict()
         data['undo'], data['redo'] = [], []
         try:
