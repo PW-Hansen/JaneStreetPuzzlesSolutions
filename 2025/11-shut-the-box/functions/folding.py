@@ -1,6 +1,8 @@
 """Forced, orientation-preserving embeddings of confirmed regions on cuboids."""
 from collections import deque
 from dataclasses import dataclass
+from copy import deepcopy
+from .analysis import analyze_grid
 from .regions import orthogonal_neighbors
 from .dimensions import possible_dimension_totals
 
@@ -128,7 +130,85 @@ def fold_region(region, boxes, rows, columns, anchor_index, dimensions, anchor_c
     return FoldTrial(dimensions, anchor_cell, rotation, None, mapping)
 
 
-def folding_trials(boxes, rows, columns, anchor_index):
+def extend_fold(trial, boxes, rows, columns, cells=None):
+    """Find a connected embedding including every confirmed cell, branching on unknowns.
+
+    A returned mapping is one witness; unneeded unknown cells remain unassigned.
+    Every adjacency between included grid cells must retain its surface frame.
+    """
+    if trial.reason is not None:
+        return trial
+    required = {index for index, value in enumerate(boxes) if value is True}
+    capacity = 2 * sum(trial.dimensions[i] * trial.dimensions[j]
+                       for i, j in ((0, 1), (1, 2), (2, 0)))
+    pending = [(trial.mapping.copy(), set())]
+    while pending:
+        mapping, excluded = pending.pop()
+        occupied = {placement.cell: index for index, placement in mapping.items()}
+        queue = deque(mapping)
+        valid = True
+        frontier = set()
+        while queue and valid:
+            index = queue.popleft()
+            for direction, neighbor in grid_neighbors(index, rows, columns):
+                if boxes[neighbor] is False or neighbor in excluded:
+                    continue
+                placement = surface_step(mapping[index], direction, trial.dimensions)
+                if neighbor in mapping:
+                    if mapping[neighbor] != placement:
+                        valid = False
+                        break
+                elif neighbor in required:
+                    if placement.cell in occupied:
+                        valid = False
+                        break
+                    mapping[neighbor] = placement
+                    occupied[placement.cell] = neighbor
+                    queue.append(neighbor)
+                else:
+                    frontier.add(neighbor)
+        if not valid or len(mapping) + len(required - mapping.keys()) > capacity:
+            continue
+        if required <= mapping.keys():
+            if cells is not None:
+                speculative = deepcopy(cells)
+                for index in mapping:
+                    speculative[index]['shading'] = 2
+                for index in excluded:
+                    speculative[index]['shading'] = 1
+                if analyze_grid(speculative, rows, columns).conflicts:
+                    continue
+            return FoldTrial(trial.dimensions, trial.anchor, trial.rotation, None, mapping)
+        # Excluding a connector may make a required region unreachable on the grid.
+        reachable = set(mapping)
+        queue = deque(mapping)
+        while queue:
+            for neighbor in orthogonal_neighbors(queue.popleft(), rows, columns):
+                if neighbor not in reachable and neighbor not in excluded and boxes[neighbor] is not False:
+                    reachable.add(neighbor)
+                    queue.append(neighbor)
+        if not required <= reachable:
+            continue
+        frontier.difference_update(mapping)
+        if not frontier:
+            continue
+        neighbor = min(frontier)
+        pending.append((mapping.copy(), excluded | {neighbor}))
+        # Derive the new cell from any included neighbor; the next pass checks all others.
+        for direction, index in grid_neighbors(neighbor, rows, columns):
+            if index in mapping:
+                reverse = {'north': 'south', 'south': 'north', 'east': 'west', 'west': 'east'}[direction]
+                placement = surface_step(mapping[index], reverse, trial.dimensions)
+                if placement.cell not in occupied:
+                    included = mapping.copy()
+                    included[neighbor] = placement
+                    pending.append((included, excluded.copy()))
+                break
+    return FoldTrial(trial.dimensions, trial.anchor, trial.rotation,
+                     'cannot include all confirmed box cells', None)
+
+
+def folding_trials(boxes, rows, columns, anchor_index, cells=None):
     if type(anchor_index) is not int or not 0 <= anchor_index < len(boxes):
         raise ValueError('The fold anchor is outside the grid.')
     region = largest_box_region(boxes, rows, columns)
@@ -140,7 +220,8 @@ def folding_trials(boxes, rows, columns, anchor_index):
         for dimensions in total.triples:
             for anchor_cell in cuboid_surface(dimensions):
                 for rotation in range(4):
-                    yield fold_region(region, boxes, rows, columns, anchor_index, dimensions, anchor_cell, rotation)
+                    trial = fold_region(region, boxes, rows, columns, anchor_index, dimensions, anchor_cell, rotation)
+                    yield extend_fold(trial, boxes, rows, columns, cells)
 
 
 def configured_anchor(configuration, selected, rows, columns):

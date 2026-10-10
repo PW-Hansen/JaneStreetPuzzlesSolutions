@@ -104,3 +104,49 @@ class FoldingTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+class ExtendedFoldingTests(unittest.TestCase):
+    def strip_trial(self, boxes, dimensions=(4, 2, 2)):
+        from functions.folding import SurfaceCell
+        region = largest_box_region(boxes, 1, len(boxes))
+        return fold_region(region, boxes, 1, len(boxes), 0, dimensions,
+                           SurfaceCell((1, 1, 0), (0, 0, -1)), 2)
+
+    def test_unknown_connector_included_without_changing_input(self):
+        from functions.folding import extend_fold
+        boxes = [True, True, None, True]
+        trial = self.strip_trial(boxes)
+        self.assertIsNone(trial.reason)
+        result = extend_fold(trial, boxes, 1, 4)
+        self.assertIsNone(result.reason)
+        self.assertEqual(set(result.mapping), {0, 1, 2, 3})
+        self.assertIsNone(boxes[2])
+        self.assertEqual(set(trial.mapping), {0, 1})
+
+    def test_nonbox_wall_rejects_disconnected_confirmed_cell(self):
+        from functions.folding import extend_fold
+        boxes = [True, True, False, True]
+        result = extend_fold(self.strip_trial(boxes), boxes, 1, 4)
+        self.assertEqual(result.reason, 'cannot include all confirmed box cells')
+
+    def test_connection_that_wraps_and_overlaps_is_rejected(self):
+        from functions.folding import extend_fold
+        boxes = [True, True] + [None]*7 + [True]
+        result = extend_fold(self.strip_trial(boxes, (2, 2, 2)), boxes, 1, 10)
+        self.assertIsNotNone(result.reason)
+
+    def test_already_complete_region_keeps_its_mapping(self):
+        from functions.folding import extend_fold
+        boxes = [True, True, None]
+        trial = self.strip_trial(boxes)
+        result = extend_fold(trial, boxes, 1, 3)
+        self.assertEqual(result.mapping, trial.mapping)
+
+    def test_connector_is_checked_against_number_clues(self):
+        from functions.folding import extend_fold
+        boxes = [True, True, None, True]
+        cells = [dict(digit=None, shape=None, arrows=[], shading=0) for _ in boxes]
+        cells[1]['digit'] = '2'
+        result = extend_fold(self.strip_trial(boxes), boxes, 1, 4, cells)
+        self.assertIsNotNone(result.reason)
+

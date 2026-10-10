@@ -25,7 +25,7 @@ class FoldViewer:
         root.title(puzzle.name + ' — 3D region folds')
         root.geometry('1100x800')
         root.minsize(800, 600)
-        self.trials = iter(folding_trials(puzzle.analysis.boxes.copy(), puzzle.rows, puzzle.columns, self.anchor))
+        self.trials = iter(folding_trials(puzzle.analysis.boxes.copy(), puzzle.rows, puzzle.columns, self.anchor, puzzle.cells))
         self.candidates, self.current = [], 0
         self.yaw, self.pitch, self.zoom = -.55, .45, 1
         self.selected = None

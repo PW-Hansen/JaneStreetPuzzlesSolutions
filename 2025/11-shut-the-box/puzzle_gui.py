@@ -435,7 +435,7 @@ class Editor:
         except (OSError, ValueError) as exc:
             messagebox.showerror('Cannot test folds', str(exc), parent=self.root)
             return
-        trials = iter(folding_trials(boxes, self.puzzle.rows, self.puzzle.columns, anchor))
+        trials = iter(folding_trials(boxes, self.puzzle.rows, self.puzzle.columns, anchor, self.puzzle.cells))
         self.folding_running = True
         for button in (self.folding_button, self.dimension_button, self.placement_button): button.state(['disabled'])
         dialog = tk.Toplevel(self.root)
