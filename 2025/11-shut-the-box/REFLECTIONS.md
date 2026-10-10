@@ -1,0 +1,12 @@
+## Reflections on this project
+This was the fourth puzzle that I tackled in this manner, and can largely be considered an extension of the third puzzle - 2026/07-pent-up-frustration-3-knight-moves-7 - in terms of what I was focused on regarding AI-assisted programming. In the third puzzle, I included an AGENTS.md file and instructed Codex to always consult it before carrying out a task.
+
+When creating a solver for this puzzle, I included the same file, but simply told Codex to look at it before starting, and said that I would mention if anything changed in that file. The solver (as well as support tools such as a 2d and 3d GUI for inspecting states and results) was developed over a few hours, and took 38 prompts that collectively consumed 87% of my 5h allowance on a Plus plan, putting the average prompt usage of ~2.25% of 5h allowance per prompt. 
+
+This is much better than in the previous project, where I experienced that implementing just one of a dozen GUI-related tickets could take as much as 5% usage. There are, of course, other factors that contribute to how many tokens prompts take up, but I feel confident asserting that my issues with huge per-prompt allowance usage for the third puzzle was not due to the presence of an AGENTS.md file, but rather the instruction to check it every time, and will continue using AGENTS.md where relevant going forward.
+
+My contributions to this project were providing design specifications and outlining rules for features, which I then manually inspected to ensure that they were working as intended, such as by entering input that I knew should cause certain rules to kick in and either cause a cascade of deductions or invalidate the puzzle.
+
+One thing worth noting is that this implementation does not actually make use of all the rules in the puzzle, specifically the rules for circles and verifying that all square cells are orthogonally adjacent to another square cell on the same face. The latter rule is applied to a specified "anchor" cell when determining valid folds, but not to all squares.
+
+The reason for this is that a unique solution was found before they were coded, and once I had verified that the solution found by the solver was correct (by comparing it with the official solution), I stopped development rather than implementing the rules.
