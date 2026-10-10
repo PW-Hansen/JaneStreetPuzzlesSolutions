@@ -25,22 +25,14 @@ class SolveResult:
 
 def load_initial_puzzle(storage, name):
     validate_name(name)
-    explicit = storage.root / ('saved_states_' + name) / (INITIAL_STATE_NAME + '.json')
-    snapshots = [path for path in storage.snapshots(name) if path.stem == INITIAL_STATE_NAME]
-    path = explicit if explicit.exists() else snapshots[0] if snapshots else None
-    if path is not None:
-        return storage.load(path, name), path
-    puzzle = storage.load(storage.working_path(name), name)
-    puzzle.cells = deepcopy(puzzle.original)
-    puzzle.undo_stack, puzzle.redo_stack = [], []
-    puzzle.update_analysis()
-    return puzzle, None
+    path = storage.snapshot_path(name, INITIAL_STATE_NAME)
+    return storage.load(path, name), path
 
 
 def solve_named_puzzle(storage, name, report=print, *, anchor_coordinates=None):
     started = perf_counter()
     puzzle, source = load_initial_puzzle(storage, name)
-    report(f'Loaded initial state: {source if source else "original clues from working puzzle"}')
+    report(f'Loaded initial state: {source}')
     # Loading performs the shared number, arrow, and region propagation.
     if puzzle.analysis.conflicts:
         raise ValueError('Initial state contradicts the rules: ' + '; '.join(puzzle.analysis.conflicts))

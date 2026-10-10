@@ -9,7 +9,7 @@ from functions.solver import load_initial_puzzle, solve_named_puzzle
 
 
 class SolverTests(unittest.TestCase):
-    def test_explicit_initial_folder_precedes_standard_snapshot(self):
+    def test_only_standard_initial_snapshot_is_loaded(self):
         with tempfile.TemporaryDirectory(dir=Path(__file__).parent) as directory:
             storage = Storage(directory)
             puzzle = Puzzle('test', 2, 2)
@@ -18,19 +18,19 @@ class SolverTests(unittest.TestCase):
             explicit = Path(directory) / 'saved_states_test' / 'initial_state.json'
             storage.save(puzzle, explicit)
             loaded, source = load_initial_puzzle(storage, 'test')
-            self.assertEqual(source, explicit)
-            self.assertEqual(loaded.cells[0]['digit'], '3')
+            self.assertEqual(source, storage.snapshot_path('test', 'initial_state'))
+            self.assertIsNone(loaded.cells[0]['digit'])
 
-    def test_missing_snapshot_uses_original_instead_of_current_edits(self):
+    def test_missing_snapshot_reports_error_without_fallback(self):
         with tempfile.TemporaryDirectory(dir=Path(__file__).parent) as directory:
             storage = Storage(directory)
             puzzle = Puzzle('test', 2, 2)
             puzzle.edit(0, 'Digit Entering', digit='3')
             storage.save(puzzle)
-            loaded, source = load_initial_puzzle(storage, 'test')
-            self.assertIsNone(source)
-            self.assertIsNone(loaded.cells[0]['digit'])
-            self.assertFalse(loaded.undo_stack)
+            storage.save(puzzle, Path(directory) / 'saved_states_test' / 'initial_state.json')
+            storage.save(puzzle, Path(directory) / 'saved states' / 'test' / 'initial_state.json')
+            with self.assertRaises(FileNotFoundError):
+                load_initial_puzzle(storage, 'test')
 
     def test_no_fold_does_not_export_or_replace_working_file(self):
         with tempfile.TemporaryDirectory(dir=Path(__file__).parent) as directory:
@@ -41,6 +41,7 @@ class SolverTests(unittest.TestCase):
             puzzle.update_analysis()
             puzzle.selected = 0
             storage.save(puzzle)
+            storage.save(puzzle, storage.snapshot_path('test', 'initial_state'))
             before = storage.working_path('test').read_bytes()
             with patch('functions.solver.folding_trials', return_value=iter([])):
                 result = solve_named_puzzle(storage, 'test', report=lambda text: None)
