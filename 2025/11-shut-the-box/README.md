@@ -1,84 +1,142 @@
-# Puzzle editor
+# Jane Street November 2025 puzzle: Shut the Box — Python solver
 
-Run `python puzzle_gui.py` for the launcher, then create a named puzzle or open a working puzzle/snapshot. New puzzles default to 20 rows and 20 columns. Run `python puzzle_gui.py <name>` to reopen a named puzzle directly. Cells currently use 35×35 pixels, configured by CELL_SIZE in functions/constants.py. The window fits the full grid and controls, with no grid scrollbars; its minimum size keeps the grid visible. Python with Tkinter and Pillow is required; install Pillow with `python -m pip install -r requirements.txt`. The GUI and PNG exports share antialiased circle, arrow, and digit rendering. Shape bounds use equal integer margins on opposite sides of the cell.
+A Python solver, interactive Tkinter editor, and 3D fold viewer for Jane Street's November 2025 monthly puzzle, Shut the Box.
 
-The editor starts in **Select** mode. Ctrl+0 selects this mode; Ctrl+1 through Ctrl+4 activate Digit Entering, Arrow Entering, Circle/Square, and Shading. Activating the current editing mode returns to Select. Arrow keys move selection, and Escape clears it.
+This project is practice for AI-assisted software development. The code and documentation were developed with Codex, following instructions and corrections from the author. REFLECTIONS.md was written solely by the author.
 
-| Mode | Left-click / typing | Right-click | Backspace / Delete |
-|---|---|---|---|
-| Select | Select only; typing has no effect | Select only | No effect |
-| Digit Entering | Select, then type 0–9 | Clear digit | Clear digit |
-| Arrow Entering | Toggle arrow in clicked diagonal quarter; N/E/S/W toggles directions | Remove clicked arrow | Clear all arrows |
-| Circle/Square | Cycle blank, grey circle, grey square; Space also cycles | Clear shape | Clear shape |
-| Shading | Cycle blank, light grey, light green; Space also cycles | Clear shading | Clear shading |
+## Puzzle rules
 
-Arrows cannot coexist with digits or shapes. Incompatible additions are ignored, preserving existing content. Digits can coexist with shapes and render on top. Shading sits below all content. Blue outlines indicate selection and appear in Print state exports.
+Cut away orthogonally connected groups of cells, each touching the grid boundary. The remaining cells must be connected, contain no holes, and fold into the six faces of a rectangular box without overlaps.
 
-Edits autosave to `grids/<name>.json`. Save state writes a separate snapshot to `saved_states/<name>/<state>.json`; Load state lists only the current puzzle's snapshots and restores their history. Print state saves the matching snapshot and `<state>.png` in the project root. Existing files require confirmation before replacement. A failed load leaves the current puzzle intact.
+Arrow cells are outside the box and point toward the nearest box cells in their row or column. Numbered cells are in-box; their numbers count box cells in the centered 3×3 neighborhood, including themselves. Each grey circle must face another circle directly opposite it; each grey square must have an orthogonally adjacent square on the same face.
 
-Ctrl+Z undoes, and Ctrl+Y or Ctrl+Shift+Z redoes. New edits discard redo history. Reset edits restores the original cell data; Reset shading restores only original shading. Both are undoable and retain the puzzle name, dimensions, and original clues. Working history is cleared on normal close; saved snapshots retain their captured history. Newly created puzzles have blank original clues. Automatic arrow, number, and region deductions are supported as described below; there is no full box solver; region-fold candidates can be inspected in the separate 3D viewer.
+The answer is the product of the six face sums of numbered cells. The full statement is in [docs/rules.md](docs/rules.md).
 
-Run backend checks with `python -m unittest discover -s tests`. GUI smoke verification is available as `python tests/gui_smoke.py` and writes inspection images under `tests/artifacts/`.
+## Getting started
 
+Requires Python with Tkinter and Pillow. Install the dependency, then open the editor:
 
+```sh
+python -m pip install -r requirements.txt
+python puzzle_gui.py
+```
 
+The launcher creates named puzzles or opens working grids and snapshots. New puzzles default to 20 rows and 20 columns; dimensions are fixed after creation. Cells use 35×35 pixels, configured by `CELL_SIZE` in `functions/constants.py`, and the window fits the grid without scrollbars.
 
-Arrow rules run automatically after edits, resets, undo/redo, and loads. Cell details report **Box: yes** (light green), **no** (light grey), or **unknown** (unshaded), plus the source. Numbered/shape clues are box cells; arrow clues are outside. A short blue dash identifies automatic shading. Your manual shading is stored separately, and deductions are recomputed from it so removing an assumption retracts unsupported results. Shading mode cycles your manual input through unknown/no/yes; clearing removes that manual input even if an automatic deduction remains.
+To open, inspect, or solve the supplied puzzle:
 
-For each arrow clue, every indicated direction must first encounter a box cell at the same minimum distance. Unmarked directions cannot have a box cell at that distance or closer. Propagation tests possible distances and applies only assignments shared by all remaining distances, repeating across clues until stable. Cell details list possible distances for an arrow; the analysis panel reports contradictions. If input is inconsistent, inferred arrow shading is withheld and manual input is preserved. Snapshots and working files store manual edits and clues; deterministic deductions are restored by recomputation. Reset shading clears manual shading back to its original values and then reapplies deductions. Arrow, number, box-connectivity, and non-box boundary-reachability propagation are supported; box folding is checked separately by the region-fold search.
+```sh
+python puzzle_gui.py puzzle
+python gui_puzzle_3d.py puzzle
+python solve_puzzle.py puzzle
+python solve_puzzle.py puzzle 5 6
+```
 
+The solver requires `saved_states/<name>/initial_state.json`. It preserves this input and the working grid, and writes a unique result to `saved_states/<name>/solved_state.json` and `solved_state.png` in the project root. Load the snapshot in the editor to inspect the result.
 
+## Editing the grid
 
-Number clues count box cells in the surrounding 3×3 neighborhood, **including the numbered cell itself**; edge and corner clues count only cells inside the grid. When the target count is met, all remaining unknown neighbors become no. When every unknown is needed to reach the target, they become yes. Too many confirmed box cells or too few possible box cells produce a contradiction. Cell details show the current count for a selected number clue. The analysis panel reports arrow and number deductions separately, and blue dashes mark both kinds of automatic shading.
+The editor opens in Select mode. Use the mode buttons or these shortcuts:
 
-Every edit rebuilds deductions from the current manual input, checking affected number clues (including diagonal neighbors) and propagating consequences across both rule types until stable. Changing or deleting a number, clearing shading, undo/redo, loading, and resets all recompute the same analysis. Contradictory input preserves manual edits and withholds automatic arrow/number deductions. Number propagation does not yet combine overlapping clues algebraically or search speculative assignments.
+| Shortcut | Mode | Action |
+| --- | --- | --- |
+| Ctrl+0 | Select | Inspect cells without editing. |
+| Ctrl+1 | Digit Entering | Select a cell and type 0–9. |
+| Ctrl+2 | Arrow Entering | Click a directional quarter, or type N/E/S/W, to toggle an arrow. |
+| Ctrl+3 | Circle/Square | Click or press Space to cycle blank, circle, and square. |
+| Ctrl+4 | Shading | Click or press Space to cycle unknown, out-box, and in-box. |
 
+Activating the current editing mode returns to Select. Arrow keys move selection; Escape clears it. Right-click clears the current mark, or removes the clicked arrow. Backspace/Delete clears the current mode's content; Select ignores editing input.
 
-Region rules require all confirmed box cells to connect orthogonally. The analysis considers both yes and unknown cells as possible paths, with no cells acting as walls. An unknown cell becomes yes only if removing it would separate confirmed box cells, making it unavoidable in any connected completion. This handles lone greens, multi-cell regions, successive bottlenecks, and unknown dead-end pockets. Alternative routes remain unknown; diagonal contact does not connect regions. A single already connected green region does not grow without another region to connect to.
+Digits and shapes can coexist; arrows cannot coexist with either. Incompatible additions are ignored. The inspector reports box status as **yes**, **no**, or **unknown**, plus clue counts, possible arrow distances, and deduction sources. In-box cells are initially light green, out-box cells light grey, and unknowns unshaded. Blue dashes identify automatic shading; blue outlines mark selection.
 
-If confirmed box regions cannot connect even through all unknown cells, the analysis reports a contradiction and withholds inferred shading. Region deductions run automatically together with arrow and number rules until stable, retract after input changes, and participate in the same undo/redo operation as the edit. Cell details identify their source as region rules; a blue dash marks their automatic shading. The analysis panel reports the number of region deductions. Exterior reachability also prevents enclosed non-box regions, as described below; box folding remains outside these region rules.
+Undo: Ctrl+Z. Redo: Ctrl+Y or Ctrl+Shift+Z. New edits clear redo history.
 
-Unknown components that cannot reach any confirmed box cell through yes/unknown cells are automatically marked no, including pockets bounded partly by the grid edge. Pockets with a possible exit remain unknown. Without any confirmed box cell, unknown components remain unknown because the future box location is not established. Clearing a blocking no cell retracts unsupported pocket deductions, including through undo/redo. These exclusions participate in the same combined propagation and contradiction handling as other region deductions.
+## Rules and placement analysis
 
+Arrow, number, and region deductions run automatically after edits, loads, resets, and undo/redo, repeating until stable. They recompute from manual input, so removing an assumption retracts unsupported deductions. Contradictions preserve manual input and withhold inferred shading.
 
-Every non-box region must reach the grid boundary orthogonally through non-box cells. Unknown cells are considered possible escape routes, and an unknown becomes no only if every route from a confirmed non-box region to the boundary requires it. Separate removed regions may reach different boundary cells; they need not connect inside the grid. Multiple possible escape routes stay unknown. A trapped confirmed non-box region reports a contradiction. An unknown pocket with no possible route to the boundary must instead be box. These deductions are reported as region rules, propagate with the other constraints, and retract through ordinary edits, resets, loads, and undo/redo.
+- **Arrows:** marked directions must first encounter box cells at the same minimum distance. Unmarked directions cannot contain box cells that close. Assignments shared by all possible distances are inferred.
+- **Numbers:** count the centered 3×3 neighborhood, including the clue cell. A satisfied count excludes remaining unknowns; if every unknown is needed, all become in-box.
+- **Connectivity:** unknown bottlenecks needed to join confirmed box regions become in-box. Unknown components unable to reach any confirmed box cell become out-box. Diagonal contact does not connect regions.
+- **Exterior reachability:** every out-box region must reach the grid edge orthogonally. Necessary unknown escape cells become out-box; unknown pockets unable to reach the boundary become in-box.
 
-**Attempt placements** tests each currently unknown cell as in-box and out-box on separate copies, running all implemented deductions for each branch. If exactly one branch is free of contradictions, that assignment is committed as shading. If both branches remain consistent, the cell stays unknown. Cells determined by intervening automatic deductions need no separate trial. After each complete pass, another pass runs if any forced placement was committed; analysis stops after a full pass with no changes. A branch without contradictions means consistent with the implemented rules, not proof that it folds into a valid box.
+**Attempt placements** tests each unknown as in-box and out-box, applying these rules to both branches. One consistent branch is committed; two leave the cell unknown; neither stops analysis and identifies the failing cell. Passes repeat until one makes no changes.
 
-The analysis panel shows the pass, tested cell and assignment, forced-placement count, and elapsed time. **Abort** cancels the operation and retains earlier confirmed placements; speculative branches are never committed. Editing, loading, snapshots, and undo/redo are blocked while the background operation runs. If neither assignment works, analysis stops, selects the failing cell, and reports its row/column and both contradiction reasons. Existing starting contradictions are reported separately. Completion, cancellation, and failure remain visible with the final elapsed time. Closing during analysis aborts before saving and closing.
+The sidebar shows progress and elapsed time. **Abort** retains earlier forced placements without committing a speculative branch. Editing and persistence controls are blocked during analysis. One run's committed placements form one undoable, autosaved action.
 
-All placements committed by one run are one undo/redo operation and autosave normally. Snapshots capture their committed shading and history; normal close still clears working history. Reset shading removes these committed assignments along with other shading edits, then recomputes automatic deductions. No speculative branch search beyond the two immediate assignments is performed.
+## Box dimensions and folds
 
-**Determine valid box dimensions** counts confirmed in-box cells and unknown cells using the displayed deductions. For each possible total from the confirmed count through confirmed plus unknown, it skips odd totals and enumerates all positive integer triples `a >= b >= c` satisfying `2 * (a*b + b*c + c*a) = total`. The results dialog lists the number of unknown cells included, total box cells, number of matching triples, and every matching `(a, b, c)`. Even totals with no matches are listed with a count of zero. Results are read-only and do not change the grid or undo history. This checks the surface-area formula only; it does not test whether the current grid folds into those dimensions. Existing contradictions must be resolved first.
+**Determine valid box dimensions** enumerates positive integer triples `a >= b >= c` for possible box-cell totals, from the confirmed count through confirmed plus unknown. Odd totals are skipped:
 
-The calculation yields between totals to keep the interface responsive. The dialog provides Abort, scrolling results, and elapsed time; aborted results are explicitly incomplete. Closing the dialog stops any remaining calculation. The count range is captured when the button is clicked; run it again after editing to update results.
+```text
+2 * (a*b + b*c + c*a) = total
+```
 
-**Try region folds** constructs the cuboid surface for every candidate dimension triple, then pins the largest orthogonally connected confirmed box region to every surface cell on the positive faces (+X, +Y, +Z) in four rotations. Negative-face anchor positions are skipped. Positions equivalent under a rotation of the cuboid are tested only once, with all four grid orientations retained. This includes diagonally opposite positions on rectangular faces and quarter-turn equivalents on square faces; equal dimensions also allow equivalent faces to share a representative. Reflected placements are not merged. Each grid adjacency in that region must remain uncut. Movement stays on a face until an edge forces a 90-degree fold onto the adjacent face. The search rejects overlaps, inconsistent placements around loops (a connection would need severing), and anchor positions with no possible same-face grid neighbor; a 1×1 anchor face always fails. Grid-edge neighbors and confirmed non-box neighbors cannot supply that anchor neighbor. Unknown neighbors remain possible.
+This read-only calculation checks surface area rather than folding.
 
-The named configuration `configs/puzzle.json` sets this puzzle's anchor with `"fold_anchor": [6, 9]` (one-based row and column). Other named puzzles can provide the same setting in `configs/<name>.json`, or use the selected cell when it is absent. The anchor must lie in the largest confirmed box region; equal-size regions are selected by earliest grid position. The configuration is separate from cell edits and is not changed by resets or snapshots.
+**Try region folds** starts with the largest confirmed region, testing candidate dimensions, positive-face anchor positions, and four orientations. Rotationally equivalent positions share a representative; reflections remain distinct. Box edges force folds, and grid adjacencies must remain uncut. Overlaps, inconsistent adjacencies, and anchors with no possible same-face grid neighbor are rejected; a 1×1 anchor face always fails.
 
-The results dialog lists surviving dimensions, anchor face/position, and rotation. **View cell mapping** (or double-click a survivor) lists every region cell's face and surface center. Coordinates use unit grid cells; faces are labeled ±X, ±Y, ±Z. Four rotations use an orientation-preserving frame on each face, without reflected placements. Abort leaves incomplete results explicitly labeled, and the final elapsed time and rejection counts remain visible. When a completed search has exactly one survivor, it applies that placement to the grid as one undoable operation and autosaves. Zero, multiple, or aborted results leave the grid unchanged. After the largest-region trial succeeds, the search tries connections through unknown cells to include every confirmed box cell. It retains a fold if at least one connected placement avoids overlaps and broken adjacencies and its tentative assignments do not contradict the implemented arrow, number, and region rules. The displayed mapping includes one successful set of unknown connectors. A final search requires every surface square to be occupied, using connected groups of unknown grid cells when needed. It tries alternative connector choices rather than fixing the first successful connection. Unused grid cells are assigned outside the box in the final contradiction check; a unique survivor commits all in-box/out-box assignments and face labels. Circle/square pairing rules are not checked. Connection search can take longer when many unknown cells remain.
+Survivors must include every confirmed box cell and fill every surface square using connected groups of unknown cells. Alternative connections are tried, and complete assignments are checked against the automatic rules. The results dialog lists dimensions, anchor positions, and rotations; **View cell mapping** shows the grid-to-surface mapping.
 
-Run `python gui_puzzle_3d.py puzzle` to view surviving folds of the saved working grid, or `python gui_puzzle_3d.py` to choose a named puzzle. The viewer uses the same configured anchor and region-fold search as the editor. Previous/Next fold switches candidates; drag to rotate, use the mouse wheel to zoom, or select a face button for a straight-on view. Separate faces spreads the faces apart for inspection. Mapped cells use the face colors: +X red, -X cyan, +Y green, -Y magenta, +Z blue, -Z yellow. A white outline marks the anchor; grey cells are uncovered surface. Click a cell to see its original grid coordinates and clue; Grid coordinates replaces clue labels with row/column labels. Reset view restores the camera and face spacing. Search can be aborted, leaving explicitly incomplete results. The viewer loads the grid once when opened. A completed search with one survivor applies and saves it, unless the saved grid changed during the search; reopen after editor changes. An already open editor must reload the saved grid to see changes made by the 3D viewer. Every surviving placement fills the entire box surface and includes every confirmed box cell. Circle/square pairing rules are not checked, so these are not yet verified complete puzzle solutions.
+The GUI anchor comes from `"fold_anchor": [row, column]` in `configs/<name>.json`, or the selected cell if absent. Coordinates are one-based, and the anchor must lie in the largest confirmed region. The supplied configuration uses R6C9.
 
+A completed search with exactly one survivor applies all box statuses and face labels as one undoable, autosaved change. Zero, multiple, or aborted results leave the grid unchanged.
 
+**Current limitation:** circle-opposite-circle and same-face square-pairing rules are not checked. Surviving folds are not yet fully verified puzzle solutions.
 
+## 3D viewer and answer key
 
+Run `python gui_puzzle_3d.py` to choose a puzzle, or supply its name. It uses the same fold search and GUI anchor rules.
 
+Drag to rotate and use the mouse wheel to zoom. **Previous/Next fold** switches candidates; face buttons give straight-on views. **Separate faces** spreads the faces apart. Click a cell to inspect its grid coordinates and clue; **Grid coordinates** replaces clue labels with row/column labels. **Reset view** restores the camera and face spacing.
 
-Face colors appear in the editor, PNG exports, and 3D viewer. Face labels persist in working files and snapshots, and undo/redo restores them with shading. A subsequent grid edit clears all face labels to avoid displaying a stale fold; run the fold search again to restore them. Selection alone does not clear colors. Reset shading clears face labels as well as resetting shading.
+Faces use muted colors: +X red, -X cyan, +Y green, -Y magenta, +Z blue, and -Z yellow. A white outline marks the anchor. Applied face colors also appear in the editor and PNG exports. Grid edits clear face labels to avoid stale colors; selection alone does not.
 
+A completed unique result is applied and saved unless the saved grid changed during search. The viewer loads once; reopen after edits, and reload an already open editor to see changes saved by the viewer.
 
-**Compute answer key** is available in both GUIs. After a unique fold has been applied, it displays the sum of numbered cells on each of the six faces and their product, as specified in docs/rules.md. Blank cells contribute zero; a face with no numbered cells has sum zero. Unknown cells, missing face assignments, or existing contradictions prevent calculation and explain what must be resolved. The button does not change the grid or undo history.
+**Compute answer key** in either GUI shows each face's number sum and their product. It requires an applied fold with all six face assignments, no unknown cells, and no contradictions. A face without numbers has sum zero.
 
-Load state also discovers snapshots in the older "saved states" directory. If both directories contain the same snapshot name, the file under saved_states takes precedence. Existing snapshot files are not moved or modified.
+## Solving the full puzzle
 
+```sh
+python solve_puzzle.py puzzle
+python solve_puzzle.py puzzle 5 6
+```
 
-Run `python solve_puzzle.py <name>` for the command-line workflow. It first loads `saved_states_<name>/initial_state.json` if present, then searches the normal snapshot folders for `initial_state.json` (preferring `saved_states/<name>/` over the older `saved states/<name>/`). If no initial snapshot exists, it uses the original clues stored in `grids/<name>.json`, rather than the current edits. An invalid existing initial snapshot reports an error instead of silently using another state.
+The solver always loads `saved_states/<name>/initial_state.json`; missing or invalid input reports an error. It applies automatic rules, runs Attempt placements to stability, then searches folds and complete surface fillings.
 
-Loading immediately recomputes the shared arrow, number, and region deductions. The solver then runs Attempt placements to stability, tries region folds with the chosen anchor, includes all confirmed cells, and fills the complete surface using unknown cells. A single surviving fold is applied, its six face sums and answer-key product are printed, and the shared Print state function writes `saved_states/<name>/solved_state.json` and `solved_state.png` in the project root. These outputs replace existing files with the same names; the working grid and initial snapshot remain unchanged. The saved solution includes face colors and undo history and can be opened with Load state.
+Optional row and column arguments select a one-based anchor, which must be confirmed in-box after placement analysis. Without them, the solver ranks confirmed box cells by centered 3×3 box count, then centered 5×5 count, then earliest row-major index. Counts include the center, clip at grid edges, and exclude unknowns. The chosen anchor is printed and its connected region is folded first. CLI selection is independent of GUI anchor configuration.
 
-Zero or multiple surviving folds produce a clear unresolved result and no solved export. Exit codes are 0 for a unique result, 2 for unresolved results, 1 for errors/contradictions, and 130 for interruption. Circle/square pairing rules remain outside the implemented folding checks; the script applies the same checks as the GUI.
+A unique result prints the six face sums and answer key, then uses the shared Print state function to save `solved_state.json` and `solved_state.png`. Existing outputs with those names are replaced. Zero or multiple survivors produce no solved export. Exit codes are 0 for a unique result, 1 for errors, 2 for unresolved results, and 130 for interruption.
 
-The command-line solver accepts an optional one-based anchor row and column: `python solve_puzzle.py puzzle 5 6` anchors R5C6. Supply both coordinates or neither. The supplied cell must be confirmed in-box after rules and placement analysis. Without coordinates, the solver selects from all confirmed box cells by the greatest confirmed-box count in the centered 3x3 neighborhood (including the center), then the centered 5x5 count, then the earliest row-major index. Neighborhoods are clipped at grid edges and unknown cells do not count. The chosen anchor is printed; the solver starts folding its connected confirmed region and then includes all other box cells. This CLI selection replaces configuration/selection defaults; GUI anchor behavior is unchanged.
+## Saving, exporting, and resetting
 
+Working grids autosave to `grids/<name>.json`. Buttons below the grid provide additional controls:
+
+- **Save state:** save a named snapshot under `saved_states/<name>/`.
+- **Load state:** restore the grid, face labels, selection, and undo/redo history. Older `saved states` folders are also recognized; `saved_states` takes precedence for duplicate names.
+- **Print state:** save a matching snapshot and `<state>.png` in the project root, including the current selection highlight.
+- **Reset edits:** restore original cell data while preserving the puzzle's identity and dimensions.
+- **Reset shading:** restore original shading and clear face labels, then recompute deductions.
+
+The GUI asks before replacing existing snapshots or PNGs. Failed loads leave the current grid intact. Resets are undoable; snapshots retain captured history, while normal editor close clears working history.
+
+## Code organization and tests
+
+- `puzzle_gui.py`: Tkinter editor, launcher, and dialogs.
+- `gui_puzzle_3d.py`: interactive fold viewer.
+- `solve_puzzle.py`: command-line arguments and solver entry point.
+- `functions/model.py` and `storage.py`: editing, history, validation, and persistence.
+- `functions/analysis.py`, `arrows.py`, `numbers.py`, `regions.py`, and `placements.py`: shared deductions and placement analysis.
+- `functions/dimensions.py`, `folding.py`, `anchors.py`, and `fold_application.py`: dimension enumeration, folds, anchor selection, and applying unique results.
+- `functions/solver.py`, `answer_key.py`, and `state_export.py`: shared solver workflow, answer calculation, and snapshot/PNG output.
+- `functions/rendering.py`, `view3d.py`, and `constants.py`: drawing, 3D projection, and shared constants.
+- `tests/`: automated backend tests.
+- `docs/`: puzzle rules and GUI requirements.
+
+Modules in `functions/` do not import root entry points. Run the tests from the project root:
+
+```sh
+python -m unittest discover -s tests
+```
