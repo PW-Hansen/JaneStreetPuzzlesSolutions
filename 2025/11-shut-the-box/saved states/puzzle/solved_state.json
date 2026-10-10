@@ -1,0 +1,10482 @@
+{
+  "version": 1,
+  "name": "puzzle",
+  "rows": 20,
+  "columns": 20,
+  "cells": [
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [
+        "east"
+      ],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 2,
+      "face": "-Y"
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 2,
+      "face": "-Y"
+    },
+    {
+      "digit": null,
+      "arrows": [
+        "west",
+        "south"
+      ],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [
+        "south"
+      ],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [
+        "south"
+      ],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 2,
+      "face": "-Y"
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 2,
+      "face": "-Y"
+    },
+    {
+      "digit": null,
+      "arrows": [
+        "west",
+        "south"
+      ],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [
+        "east"
+      ],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 2,
+      "face": "+Z"
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 2,
+      "face": "+Z"
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 2,
+      "face": "+Z"
+    },
+    {
+      "digit": "4",
+      "arrows": [],
+      "shape": null,
+      "shading": 2,
+      "face": "+Z"
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [
+        "west",
+        "east",
+        "south"
+      ],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": "4",
+      "arrows": [],
+      "shape": "circle",
+      "shading": 2,
+      "face": "-Z"
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 2,
+      "face": "-Z"
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 2,
+      "face": "-Z"
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 2,
+      "face": "-Z"
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 2,
+      "face": "-Z"
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [
+        "east"
+      ],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": "5",
+      "arrows": [],
+      "shape": "square",
+      "shading": 2,
+      "face": "+Z"
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [
+        "west",
+        "east",
+        "south"
+      ],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 2,
+      "face": "+Z"
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 2,
+      "face": "+Z"
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 2,
+      "face": "+X"
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 2,
+      "face": "-Z"
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 2,
+      "face": "-Z"
+    },
+    {
+      "digit": null,
+      "arrows": [
+        "north",
+        "west",
+        "south"
+      ],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [
+        "south"
+      ],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [
+        "east",
+        "south"
+      ],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 2,
+      "face": "+Z"
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 2,
+      "face": "+Z"
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 2,
+      "face": "+Z"
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 2,
+      "face": "+Z"
+    },
+    {
+      "digit": "7",
+      "arrows": [],
+      "shape": null,
+      "shading": 2,
+      "face": "+Z"
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 2,
+      "face": "+X"
+    },
+    {
+      "digit": "5",
+      "arrows": [],
+      "shape": "circle",
+      "shading": 2,
+      "face": "+X"
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 2,
+      "face": "-Z"
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 2,
+      "face": "-Z"
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 2,
+      "face": "-Z"
+    },
+    {
+      "digit": null,
+      "arrows": [
+        "east"
+      ],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [
+        "east",
+        "south"
+      ],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 2,
+      "face": "+Z"
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 2,
+      "face": "+Z"
+    },
+    {
+      "digit": "4",
+      "arrows": [],
+      "shape": "circle",
+      "shading": 2,
+      "face": "+Z"
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 2,
+      "face": "+Z"
+    },
+    {
+      "digit": "7",
+      "arrows": [],
+      "shape": null,
+      "shading": 2,
+      "face": "+X"
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [
+        "north",
+        "east",
+        "west"
+      ],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": "4",
+      "arrows": [],
+      "shape": "circle",
+      "shading": 2,
+      "face": "-Z"
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 2,
+      "face": "-Z"
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": "4",
+      "arrows": [],
+      "shape": null,
+      "shading": 2,
+      "face": "+Z"
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 2,
+      "face": "+Z"
+    },
+    {
+      "digit": "7",
+      "arrows": [],
+      "shape": "square",
+      "shading": 2,
+      "face": "+Z"
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [
+        "east",
+        "south"
+      ],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 2,
+      "face": "+Z"
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 2,
+      "face": "+X"
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 2,
+      "face": "-Z"
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [
+        "south"
+      ],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 2,
+      "face": "+Z"
+    },
+    {
+      "digit": "9",
+      "arrows": [],
+      "shape": null,
+      "shading": 2,
+      "face": "+Z"
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 2,
+      "face": "+Z"
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 2,
+      "face": "+Z"
+    },
+    {
+      "digit": null,
+      "arrows": [
+        "west",
+        "east"
+      ],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 2,
+      "face": "+Z"
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 2,
+      "face": "+Z"
+    },
+    {
+      "digit": null,
+      "arrows": [
+        "north",
+        "west",
+        "south"
+      ],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [
+        "east"
+      ],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 2,
+      "face": "-Z"
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 2,
+      "face": "-Z"
+    },
+    {
+      "digit": null,
+      "arrows": [
+        "west",
+        "south"
+      ],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [
+        "east",
+        "south"
+      ],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 2,
+      "face": "-X"
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 2,
+      "face": "-X"
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 2,
+      "face": "-X"
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 2,
+      "face": "-X"
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 2,
+      "face": "+Y"
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 2,
+      "face": "+Y"
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 2,
+      "face": "+Y"
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 2,
+      "face": "+Y"
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 2,
+      "face": "+Y"
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 2,
+      "face": "+X"
+    },
+    {
+      "digit": null,
+      "arrows": [
+        "west",
+        "south"
+      ],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": "6",
+      "arrows": [],
+      "shape": "square",
+      "shading": 2,
+      "face": "+Y"
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 2,
+      "face": "+Y"
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 2,
+      "face": "+Y"
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 2,
+      "face": "-X"
+    },
+    {
+      "digit": "7",
+      "arrows": [],
+      "shape": "circle",
+      "shading": 2,
+      "face": "-X"
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 2,
+      "face": "-X"
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [
+        "north",
+        "east",
+        "south"
+      ],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 2,
+      "face": "+Y"
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 2,
+      "face": "+Y"
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [
+        "north",
+        "east",
+        "south",
+        "west"
+      ],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": "5",
+      "arrows": [],
+      "shape": "square",
+      "shading": 2,
+      "face": "+Y"
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 2,
+      "face": "+Y"
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 2,
+      "face": "+X"
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 2,
+      "face": "+X"
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 2,
+      "face": "+X"
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 2,
+      "face": "+Y"
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 2,
+      "face": "+Y"
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [
+        "north",
+        "east"
+      ],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 2,
+      "face": "-Z"
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 2,
+      "face": "-Z"
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 2,
+      "face": "-X"
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 2,
+      "face": "-Z"
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 2,
+      "face": "-Z"
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 2,
+      "face": "-Z"
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 2,
+      "face": "-Z"
+    },
+    {
+      "digit": null,
+      "arrows": [
+        "north",
+        "east",
+        "west"
+      ],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 2,
+      "face": "-Z"
+    },
+    {
+      "digit": "5",
+      "arrows": [],
+      "shape": null,
+      "shading": 2,
+      "face": "-Z"
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [
+        "east",
+        "south"
+      ],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 2,
+      "face": "+Z"
+    },
+    {
+      "digit": null,
+      "arrows": [
+        "north",
+        "west",
+        "south"
+      ],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [
+        "north"
+      ],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [
+        "north",
+        "south"
+      ],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": "4",
+      "arrows": [],
+      "shape": null,
+      "shading": 2,
+      "face": "-X"
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 2,
+      "face": "-Z"
+    },
+    {
+      "digit": "7",
+      "arrows": [],
+      "shape": null,
+      "shading": 2,
+      "face": "-Z"
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 2,
+      "face": "-Z"
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 2,
+      "face": "-Z"
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 2,
+      "face": "-Z"
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 2,
+      "face": "+Z"
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 2,
+      "face": "+Z"
+    },
+    {
+      "digit": "3",
+      "arrows": [],
+      "shape": "square",
+      "shading": 2,
+      "face": "+Z"
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 2,
+      "face": "+Z"
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 2,
+      "face": "+Z"
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 2,
+      "face": "-Z"
+    },
+    {
+      "digit": null,
+      "arrows": [
+        "north",
+        "east",
+        "west"
+      ],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 2,
+      "face": "-Z"
+    },
+    {
+      "digit": null,
+      "arrows": [
+        "west",
+        "east"
+      ],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 2,
+      "face": "-Z"
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 2,
+      "face": "-Z"
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [
+        "north",
+        "east",
+        "west"
+      ],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 2,
+      "face": "+Z"
+    },
+    {
+      "digit": null,
+      "arrows": [
+        "north",
+        "west"
+      ],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [
+        "north",
+        "east"
+      ],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 2,
+      "face": "+Z"
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [
+        "north",
+        "east",
+        "south",
+        "west"
+      ],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 2,
+      "face": "-Z"
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 2,
+      "face": "-Z"
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 2,
+      "face": "-Z"
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [
+        "north"
+      ],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [
+        "east"
+      ],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": "5",
+      "arrows": [],
+      "shape": "square",
+      "shading": 2,
+      "face": "+Z"
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 2,
+      "face": "-X"
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": "6",
+      "arrows": [],
+      "shape": null,
+      "shading": 2,
+      "face": "-Z"
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 2,
+      "face": "-Z"
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 2,
+      "face": "-Z"
+    },
+    {
+      "digit": "2",
+      "arrows": [],
+      "shape": null,
+      "shading": 2,
+      "face": "-Z"
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 2,
+      "face": "-Z"
+    },
+    {
+      "digit": null,
+      "arrows": [
+        "north",
+        "west"
+      ],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [
+        "north"
+      ],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 2,
+      "face": "+Z"
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 2,
+      "face": "-X"
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 2,
+      "face": "-X"
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 2,
+      "face": "-Z"
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 2,
+      "face": "-Z"
+    },
+    {
+      "digit": null,
+      "arrows": [
+        "north",
+        "west",
+        "south"
+      ],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [
+        "north",
+        "south"
+      ],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [
+        "south"
+      ],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [
+        "north",
+        "east"
+      ],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [
+        "north"
+      ],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": "5",
+      "arrows": [],
+      "shape": null,
+      "shading": 2,
+      "face": "-Y"
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 2,
+      "face": "-Y"
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 2,
+      "face": "-Y"
+    },
+    {
+      "digit": null,
+      "arrows": [
+        "west",
+        "south"
+      ],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 2,
+      "face": "-Y"
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 2,
+      "face": "-Y"
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [
+        "west",
+        "south"
+      ],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [
+        "west"
+      ],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [
+        "north"
+      ],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [
+        "north",
+        "east"
+      ],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 2,
+      "face": "-Y"
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 2,
+      "face": "-Y"
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 2,
+      "face": "-Y"
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 2,
+      "face": "-Y"
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 2,
+      "face": "-Y"
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [
+        "west"
+      ],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [
+        "north",
+        "west"
+      ],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [
+        "east"
+      ],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 2,
+      "face": "+Z"
+    },
+    {
+      "digit": null,
+      "arrows": [
+        "north",
+        "west",
+        "south"
+      ],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": "5",
+      "arrows": [],
+      "shape": "circle",
+      "shading": 2,
+      "face": "+Z"
+    },
+    {
+      "digit": "5",
+      "arrows": [],
+      "shape": null,
+      "shading": 2,
+      "face": "+X"
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 2,
+      "face": "+X"
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [
+        "north",
+        "east"
+      ],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [
+        "east"
+      ],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": "4",
+      "arrows": [],
+      "shape": "square",
+      "shading": 2,
+      "face": "+Z"
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 2,
+      "face": "+Z"
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 2,
+      "face": "+Z"
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 2,
+      "face": "+X"
+    },
+    {
+      "digit": null,
+      "arrows": [
+        "north",
+        "west"
+      ],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [
+        "east"
+      ],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [
+        "north",
+        "east"
+      ],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [
+        "east"
+      ],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 2,
+      "face": "+Z"
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [
+        "west"
+      ],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [
+        "north",
+        "west"
+      ],
+      "shape": null,
+      "shading": 1
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 1
+    }
+  ],
+  "original": [
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [
+        "east"
+      ],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [
+        "west",
+        "south"
+      ],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [
+        "south"
+      ],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [
+        "south"
+      ],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [
+        "west",
+        "south"
+      ],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [
+        "east"
+      ],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": "4",
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [
+        "west",
+        "east",
+        "south"
+      ],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": "4",
+      "arrows": [],
+      "shape": "circle",
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [
+        "east"
+      ],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": "5",
+      "arrows": [],
+      "shape": "square",
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [
+        "west",
+        "east",
+        "south"
+      ],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [
+        "north",
+        "west",
+        "south"
+      ],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [
+        "south"
+      ],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [
+        "east",
+        "south"
+      ],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": "7",
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": "5",
+      "arrows": [],
+      "shape": "circle",
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [
+        "east"
+      ],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [
+        "east",
+        "south"
+      ],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": "4",
+      "arrows": [],
+      "shape": "circle",
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": "7",
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [
+        "north",
+        "east",
+        "west"
+      ],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": "4",
+      "arrows": [],
+      "shape": "circle",
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": "4",
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": "7",
+      "arrows": [],
+      "shape": "square",
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [
+        "east",
+        "south"
+      ],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [
+        "south"
+      ],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": "9",
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [
+        "west",
+        "east"
+      ],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [
+        "north",
+        "west",
+        "south"
+      ],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [
+        "east"
+      ],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [
+        "west",
+        "south"
+      ],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [
+        "east",
+        "south"
+      ],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [
+        "west",
+        "south"
+      ],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": "6",
+      "arrows": [],
+      "shape": "square",
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": "7",
+      "arrows": [],
+      "shape": "circle",
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [
+        "north",
+        "east",
+        "south"
+      ],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [
+        "north",
+        "east",
+        "south",
+        "west"
+      ],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": "5",
+      "arrows": [],
+      "shape": "square",
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [
+        "north",
+        "east"
+      ],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [
+        "north",
+        "east",
+        "west"
+      ],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": "5",
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [
+        "east",
+        "south"
+      ],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [
+        "north",
+        "west",
+        "south"
+      ],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [
+        "north"
+      ],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [
+        "north",
+        "south"
+      ],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": "4",
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": "7",
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": "3",
+      "arrows": [],
+      "shape": "square",
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [
+        "north",
+        "east",
+        "west"
+      ],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [
+        "west",
+        "east"
+      ],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [
+        "north",
+        "east",
+        "west"
+      ],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [
+        "north",
+        "west"
+      ],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [
+        "north",
+        "east"
+      ],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [
+        "north",
+        "east",
+        "south",
+        "west"
+      ],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [
+        "north"
+      ],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [
+        "east"
+      ],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": "5",
+      "arrows": [],
+      "shape": "square",
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": "6",
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": "2",
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [
+        "north",
+        "west"
+      ],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [
+        "north"
+      ],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [
+        "north",
+        "west",
+        "south"
+      ],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [
+        "north",
+        "south"
+      ],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [
+        "south"
+      ],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [
+        "north",
+        "east"
+      ],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [
+        "north"
+      ],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": "5",
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [
+        "west",
+        "south"
+      ],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [
+        "west",
+        "south"
+      ],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [
+        "west"
+      ],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [
+        "north"
+      ],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [
+        "north",
+        "east"
+      ],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [
+        "west"
+      ],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [
+        "north",
+        "west"
+      ],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [
+        "east"
+      ],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [
+        "north",
+        "west",
+        "south"
+      ],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": "5",
+      "arrows": [],
+      "shape": "circle",
+      "shading": 0
+    },
+    {
+      "digit": "5",
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [
+        "north",
+        "east"
+      ],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [
+        "east"
+      ],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": "4",
+      "arrows": [],
+      "shape": "square",
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [
+        "north",
+        "west"
+      ],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [
+        "east"
+      ],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [
+        "north",
+        "east"
+      ],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [
+        "east"
+      ],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [
+        "west"
+      ],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [
+        "north",
+        "west"
+      ],
+      "shape": null,
+      "shading": 0
+    },
+    {
+      "digit": null,
+      "arrows": [],
+      "shape": null,
+      "shading": 0
+    }
+  ],
+  "undo": [
+    [
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [
+          "east"
+        ],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [
+          "west",
+          "south"
+        ],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [
+          "south"
+        ],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [
+          "south"
+        ],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [
+          "west",
+          "south"
+        ],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [
+          "east"
+        ],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": "4",
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [
+          "west",
+          "east",
+          "south"
+        ],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": "4",
+        "arrows": [],
+        "shape": "circle",
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [
+          "east"
+        ],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": "5",
+        "arrows": [],
+        "shape": "square",
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [
+          "west",
+          "east",
+          "south"
+        ],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [
+          "north",
+          "west",
+          "south"
+        ],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [
+          "south"
+        ],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [
+          "east",
+          "south"
+        ],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": "7",
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": "5",
+        "arrows": [],
+        "shape": "circle",
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [
+          "east"
+        ],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [
+          "east",
+          "south"
+        ],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": "4",
+        "arrows": [],
+        "shape": "circle",
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": "7",
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [
+          "north",
+          "east",
+          "west"
+        ],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": "4",
+        "arrows": [],
+        "shape": "circle",
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": "4",
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": "7",
+        "arrows": [],
+        "shape": "square",
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [
+          "east",
+          "south"
+        ],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [
+          "south"
+        ],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": "9",
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [
+          "west",
+          "east"
+        ],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [
+          "north",
+          "west",
+          "south"
+        ],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [
+          "east"
+        ],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [
+          "west",
+          "south"
+        ],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [
+          "east",
+          "south"
+        ],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [
+          "west",
+          "south"
+        ],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": "6",
+        "arrows": [],
+        "shape": "square",
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": "7",
+        "arrows": [],
+        "shape": "circle",
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [
+          "north",
+          "east",
+          "south"
+        ],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [
+          "north",
+          "east",
+          "south",
+          "west"
+        ],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": "5",
+        "arrows": [],
+        "shape": "square",
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [
+          "north",
+          "east"
+        ],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [
+          "north",
+          "east",
+          "west"
+        ],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": "5",
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [
+          "east",
+          "south"
+        ],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [
+          "north",
+          "west",
+          "south"
+        ],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [
+          "north"
+        ],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [
+          "north",
+          "south"
+        ],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": "4",
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": "7",
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": "3",
+        "arrows": [],
+        "shape": "square",
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [
+          "north",
+          "east",
+          "west"
+        ],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [
+          "west",
+          "east"
+        ],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [
+          "north",
+          "east",
+          "west"
+        ],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [
+          "north",
+          "west"
+        ],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [
+          "north",
+          "east"
+        ],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [
+          "north",
+          "east",
+          "south",
+          "west"
+        ],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [
+          "north"
+        ],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [
+          "east"
+        ],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": "5",
+        "arrows": [],
+        "shape": "square",
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": "6",
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": "2",
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [
+          "north",
+          "west"
+        ],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [
+          "north"
+        ],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [
+          "north",
+          "west",
+          "south"
+        ],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [
+          "north",
+          "south"
+        ],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [
+          "south"
+        ],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [
+          "north",
+          "east"
+        ],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [
+          "north"
+        ],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": "5",
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [
+          "west",
+          "south"
+        ],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [
+          "west",
+          "south"
+        ],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [
+          "west"
+        ],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [
+          "north"
+        ],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [
+          "north",
+          "east"
+        ],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [
+          "west"
+        ],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [
+          "north",
+          "west"
+        ],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [
+          "east"
+        ],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [
+          "north",
+          "west",
+          "south"
+        ],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": "5",
+        "arrows": [],
+        "shape": "circle",
+        "shading": 0
+      },
+      {
+        "digit": "5",
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [
+          "north",
+          "east"
+        ],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [
+          "east"
+        ],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": "4",
+        "arrows": [],
+        "shape": "square",
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [
+          "north",
+          "west"
+        ],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [
+          "east"
+        ],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [
+          "north",
+          "east"
+        ],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [
+          "east"
+        ],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [
+          "west"
+        ],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [
+          "north",
+          "west"
+        ],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      }
+    ],
+    [
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [
+          "east"
+        ],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 2
+      },
+      {
+        "digit": null,
+        "arrows": [
+          "west",
+          "south"
+        ],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 1
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [
+          "south"
+        ],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [
+          "south"
+        ],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [
+          "west",
+          "south"
+        ],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [
+          "east"
+        ],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": "4",
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [
+          "west",
+          "east",
+          "south"
+        ],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": "4",
+        "arrows": [],
+        "shape": "circle",
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [
+          "east"
+        ],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": "5",
+        "arrows": [],
+        "shape": "square",
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [
+          "west",
+          "east",
+          "south"
+        ],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 2
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [
+          "north",
+          "west",
+          "south"
+        ],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [
+          "south"
+        ],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [
+          "east",
+          "south"
+        ],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": "7",
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 2
+      },
+      {
+        "digit": "5",
+        "arrows": [],
+        "shape": "circle",
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 1
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 1
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [
+          "east"
+        ],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [
+          "east",
+          "south"
+        ],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": "4",
+        "arrows": [],
+        "shape": "circle",
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": "7",
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [
+          "north",
+          "east",
+          "west"
+        ],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": "4",
+        "arrows": [],
+        "shape": "circle",
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 1
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": "4",
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": "7",
+        "arrows": [],
+        "shape": "square",
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [
+          "east",
+          "south"
+        ],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 2
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [
+          "south"
+        ],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": "9",
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [
+          "west",
+          "east"
+        ],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [
+          "north",
+          "west",
+          "south"
+        ],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [
+          "east"
+        ],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [
+          "west",
+          "south"
+        ],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [
+          "east",
+          "south"
+        ],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 1
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 2
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [
+          "west",
+          "south"
+        ],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": "6",
+        "arrows": [],
+        "shape": "square",
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": "7",
+        "arrows": [],
+        "shape": "circle",
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [
+          "north",
+          "east",
+          "south"
+        ],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [
+          "north",
+          "east",
+          "south",
+          "west"
+        ],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": "5",
+        "arrows": [],
+        "shape": "square",
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 2
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [
+          "north",
+          "east"
+        ],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 2
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 2
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 2
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [
+          "north",
+          "east",
+          "west"
+        ],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": "5",
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [
+          "east",
+          "south"
+        ],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [
+          "north",
+          "west",
+          "south"
+        ],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [
+          "north"
+        ],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [
+          "north",
+          "south"
+        ],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": "4",
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 2
+      },
+      {
+        "digit": "7",
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": "3",
+        "arrows": [],
+        "shape": "square",
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [
+          "north",
+          "east",
+          "west"
+        ],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [
+          "west",
+          "east"
+        ],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [
+          "north",
+          "east",
+          "west"
+        ],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [
+          "north",
+          "west"
+        ],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [
+          "north",
+          "east"
+        ],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [
+          "north",
+          "east",
+          "south",
+          "west"
+        ],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [
+          "north"
+        ],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [
+          "east"
+        ],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": "5",
+        "arrows": [],
+        "shape": "square",
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": "6",
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": "2",
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [
+          "north",
+          "west"
+        ],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [
+          "north"
+        ],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [
+          "north",
+          "west",
+          "south"
+        ],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [
+          "north",
+          "south"
+        ],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [
+          "south"
+        ],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [
+          "north",
+          "east"
+        ],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [
+          "north"
+        ],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": "5",
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [
+          "west",
+          "south"
+        ],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [
+          "west",
+          "south"
+        ],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [
+          "west"
+        ],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [
+          "north"
+        ],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [
+          "north",
+          "east"
+        ],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [
+          "west"
+        ],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [
+          "north",
+          "west"
+        ],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [
+          "east"
+        ],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [
+          "north",
+          "west",
+          "south"
+        ],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": "5",
+        "arrows": [],
+        "shape": "circle",
+        "shading": 0
+      },
+      {
+        "digit": "5",
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [
+          "north",
+          "east"
+        ],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [
+          "east"
+        ],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": "4",
+        "arrows": [],
+        "shape": "square",
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [
+          "north",
+          "west"
+        ],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [
+          "east"
+        ],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [
+          "north",
+          "east"
+        ],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [
+          "east"
+        ],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [
+          "west"
+        ],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [
+          "north",
+          "west"
+        ],
+        "shape": null,
+        "shading": 0
+      },
+      {
+        "digit": null,
+        "arrows": [],
+        "shape": null,
+        "shading": 0
+      }
+    ]
+  ],
+  "redo": [],
+  "selected": 355
+}
