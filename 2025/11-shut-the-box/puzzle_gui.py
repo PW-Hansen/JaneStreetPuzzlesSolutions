@@ -13,6 +13,7 @@ from functions.storage import Storage
 from functions.rendering import draw_canvas, export_png
 from functions.placements import attempt_placements
 from functions.dimensions import possible_dimension_totals
+from functions.folding import folding_trials, largest_box_region, configured_anchor, face_name
 
 ROOT = Path(__file__).resolve().parent
 
@@ -29,6 +30,7 @@ class Editor:
         self.placement_status = tk.StringVar(value='Placement analysis idle.')
         self.placement_running = False
         self.dimension_running = False
+        self.folding_running = False
         self.close_after_analysis = False
         outer = ttk.Frame(root, padding=12)
         outer.pack(fill='both', expand=True)
@@ -60,6 +62,8 @@ class Editor:
         self.placement_button.pack(fill='x', pady=3)
         self.dimension_button = ttk.Button(side, text='Determine valid box dimensions', command=self.determine_dimensions)
         self.dimension_button.pack(fill='x', pady=3)
+        self.folding_button = ttk.Button(side, text='Try region folds', command=self.try_region_folds)
+        self.folding_button.pack(fill='x', pady=3)
         self.abort_button = ttk.Button(side, text='Abort', command=self.abort_placements, state='disabled')
         self.abort_button.pack(fill='x', pady=3)
         ttk.Label(side, textvariable=self.placement_status, wraplength=270, justify='left').pack(anchor='w', pady=5)
@@ -248,7 +252,7 @@ class Editor:
         listing.bind('<Double-Button-1>', lambda event: load())
 
     def start_placements(self):
-        if self.placement_running or self.dimension_running: return
+        if self.placement_running or self.dimension_running or self.folding_running: return
         self.placement_running = True
         self.placement_started = time.perf_counter()
         self.placement_cancel = threading.Event()
@@ -256,6 +260,7 @@ class Editor:
         self.placement_progress = 'Starting placement analysis'
         self.placement_button.state(['disabled'])
         self.dimension_button.state(['disabled'])
+        self.folding_button.state(['disabled'])
         self.abort_button.state(['!disabled'])
         for button in self.edit_controls: button.state(['disabled'])
         cells = self.puzzle.to_dict()['cells']
@@ -301,6 +306,7 @@ class Editor:
         self.placement_running = False
         self.placement_button.state(['!disabled'])
         self.dimension_button.state(['!disabled'])
+        self.folding_button.state(['!disabled'])
         self.abort_button.state(['disabled'])
         for button in self.edit_controls: button.state(['!disabled'])
         kind, result = finished
@@ -329,7 +335,7 @@ class Editor:
             self.close()
 
     def determine_dimensions(self):
-        if self.placement_running or self.dimension_running: return
+        if self.placement_running or self.dimension_running or self.folding_running: return
         if self.puzzle.analysis.conflicts:
             messagebox.showerror('Grid is inconsistent', 'Resolve the current contradictions before determining dimensions.', parent=self.root)
             return
@@ -338,6 +344,7 @@ class Editor:
         totals = iter(possible_dimension_totals(in_box, unknown))
         self.dimension_running = True
         self.dimension_button.state(['disabled'])
+        self.folding_button.state(['disabled'])
         self.placement_button.state(['disabled'])
         dialog = tk.Toplevel(self.root)
         dialog.title('Valid box dimensions — ' + self.puzzle.name)
@@ -379,6 +386,7 @@ class Editor:
                 pending = None
             self.dimension_running = False
             self.dimension_button.state(['!disabled'])
+            self.folding_button.state(['!disabled'])
             self.placement_button.state(['!disabled'])
             abort.state(['disabled'])
             outcome = 'Aborted; results are incomplete.' if cancelled else 'Complete.'
@@ -411,6 +419,131 @@ class Editor:
                          f'Elapsed: {time.perf_counter() - started:.1f}s')
             pending = dialog.after(1, step)
         pending = dialog.after(1, step)
+
+    def try_region_folds(self):
+        if self.placement_running or self.dimension_running or self.folding_running: return
+        if self.puzzle.analysis.conflicts:
+            messagebox.showerror('Grid is inconsistent', 'Resolve the current contradictions before testing folds.', parent=self.root)
+            return
+        try:
+            anchor = configured_anchor(self.storage.load_configuration(self.puzzle.name), self.puzzle.selected,
+                                       self.puzzle.rows, self.puzzle.columns)
+            boxes = self.puzzle.analysis.boxes.copy()
+            region = largest_box_region(boxes, self.puzzle.rows, self.puzzle.columns)
+            if anchor not in region:
+                raise ValueError('The anchor must be a confirmed box cell in the largest region.')
+        except (OSError, ValueError) as exc:
+            messagebox.showerror('Cannot test folds', str(exc), parent=self.root)
+            return
+        trials = iter(folding_trials(boxes, self.puzzle.rows, self.puzzle.columns, anchor))
+        self.folding_running = True
+        for button in (self.folding_button, self.dimension_button, self.placement_button): button.state(['disabled'])
+        dialog = tk.Toplevel(self.root)
+        dialog.title('Region fold trials — ' + self.puzzle.name)
+        dialog.transient(self.root)
+        dialog.grab_set()
+        body = ttk.Frame(dialog, padding=12)
+        body.pack(fill='both', expand=True)
+        row, column = divmod(anchor, self.puzzle.columns)
+        ttk.Label(body, text=f'Largest confirmed box region: {len(region)} cells. Anchor: R{row + 1}C{column + 1}.\n'
+                            'Testing every candidate box surface cell in four rotations; all region adjacencies remain uncut.').pack(anchor='w', pady=(0, 8))
+        frame = ttk.Frame(body)
+        frame.pack(fill='both', expand=True)
+        frame.columnconfigure(0, weight=1)
+        frame.rowconfigure(0, weight=1)
+        table = ttk.Treeview(frame, columns=('dimensions', 'face', 'position', 'rotation'), show='headings', height=12)
+        for key, label, width in [('dimensions', 'Dimensions (a,b,c)', 170), ('face', 'Anchor face', 100),
+                                  ('position', 'Anchor center (x,y,z)', 230), ('rotation', 'Rotation', 100)]:
+            table.heading(key, text=label)
+            table.column(key, width=width)
+        table.grid(row=0, column=0, sticky='nsew')
+        scroll = ttk.Scrollbar(frame, orient='vertical', command=table.yview)
+        scroll.grid(row=0, column=1, sticky='ns')
+        table.configure(yscrollcommand=scroll.set)
+        feedback = tk.StringVar(value='Starting fold trials…')
+        ttk.Label(body, textvariable=feedback, wraplength=700, justify='left').pack(anchor='w', pady=8)
+        ttk.Label(body, text='Surviving trials place only this region. Other regions, unknown cells, and remaining shape rules are not solved.',
+                  wraplength=700, justify='left').pack(anchor='w')
+        buttons = ttk.Frame(body)
+        buttons.pack(anchor='e', pady=(8, 0))
+        survivors = []
+        rejected = {'isolated anchor': 0, 'overlap': 0, 'severed connection': 0}
+        checked = 0
+        pending = None
+        started = time.perf_counter()
+        def view_mapping():
+            if table.selection():
+                trial = survivors[int(table.selection()[0])]
+                self.show_fold_mapping(dialog, trial, anchor)
+        view = ttk.Button(buttons, text='View cell mapping', command=view_mapping)
+        view.pack(side='left', padx=(0, 8))
+        table.bind('<Double-Button-1>', lambda event: view_mapping())
+        def finish(cancelled=False):
+            nonlocal pending
+            if pending is not None:
+                dialog.after_cancel(pending)
+                pending = None
+            self.folding_running = False
+            for button in (self.folding_button, self.dimension_button, self.placement_button): button.state(['!disabled'])
+            abort.state(['disabled'])
+            outcome = 'Aborted; results are incomplete.' if cancelled else 'Complete.'
+            summary = (f'{outcome} {checked} trials; {len(survivors)} surviving placements.\n'
+                       f'Rejected: {rejected["isolated anchor"]} isolated anchors, {rejected["overlap"]} overlaps, '
+                       f'{rejected["severed connection"]} severed connections.\n'
+                       f'Elapsed: {time.perf_counter() - started:.1f}s')
+            feedback.set(summary)
+            print(summary.replace('\n', ' '))
+        def close_dialog():
+            if self.folding_running: finish(True)
+            dialog.destroy()
+        abort = ttk.Button(buttons, text='Abort', command=lambda: finish(True))
+        abort.pack(side='left', padx=(0, 8))
+        ttk.Button(buttons, text='Close', command=close_dialog).pack(side='left')
+        dialog.protocol('WM_DELETE_WINDOW', close_dialog)
+        def step():
+            nonlocal pending, checked
+            pending = None
+            deadline = time.perf_counter() + .01
+            trial = None
+            while time.perf_counter() < deadline:
+                try:
+                    trial = next(trials)
+                except StopIteration:
+                    finish()
+                    return
+                checked += 1
+                if trial.reason:
+                    rejected[trial.reason] += 1
+                else:
+                    identity = str(len(survivors))
+                    survivors.append(trial)
+                    table.insert('', 'end', iid=identity, values=(str(trial.dimensions), face_name(trial.anchor),
+                                 str(tuple(value / 2 for value in trial.anchor.center)), f'{trial.rotation * 90}°'))
+                    if not table.selection(): table.selection_set(identity)
+            if trial is not None:
+                feedback.set(f'Testing {trial.dimensions}, face {face_name(trial.anchor)}, rotation {trial.rotation * 90}°.\n'
+                             f'{checked} trials; {len(survivors)} surviving placements. Elapsed: {time.perf_counter() - started:.1f}s')
+            pending = dialog.after(1, step)
+        pending = dialog.after(1, step)
+
+    def show_fold_mapping(self, parent, trial, anchor):
+        dialog = tk.Toplevel(parent)
+        dialog.title(f'Cell mapping — {trial.dimensions}, rotation {trial.rotation * 90}°')
+        dialog.transient(parent)
+        frame = ttk.Frame(dialog, padding=12)
+        frame.pack(fill='both', expand=True)
+        table = ttk.Treeview(frame, columns=('grid', 'face', 'position'), show='headings', height=18)
+        for key, label, width in [('grid', 'Grid cell', 130), ('face', 'Face', 75), ('position', 'Surface center (x,y,z)', 250)]:
+            table.heading(key, text=label)
+            table.column(key, width=width)
+        table.pack(side='left', fill='both', expand=True)
+        scroll = ttk.Scrollbar(frame, orient='vertical', command=table.yview)
+        scroll.pack(side='right', fill='y')
+        table.configure(yscrollcommand=scroll.set)
+        for index, placement in sorted(trial.mapping.items()):
+            row, column = divmod(index, self.puzzle.columns)
+            table.insert('', 'end', values=(f'R{row + 1}C{column + 1}' + (' (anchor)' if index == anchor else ''),
+                         face_name(placement.cell), str(tuple(value / 2 for value in placement.cell.center))))
 
     def close(self):
         if self.placement_running:

@@ -41,3 +41,12 @@ class Storage:
 
     def snapshots(self, name):
         return sorted((self.root / 'saved states' / validate_name(name)).glob('*.json'))
+
+    def load_configuration(self, name):
+        path = self.root / 'configs' / (validate_name(name) + '.json')
+        if not path.exists(): return {}
+        with path.open(encoding='utf-8-sig') as stream:
+            configuration = json.load(stream)
+        if not isinstance(configuration, dict):
+            raise ValueError('Puzzle configuration must be an object.')
+        return configuration

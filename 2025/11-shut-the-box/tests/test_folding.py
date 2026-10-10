@@ -1,0 +1,106 @@
+import unittest
+from collections import Counter
+from functions.folding import (cuboid_surface, initial_placement, surface_step, fold_region,
+                               folding_trials, largest_box_region, configured_anchor)
+
+
+class FoldingTests(unittest.TestCase):
+    def test_surface_size_neighbors_and_reversible_transport(self):
+        opposite = dict(north='south', south='north', east='west', west='east')
+        for dimensions in ((1, 1, 1), (3, 2, 1), (7, 6, 2)):
+            surface = set(cuboid_surface(dimensions))
+            a, b, c = dimensions
+            self.assertEqual(len(surface), 2 * (a*b + b*c + c*a))
+            for cell in surface:
+                for rotation in range(4):
+                    placement = initial_placement(cell, rotation)
+                    self.assertEqual(len({surface_step(placement, d, dimensions).cell for d in opposite}), 4)
+                    for direction, reverse in opposite.items():
+                        neighbor = surface_step(placement, direction, dimensions)
+                        self.assertIn(neighbor.cell, surface)
+                        self.assertEqual(surface_step(neighbor, reverse, dimensions), placement)
+
+    def test_four_orientations_are_distinct_and_no_mirrors(self):
+        cell = next(cuboid_surface((3, 2, 1)))
+        frames = [initial_placement(cell, rotation) for rotation in range(4)]
+        self.assertEqual(len(set(frames)), 4)
+        for frame in frames:
+            r, d = frame.right, frame.down
+            cross = (r[1]*d[2]-r[2]*d[1], r[2]*d[0]-r[0]*d[2], r[0]*d[1]-r[1]*d[0])
+            self.assertEqual(cross, cell.normal)
+
+    def test_unit_face_always_rejects_anchor(self):
+        boxes = [None] * 9
+        boxes[4] = True
+        for cell in cuboid_surface((1, 1, 1)):
+            for rotation in range(4):
+                trial = fold_region({4}, boxes, 3, 3, 4, (1, 1, 1), cell, rotation)
+                self.assertEqual(trial.reason, 'isolated anchor')
+
+    def test_all_same_face_neighbors_nonbox_rejects_anchor(self):
+        boxes = [False] * 9
+        boxes[4] = True
+        cell = next(cuboid_surface((2, 2, 2)))
+        trial = fold_region({4}, boxes, 3, 3, 4, (2, 2, 2), cell, 0)
+        self.assertEqual(trial.reason, 'isolated anchor')
+
+    def test_known_cube_net_preserves_every_uncut_adjacency(self):
+        # Six 2x2 faces: one above, four across, one below.
+        blocks = {(0, 1), (1, 0), (1, 1), (1, 2), (1, 3), (2, 1)}
+        region = {r * 8 + c for r in range(6) for c in range(8) if (r//2, c//2) in blocks}
+        boxes = [index in region for index in range(48)]
+        anchor = 2 * 8 + 2
+        valid = []
+        for cell in cuboid_surface((2, 2, 2)):
+            for rotation in range(4):
+                trial = fold_region(region, boxes, 6, 8, anchor, (2, 2, 2), cell, rotation)
+                if trial.reason is None: valid.append(trial)
+        self.assertTrue(valid)
+        trial = valid[0]
+        self.assertEqual(len(trial.mapping), 24)
+        self.assertEqual(len({p.cell for p in trial.mapping.values()}), 24)
+        self.assertEqual(set(p.cell for p in trial.mapping.values()), set(cuboid_surface((2, 2, 2))))
+        for index, placement in trial.mapping.items():
+            from functions.folding import grid_neighbors
+            for direction, neighbor in grid_neighbors(index, 6, 8):
+                if neighbor in region:
+                    self.assertEqual(surface_step(placement, direction, (2, 2, 2)), trial.mapping[neighbor])
+
+    def test_too_long_strip_collides(self):
+        boxes = [True] * 10
+        cell = next(cuboid_surface((2, 2, 2)))
+        reasons = {fold_region(set(range(10)), boxes, 1, 10, 0, (2, 2, 2), cell, rotation).reason
+                   for rotation in range(4)}
+        self.assertIn('overlap', reasons)
+        self.assertNotIn(None, reasons)
+
+    def test_patch_around_box_corner_requires_severing_a_connection(self):
+        boxes = [True] * 9
+        # A 3x3 patch around the face corner cannot keep all its connections.
+        from functions.folding import SurfaceCell
+        cell = SurfaceCell((3, 3, 0), (0, 0, -1))
+        trial = fold_region(set(range(9)), boxes, 3, 3, 4, (2, 2, 2), cell, 2)
+        self.assertIn(trial.reason, ('severed connection', 'overlap'))
+
+    def test_largest_region_and_configuration_are_general(self):
+        boxes = [True, True, False, True, False, False, False, True, True, True]
+        self.assertEqual(largest_box_region(boxes, 2, 5), {3, 7, 8, 9})
+        self.assertEqual(configured_anchor({'fold_anchor': [2, 3]}, None, 2, 5), 7)
+        self.assertEqual(configured_anchor({}, 3, 2, 5), 3)
+        with self.assertRaises(ValueError): configured_anchor({'fold_anchor': [6, 9]}, None, 2, 5)
+        with self.assertRaises(ValueError): list(folding_trials(boxes, 2, 5, 0))
+
+    def test_trials_cover_all_positions_and_four_rotations(self):
+        boxes = [True, True, True, True, None, None]
+        trials = list(folding_trials(boxes, 2, 3, 0))
+        self.assertEqual(len(trials), 24)  # Only surface area 6 has a candidate.
+        self.assertEqual({t.dimensions for t in trials}, {(1, 1, 1)})
+        counts = Counter(t.anchor for t in trials)
+        self.assertEqual(len(counts), 6)
+        self.assertTrue(all(count == 4 for count in counts.values()))
+        self.assertEqual({t.rotation for t in trials}, {0, 1, 2, 3})
+        self.assertTrue(all(t.reason == 'isolated anchor' for t in trials))
+
+
+if __name__ == '__main__':
+    unittest.main()
