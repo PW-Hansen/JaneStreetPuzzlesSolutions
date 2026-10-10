@@ -15,6 +15,7 @@ from functions.placements import attempt_placements
 from functions.dimensions import possible_dimension_totals
 from functions.folding import folding_trials, largest_box_region, configured_anchor, face_name
 from functions.fold_application import apply_unique_fold
+from functions.answer_key import compute_answer_key
 
 ROOT = Path(__file__).resolve().parent
 
@@ -65,6 +66,7 @@ class Editor:
         self.dimension_button.pack(fill='x', pady=3)
         self.folding_button = ttk.Button(side, text='Try region folds', command=self.try_region_folds)
         self.folding_button.pack(fill='x', pady=3)
+        ttk.Button(side, text='Compute answer key', command=self.compute_answer).pack(fill='x', pady=3)
         self.abort_button = ttk.Button(side, text='Abort', command=self.abort_placements, state='disabled')
         self.abort_button.pack(fill='x', pady=3)
         ttk.Label(side, textvariable=self.placement_status, wraplength=270, justify='left').pack(anchor='w', pady=5)
@@ -95,6 +97,14 @@ class Editor:
         root.geometry(f'{root.winfo_reqwidth()}x{root.winfo_reqheight()}')
         root.minsize(root.winfo_reqwidth(), root.winfo_reqheight())
         self.refresh()
+
+    def compute_answer(self):
+        try:
+            result = compute_answer_key(self.puzzle)
+        except ValueError as exc:
+            messagebox.showerror('Cannot compute answer key', str(exc), parent=self.root)
+            return
+        messagebox.showinfo('Answer key', result.report(), parent=self.root)
 
     def set_mode(self, mode):
         self.mode.set('Select' if mode != 'Select' and self.mode.get() == mode else mode)

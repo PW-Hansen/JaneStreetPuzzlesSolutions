@@ -68,3 +68,5 @@ Run `python gui_puzzle_3d.py puzzle` to view surviving folds of the saved workin
 
 Face colors appear in the editor, PNG exports, and 3D viewer. Face labels persist in working files and snapshots, and undo/redo restores them with shading. A subsequent grid edit clears all face labels to avoid displaying a stale fold; run the fold search again to restore them. Selection alone does not clear colors. Reset shading clears face labels as well as resetting shading.
 
+
+**Compute answer key** is available in both GUIs. After a unique fold has been applied, it displays the sum of numbered cells on each of the six faces and their product, as specified in docs/rules.md. Blank cells contribute zero; a face with no numbered cells has sum zero. Unknown cells, missing face assignments, or existing contradictions prevent calculation and explain what must be resolved. The button does not change the grid or undo history.

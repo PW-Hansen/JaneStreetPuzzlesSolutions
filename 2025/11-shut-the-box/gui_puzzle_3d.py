@@ -10,6 +10,7 @@ from functions.storage import Storage
 from functions.folding import folding_trials, configured_anchor, largest_box_region, face_name
 from functions.view3d import render_fold, pick_cell
 from functions.fold_application import apply_unique_fold
+from functions.answer_key import compute_answer_key
 
 ROOT = Path(__file__).resolve().parent
 
@@ -63,6 +64,7 @@ class FoldViewer:
         side = ttk.Frame(body, padding=(12, 0, 0, 0))
         side.pack(side='right', fill='y')
         ttk.Label(side, text='Look at a face').pack(anchor='w')
+        ttk.Button(side, text='Compute answer key', command=self.compute_answer).pack(fill='x', pady=(0, 8))
         views = [('+X', -pi/2, 0), ('-X', pi/2, 0), ('+Y', 0, pi/2), ('-Y', 0, -pi/2), ('+Z', 0, 0), ('-Z', pi, 0)]
         for label, yaw, pitch in views:
             ttk.Button(side, text=label, command=lambda y=yaw, p=pitch: self.set_view(y, p)).pack(fill='x', pady=2)
@@ -78,6 +80,14 @@ class FoldViewer:
         root.protocol('WM_DELETE_WINDOW', self.close)
         self.update_controls()
         self.pending = root.after(1, self.search_step)
+
+    def compute_answer(self):
+        try:
+            result = compute_answer_key(self.puzzle)
+        except ValueError as exc:
+            messagebox.showerror('Cannot compute answer key', str(exc), parent=self.root)
+            return
+        messagebox.showinfo('Answer key', result.report(), parent=self.root)
 
     def search_step(self):
         self.pending = None
