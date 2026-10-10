@@ -10,7 +10,7 @@ from functions.storage import Storage
 class ArrowTests(unittest.TestCase):
     def test_clue_membership_and_no_manual_overwrite(self):
         p = Puzzle('test', 2, 3)
-        p.edit(2, 'Digit Entering', digit='4')
+        p.edit(2, 'Circle/Square')
         p.edit(0, 'Arrow Entering', direction='south')
         self.assertTrue(p.analysis.boxes[2])
         self.assertFalse(p.analysis.boxes[0])

@@ -1,7 +1,7 @@
 """Validated puzzle state, edit rules, and history; independent of the GUI."""
 from copy import deepcopy
 from .constants import DIRECTIONS
-from .arrows import analyze_arrows
+from .analysis import analyze_grid
 
 
 def blank_cell():
@@ -48,7 +48,7 @@ class Puzzle:
         self.update_analysis()
 
     def update_analysis(self):
-        self.analysis = analyze_arrows(self.cells, self.rows, self.columns)
+        self.analysis = analyze_grid(self.cells, self.rows, self.columns)
 
     def display_cells(self):
         cells = deepcopy(self.cells)

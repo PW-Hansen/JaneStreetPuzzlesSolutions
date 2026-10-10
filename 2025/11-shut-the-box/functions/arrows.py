@@ -1,5 +1,5 @@
 """Propagate nearest-box arrow constraints without changing manual cell data."""
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from .constants import DIRECTIONS
 
 
@@ -9,6 +9,7 @@ class ArrowAnalysis:
     sources: list
     distances: dict
     conflicts: list
+    numbers: dict = field(default_factory=dict)
 
 
 def ray_cells(index, rows, columns, direction):
@@ -32,7 +33,7 @@ def distance_assignments(rays, arrows, distance):
     return assignments
 
 
-def analyze_arrows(cells, rows, columns):
+def analyze_arrows(cells, rows, columns, *, extra_rules=()):
     boxes = [None if c['shading'] == 0 else c['shading'] == 2 for c in cells]
     sources = ['unknown' if value is None else 'manual shading' for value in boxes]
     conflicts = []
@@ -77,6 +78,8 @@ def analyze_arrows(cells, rows, columns):
                     boxes[cell] = value
                     sources[cell] = 'arrow rules'
                     changed = True
+        for propagate in extra_rules:
+            changed = propagate(boxes, sources, conflicts) or changed
         if conflicts:
             # An inconsistent input must not leave partial propagation looking conclusive.
             return ArrowAnalysis(base_boxes, base_sources, distances, conflicts)

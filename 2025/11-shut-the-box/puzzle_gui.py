@@ -94,9 +94,14 @@ class Editor:
         if analysis.conflicts:
             self.analysis_status.set(f'Contradiction ({len(analysis.conflicts)}):\n' + '\n'.join(analysis.conflicts[:3]))
         else:
-            deduced = sum(source == 'arrow rules' for source in analysis.sources)
+            arrow_deduced = sum(source == 'arrow rules' for source in analysis.sources)
+            number_deduced = sum(source == 'number rules' for source in analysis.sources)
+            region_deduced = sum(source == 'region rules' for source in analysis.sources)
             unknown = sum(box is None for box in analysis.boxes)
-            self.analysis_status.set(f'Arrow rules updated automatically.\n{deduced} deduced cells; {unknown} unknown.\nNo arrow contradictions found.')
+            self.analysis_status.set(f'Arrow, number, and region rules updated automatically.\n'
+                                     f'{arrow_deduced} arrow deductions; {number_deduced} number deductions.\n'
+                                     f'{region_deduced} region deductions.\n'
+                                     f'{unknown} unknown cells. No contradictions found.')
         if self.puzzle.selected is None:
             self.details.set('No cell selected.')
         else:
@@ -110,6 +115,10 @@ class Editor:
             if cell['arrows'] and index in analysis.distances:
                 candidates = ', '.join(map(str, analysis.distances[index])) or 'none'
                 self.details.set(self.details.get() + f'\nPossible nearest distances: {candidates}')
+            if index in analysis.numbers:
+                count = analysis.numbers[index]
+                self.details.set(self.details.get() + f'\nNumber count: {count.yes} yes, {count.unknown} unknown; '
+                                 f'{count.target} required (including this cell).')
 
     def persist(self, text='Working puzzle saved.'):
         self.refresh()

@@ -31,7 +31,7 @@ def scene(puzzle, size=CELL_SIZE):
             add('polygon', points, ARROW_COLOR)
         if cell['digit'] is not None:
             add('text', (x + size / 2, y + size / 2, cell['digit']), '#111111', max(1, round(size * DIGIT_SIZE_RATIO)))
-        if puzzle.analysis.sources[index] in ('clue', 'arrow rules'):
+        if puzzle.analysis.sources[index] in ('clue', 'arrow rules', 'number rules', 'region rules'):
             add('line', (x + 3, y + size - 4, x + 7, y + size - 4), '#3377aa')
     w, h = puzzle.columns * size, puzzle.rows * size
     for col in range(1, puzzle.columns):
