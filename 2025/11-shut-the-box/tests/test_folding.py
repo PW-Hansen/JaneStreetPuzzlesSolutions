@@ -93,10 +93,10 @@ class FoldingTests(unittest.TestCase):
     def test_trials_cover_all_positions_and_four_rotations(self):
         boxes = [True, True, True, True, None, None]
         trials = list(folding_trials(boxes, 2, 3, 0))
-        self.assertEqual(len(trials), 12)  # Three positive faces, four rotations each.
+        self.assertEqual(len(trials), 4)  # All cube faces share one anchor orbit.
         self.assertEqual({t.dimensions for t in trials}, {(1, 1, 1)})
         counts = Counter(t.anchor for t in trials)
-        self.assertEqual(len(counts), 3)
+        self.assertEqual(len(counts), 1)
         self.assertTrue(all(any(value > 0 for value in t.anchor.normal) for t in trials))
         self.assertTrue(all(count == 4 for count in counts.values()))
         self.assertEqual({t.rotation for t in trials}, {0, 1, 2, 3})
@@ -191,3 +191,29 @@ class SurfaceCompletionTests(unittest.TestCase):
         cells[4*8+2]['digit'] = '1'
         result = extend_fold(trial, boxes, 6, 8, cells, require_full=True)
         self.assertEqual(result.reason, 'cannot fill the box surface')
+
+class AnchorSymmetryTests(unittest.TestCase):
+    def test_opposite_corners_of_rectangle_are_equivalent(self):
+        from functions.folding import SurfaceCell, symmetric_anchor_key
+        dims = (7, 6, 2)
+        key = lambda center: symmetric_anchor_key(SurfaceCell(center, (0, 0, 1)), dims)
+        self.assertEqual(key((1, 11, 4)), key((13, 1, 4)))
+        # A reflection on this fixed face is not a proper rotation.
+        self.assertNotEqual(key((3, 3, 4)), key((11, 3, 4)))
+
+    def test_square_face_quarter_turn_is_equivalent(self):
+        from functions.folding import SurfaceCell, symmetric_anchor_key
+        dims = (4, 4, 2)
+        self.assertEqual(symmetric_anchor_key(SurfaceCell((1, 3, 4), (0, 0, 1)), dims),
+                         symmetric_anchor_key(SurfaceCell((5, 1, 4), (0, 0, 1)), dims))
+
+    def test_distinct_face_sizes_are_not_merged(self):
+        from functions.folding import SurfaceCell, symmetric_anchor_key
+        dims = (7, 6, 2)
+        self.assertNotEqual(symmetric_anchor_key(SurfaceCell((14, 1, 1), (1, 0, 0)), dims),
+                            symmetric_anchor_key(SurfaceCell((1, 12, 1), (0, 1, 0)), dims))
+
+    def test_cube_faces_share_orbits(self):
+        from functions.folding import symmetric_anchor_key
+        self.assertEqual(len({symmetric_anchor_key(cell, (2, 2, 2))
+                              for cell in cuboid_surface((2, 2, 2))}), 1)

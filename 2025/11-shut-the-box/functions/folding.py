@@ -2,6 +2,7 @@
 from collections import deque
 from dataclasses import dataclass
 from copy import deepcopy
+from itertools import permutations, product
 from .analysis import analyze_grid
 from .regions import orthogonal_neighbors
 from .dimensions import possible_dimension_totals
@@ -209,6 +210,28 @@ def extend_fold(trial, boxes, rows, columns, cells=None, require_full=False):
                      'cannot fill the box surface' if require_full else 'cannot include all confirmed box cells', None)
 
 
+def symmetric_anchor_key(cell, dimensions):
+    """Canonical surface position under orientation-preserving cuboid rotations.
+
+    Axis exchanges are allowed only for equal box dimensions. Reflections are
+    excluded because the grid's four orientations do not include mirroring.
+    """
+    equivalents = []
+    for axes in permutations(range(3)):
+        if any(dimensions[i] != dimensions[axes[i]] for i in range(3)):
+            continue
+        inversions = sum(axes[i] > axes[j] for i in range(3) for j in range(i+1, 3))
+        parity = -1 if inversions % 2 else 1
+        for signs in product((-1, 1), repeat=3):
+            if parity * signs[0] * signs[1] * signs[2] != 1:
+                continue
+            center = tuple(dimensions[i] + signs[i] * (cell.center[axes[i]] - dimensions[axes[i]])
+                           for i in range(3))
+            normal = tuple(signs[i] * cell.normal[axes[i]] for i in range(3))
+            equivalents.append((center, normal))
+    return min(equivalents)
+
+
 def folding_trials(boxes, rows, columns, anchor_index, cells=None):
     if type(anchor_index) is not int or not 0 <= anchor_index < len(boxes):
         raise ValueError('The fold anchor is outside the grid.')
@@ -219,9 +242,14 @@ def folding_trials(boxes, rows, columns, anchor_index, cells=None):
     unknown = sum(box is None for box in boxes)
     for total in possible_dimension_totals(in_box, unknown):
         for dimensions in total.triples:
+            considered = set()
             for anchor_cell in cuboid_surface(dimensions):
                 if not any(value > 0 for value in anchor_cell.normal):
                     continue
+                key = symmetric_anchor_key(anchor_cell, dimensions)
+                if key in considered:
+                    continue
+                considered.add(key)
                 for rotation in range(4):
                     trial = fold_region(region, boxes, rows, columns, anchor_index, dimensions, anchor_cell, rotation)
                     extended = extend_fold(trial, boxes, rows, columns, cells)
