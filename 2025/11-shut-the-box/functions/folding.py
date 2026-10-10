@@ -130,10 +130,10 @@ def fold_region(region, boxes, rows, columns, anchor_index, dimensions, anchor_c
     return FoldTrial(dimensions, anchor_cell, rotation, None, mapping)
 
 
-def extend_fold(trial, boxes, rows, columns, cells=None):
+def extend_fold(trial, boxes, rows, columns, cells=None, require_full=False):
     """Find a connected embedding including every confirmed cell, branching on unknowns.
 
-    A returned mapping is one witness; unneeded unknown cells remain unassigned.
+    A returned mapping is one witness; require_full fills the entire surface.
     Every adjacency between included grid cells must retain its surface frame.
     """
     if trial.reason is not None:
@@ -169,12 +169,13 @@ def extend_fold(trial, boxes, rows, columns, cells=None):
                     frontier.add(neighbor)
         if not valid or len(mapping) + len(required - mapping.keys()) > capacity:
             continue
-        if required <= mapping.keys():
+        if required <= mapping.keys() and (not require_full or len(mapping) == capacity):
             if cells is not None:
                 speculative = deepcopy(cells)
                 for index in mapping:
                     speculative[index]['shading'] = 2
-                for index in excluded:
+                outside = set(range(len(boxes))) - mapping.keys() if require_full else excluded
+                for index in outside:
                     speculative[index]['shading'] = 1
                 if analyze_grid(speculative, rows, columns).conflicts:
                     continue
@@ -187,7 +188,7 @@ def extend_fold(trial, boxes, rows, columns, cells=None):
                 if neighbor not in reachable and neighbor not in excluded and boxes[neighbor] is not False:
                     reachable.add(neighbor)
                     queue.append(neighbor)
-        if not required <= reachable:
+        if not required <= reachable or (require_full and len(reachable) < capacity):
             continue
         frontier.difference_update(mapping)
         if not frontier:
@@ -205,7 +206,7 @@ def extend_fold(trial, boxes, rows, columns, cells=None):
                     pending.append((included, excluded.copy()))
                 break
     return FoldTrial(trial.dimensions, trial.anchor, trial.rotation,
-                     'cannot include all confirmed box cells', None)
+                     'cannot fill the box surface' if require_full else 'cannot include all confirmed box cells', None)
 
 
 def folding_trials(boxes, rows, columns, anchor_index, cells=None):
@@ -223,7 +224,12 @@ def folding_trials(boxes, rows, columns, anchor_index, cells=None):
                     continue
                 for rotation in range(4):
                     trial = fold_region(region, boxes, rows, columns, anchor_index, dimensions, anchor_cell, rotation)
-                    yield extend_fold(trial, boxes, rows, columns, cells)
+                    extended = extend_fold(trial, boxes, rows, columns, cells)
+                    if extended.reason is None:
+                        # Start from the original region so alternative connector choices
+                        # remain available when the first witness cannot fill the surface.
+                        extended = extend_fold(trial, boxes, rows, columns, cells, require_full=True)
+                    yield extended
 
 
 def configured_anchor(configuration, selected, rows, columns):

@@ -151,3 +151,43 @@ class ExtendedFoldingTests(unittest.TestCase):
         result = extend_fold(self.strip_trial(boxes), boxes, 1, 4, cells)
         self.assertIsNotNone(result.reason)
 
+
+class SurfaceCompletionTests(unittest.TestCase):
+    def fixture(self):
+        blocks = {(0, 1), (1, 0), (1, 1), (1, 2), (1, 3), (2, 1)}
+        net = {r*8+c for r in range(6) for c in range(8) if (r//2, c//2) in blocks}
+        unknown = {5*8+2, 5*8+3}
+        region = net - unknown
+        boxes = [True if i in region else None if i in unknown else False for i in range(48)]
+        for cell in cuboid_surface((2, 2, 2)):
+            trial = fold_region(region, boxes, 6, 8, 18, (2, 2, 2), cell, 0)
+            if trial.reason is None:
+                return boxes, trial, unknown
+        self.fail('No initial cube-net placement')
+
+    def test_adjacent_unknown_pair_fills_missing_surface_strip(self):
+        from functions.folding import extend_fold
+        boxes, trial, unknown = self.fixture()
+        result = extend_fold(trial, boxes, 6, 8, require_full=True)
+        self.assertIsNone(result.reason)
+        self.assertEqual(len(result.mapping), 24)
+        self.assertTrue(unknown <= result.mapping.keys())
+        self.assertEqual({p.cell for p in result.mapping.values()}, set(cuboid_surface((2, 2, 2))))
+        self.assertTrue(all(boxes[i] is None for i in unknown))
+
+    def test_insufficient_unknown_cells_rejects_completion(self):
+        from functions.folding import extend_fold
+        boxes, trial, unknown = self.fixture()
+        boxes[min(unknown)] = False
+        result = extend_fold(trial, boxes, 6, 8, require_full=True)
+        self.assertEqual(result.reason, 'cannot fill the box surface')
+
+    def test_complete_assignment_checks_number_contradiction(self):
+        from functions.folding import extend_fold
+        boxes, trial, unknown = self.fixture()
+        cells = [dict(digit=None, shape=None, arrows=[], shading=0) for _ in boxes]
+        for i, box in enumerate(boxes):
+            cells[i]['shading'] = 2 if box is True else 1 if box is False else 0
+        cells[4*8+2]['digit'] = '1'
+        result = extend_fold(trial, boxes, 6, 8, cells, require_full=True)
+        self.assertEqual(result.reason, 'cannot fill the box surface')

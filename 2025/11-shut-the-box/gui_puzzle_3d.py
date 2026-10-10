@@ -67,7 +67,7 @@ class FoldViewer:
         ttk.Label(side, text='Drag to rotate.\nMouse wheel to zoom.\nClick a cell to inspect it.\n\nGreen: mapped region\nBlue: anchor\nGrey: uncovered surface', wraplength=220, justify='left').pack(anchor='w', pady=12)
         ttk.Label(side, textvariable=self.details, wraplength=220, justify='left').pack(anchor='w')
         ttk.Label(side, textvariable=self.progress, wraplength=220, justify='left').pack(anchor='w', pady=12)
-        ttk.Label(side, text='These are partial region placements, not complete puzzle solutions.', wraplength=220, justify='left').pack(anchor='w')
+        ttk.Label(side, text='Surface-complete placements. Circle/square pairing rules are not checked.', wraplength=220, justify='left').pack(anchor='w')
         self.canvas.bind('<Configure>', lambda event: self.schedule_draw())
         self.canvas.bind('<ButtonPress-1>', self.press)
         self.canvas.bind('<B1-Motion>', self.motion)
