@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 import hashlib
 import json
 import math
+from itertools import combinations
 
 from .constants import (PENTOMINO_SHAPES, PENTOMINO_NODE_LIMIT,
                         PENTOMINO_CANDIDATE_LIMIT, PENTOMINO_PLACEMENT_LIMIT,
@@ -171,8 +172,8 @@ class HookContext:
                 if 1 <= digit <= len(self.hooks) and digit <= len(hook)
                 and small_hook_digits_allowed(hook, {digit}, anchor)))
 
-    def constraints(self, pieces):
-        occupied, empty = set(self.filled), set()
+    def constraints(self, pieces, extra_filled=()):
+        occupied, empty = set(self.filled) | set(extra_filled), set()
         assigned_cells = set()
         coefficients = []
         for piece in pieces:
@@ -215,6 +216,7 @@ class PentominoSearch:
     outcome: str = field(default='running', init=False)
     cancelled: bool = field(default=False, init=False)
     progress: str = field(default='Preparing pentominoes', init=False)
+    last_forced: dict = field(default_factory=dict, init=False)
 
     def __post_init__(self):
         analysis = self.data.get('analysis')
@@ -236,7 +238,44 @@ class PentominoSearch:
         self.nodes += 1
         yield None
 
-    def witness(self, context, pieces):
+    def propagate_hooks(self, context, pieces, digits):
+        """Deduce cells in the smallest unfinished hook, then proceed outward."""
+        occupied = set(context.filled).union(*(piece.cells for piece in pieces))
+        empty = set().union(*(piece.empty for piece in pieces))
+        forced = {}
+        for index, hook in enumerate(context.hooks):
+            needed = digits[index]-len(hook & occupied)
+            if needed < 0:
+                return None
+            if needed == 0:
+                continue
+            eligible = sorted(cell for cell in hook-occupied-empty if not has_filled_square(occupied | {cell}))
+            if len(eligible) < needed:
+                return None
+            common = None
+            for added in combinations(eligible, needed):
+                yield from self.step()
+                trial = set(added)
+                constraints = context.constraints(pieces, extra_filled=set(forced) | trial)
+                if constraints is None or any(digit not in domain for digit,domain in zip(digits,constraints[0])):
+                    continue
+                common = trial if common is None else common & trial
+                if not common:
+                    # At least one completion exists and none of its cells is forced.
+                    return forced
+            if common is None:
+                return None
+            occupied.update(common)
+            forced.update({cell:digits[index] for cell in common})
+            if len(common) < needed:
+                # This hook remains unfinished; do not assume a choice and move on.
+                return forced
+        if len(occupied) == sum(digits) and not filled_region_connected(occupied):
+            return None
+        return forced
+
+    def witness(self, context, pieces, propagate=False):
+        self.last_forced = {}
         constraints = context.constraints(pieces)
         if constraints is None:
             return None
@@ -248,7 +287,13 @@ class PentominoSearch:
             if len(assigned) == len(domains):
                 if any(sum(count*assigned[index] for index,count in counts.items()) % PENTOMINO_SUM_MODULUS for counts in coefficients):
                     return None
-                return tuple(assigned[index] for index in range(len(domains)))
+                digits = tuple(assigned[index] for index in range(len(domains)))
+                if propagate:
+                    forced = yield from self.propagate_hooks(context, pieces, digits)
+                    if forced is None:
+                        return None
+                    self.last_forced = forced
+                return digits
             available = {index: values-used for index, values in enumerate(domains) if index not in assigned}
             if any(not values for values in available.values()) or len(set().union(*available.values())) < len(available):
                 return None
@@ -271,11 +316,14 @@ class PentominoSearch:
 
         return (yield from solve(set()))
 
-    def record(self, context, hook_index, pieces, digits):
-        return dict(hook_index=hook_index,
+    def record(self, context, hook_index, pieces, digits, forced=None):
+        record = dict(hook_index=hook_index,
                     pieces=[dict(shape=piece.name, cells=[f'{r},{c}' for r,c in sorted(piece.cells)]) for piece in pieces],
                     entries={f'{r},{c}': str(digits[context.owner[r,c]]) for piece in pieces for r,c in sorted(piece.cells)},
                     hook_digits=list(digits))
+        if forced:
+            record['forced_entries'] = {f'{r},{c}':str(digit) for (r,c),digit in sorted(forced.items())}
+        return record
 
     def run(self):
         try:
@@ -311,14 +359,14 @@ class PentominoSearch:
                         return
                     for piece in by_shape[names[index]]:
                         selected = pieces + [piece]
-                        digits = yield from self.witness(context, selected)
+                        digits = yield from self.witness(context, selected, propagate=index+1 == len(names))
                         if digits is None:
                             continue
                         if index+1 == len(names):
                             if len(self.candidates) >= self.candidate_limit:
                                 self.outcome = 'limit'
                                 raise SearchStopped
-                            self.candidates.append(self.record(context, hook_index, selected, digits))
+                            self.candidates.append(self.record(context, hook_index, selected, digits, self.last_forced))
                         else:
                             yield from combine(index+1, selected)
 
@@ -363,7 +411,7 @@ class RemainingPentominoSearch(PentominoSearch):
                 minimum_filled = (len(fixed)+REMAINING_PENTOMINO_COUNT)*PENTOMINO_CELL_COUNT
                 if (len(fixed) != len(record['pieces']) or len(unused) < REMAINING_PENTOMINO_COUNT
                     or minimum_filled > sum(range(1,len(context.hooks)+1))
-                    or (yield from self.witness(context, fixed)) is None):
+                    or (yield from self.witness(context, fixed, propagate=True)) is None):
                     self.rejected_combinations.add(base_index)
                     continue
                 by_shape = {}
@@ -393,7 +441,7 @@ class RemainingPentominoSearch(PentominoSearch):
                     for index in range(start, len(names)-needed+1):
                         for piece in by_shape[names[index]]:
                             selected = additional+[piece]
-                            digits = yield from self.witness(context, fixed+selected)
+                            digits = yield from self.witness(context, fixed+selected, propagate=len(selected) == REMAINING_PENTOMINO_COUNT)
                             if digits is None:
                                 continue
                             if len(selected) == REMAINING_PENTOMINO_COUNT:
@@ -403,7 +451,7 @@ class RemainingPentominoSearch(PentominoSearch):
                                 if len(self.candidates) >= self.candidate_limit:
                                     self.outcome = 'limit'
                                     raise SearchStopped
-                                candidate = self.record(context, hook_index, fixed+selected, digits)
+                                candidate = self.record(context, hook_index, fixed+selected, digits, self.last_forced)
                                 candidate['base_index'] = base_index
                                 self.candidates.append(candidate)
                             else:
@@ -476,6 +524,15 @@ def validate_pentomino_analysis(data, analysis):
                 raise ValueError('Invalid pentomino digits.')
             if not isinstance(record.get('hook_digits'), list) or len(record['hook_digits']) != data['rows'] or any(type(digit) is not int for digit in record['hook_digits']) or set(record['hook_digits']) != set(range(1,data['rows']+1)):
                 raise ValueError('Invalid hook digit assignment.')
+            forced = record.get('forced_entries', {})
+            if not isinstance(forced, dict):
+                raise ValueError('Invalid forced hook digits.')
+            for key, value in forced.items():
+                if not isinstance(key, str) or not isinstance(value, str) or not value.isdecimal():
+                    raise ValueError('Invalid forced hook digit.')
+                r,c = map(int, key.split(','))
+                if not (0 <= r < data['rows'] and 0 <= c < data['cols']) or (r,c) in occupied or not 1 <= int(value) <= data['rows']:
+                    raise ValueError('Invalid forced hook digit location or value.')
     preview = analysis.get('preview')
     if 'remaining_outcome' in analysis:
         elapsed = analysis.get('remaining_elapsed')

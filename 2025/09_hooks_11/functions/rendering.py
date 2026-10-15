@@ -54,6 +54,8 @@ def draw(data, rectangle, line, text, selected=None):
         for points in ((x+4,y+4,x+s-4,y+4), (x+4,y+4,x+4,y+s-4), (x+s-4,y+4,x+s-4,y+s-4), (x+4,y+s-4,x+s-4,y+s-4)):
             line(points, '#1769bd', 3)
     entries = dict(pentomino['entries']) if pentomino is not None else {}
+    if pentomino is not None:
+        entries.update(pentomino.get('forced_entries', {}))
     entries.update(data['entries'])
     for key, value in entries.items():
         r, c = map(int, key.split(','))

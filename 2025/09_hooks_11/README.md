@@ -158,6 +158,15 @@ avoid overlap and filled 2×2 regions, and preserve the small-hook digit
 visibility rules. If the extension fills every hook's quota, the filled
 region must also be connected; partial extensions may connect later.
 
+Before accepting a pentomino combination, both analyses check digit
+completion from the smallest unfinished hook outward. They test legal
+ways to meet that hook's quota without filled 2×2 regions or blocked
+required sightlines. Cells common to every legal completion are forced;
+if none can meet the quota, the combination is rejected. A completed
+hook allows checking the next hook. If choices remain, propagation stops
+there without guessing. Forced digits are stored and displayed with the
+speculative preview, preserving confirmed entries and undo/redo.
+
 Choose **Three additional pentominoes** to browse full extensions with
 their original pieces. The search always starts from the stored clued
 combinations, rather than repeatedly adding three to an earlier preview.
