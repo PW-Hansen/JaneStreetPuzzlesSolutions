@@ -6,7 +6,8 @@ digit constraints are used. A hook's digit need not equal its arm length.
 from dataclasses import dataclass, field
 
 from .constants import (HOOK_NODE_LIMIT, HOOK_CANDIDATE_LIMIT,
-                        HOOK_ALLOWED_DIGITS, HOOK_ANCHOR_ADJACENT_ALLOWED_DIGITS)
+                        HOOK_ALLOWED_DIGITS, HOOK_ANCHOR_ADJACENT_ALLOWED_DIGITS,
+                        HOOK_ANCHOR_SINGLE_EDGE_ALLOWED_DIGITS)
 
 
 def anchor_cell(data):
@@ -40,8 +41,10 @@ def small_hook_digits_allowed(cells, digits, anchor):
     adjacent_allowed = HOOK_ANCHOR_ADJACENT_ALLOWED_DIGITS.get(len(cells))
     if adjacent_allowed is not None:
         row, col = anchor
-        touches_anchor = any(abs(r-row) + abs(c-col) == 1 for r, c in cells)
-        if touches_anchor and not digits <= adjacent_allowed:
+        shared_edges = sum(abs(r-row) + abs(c-col) == 1 for r, c in cells)
+        if shared_edges == 1:
+            adjacent_allowed = HOOK_ANCHOR_SINGLE_EDGE_ALLOWED_DIGITS.get(len(cells), adjacent_allowed)
+        if shared_edges and not digits <= adjacent_allowed:
             return False
     return True
 

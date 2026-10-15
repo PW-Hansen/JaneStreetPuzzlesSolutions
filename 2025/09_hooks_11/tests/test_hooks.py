@@ -166,7 +166,8 @@ class HookTests(unittest.TestCase):
             if digit == '5':
                 self.assertEqual(search.candidates, [])
 
-    def test_five_allowed_only_when_separated(self):
+    def test_five_allowed_when_separated_or_touching_one_side(self):
+        observed_contacts = set()
         for anchor_row in range(3):
             for anchor_col in range(3):
                 for row in range(3):
@@ -177,7 +178,10 @@ class HookTests(unittest.TestCase):
                         for candidate in search.candidates:
                             hook = next(group for group in regions(candidate, 3) if (row,col) in group)
                             self.assertEqual(len(hook), 5)
-                            self.assertFalse(any(abs(r-anchor_row)+abs(c-anchor_col) == 1 for r,c in hook))
+                            contacts = sum(abs(r-anchor_row)+abs(c-anchor_col) == 1 for r,c in hook)
+                            self.assertLessEqual(contacts, 1)
+                            observed_contacts.add(contacts)
+        self.assertEqual(observed_contacts, {0, 1})
         _, separated = search_grid(3, {'0,0':'1', '2,2':'5'})
         self.assertEqual(len(separated.candidates), 1)
 
@@ -186,6 +190,8 @@ class HookTests(unittest.TestCase):
         self.assertTrue(small_hook_digits_allowed(cells, set(), (1,1)))
         # (1,1) touches the outer L along an edge, whereas (0,0) does not.
         self.assertFalse(small_hook_digits_allowed(cells, {5}, (1,1)))
+        self.assertTrue(small_hook_digits_allowed(cells, {5}, (0,1)))
+        self.assertFalse(small_hook_digits_allowed(cells, {2}, (0,1)))
         self.assertTrue(small_hook_digits_allowed(cells, {5}, (0,0)))
 
     def test_each_candidate_matches_numeric_clues(self):
