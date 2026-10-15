@@ -48,8 +48,12 @@ square by one row and one column at each step. Each new L-shaped hook has
 equal-length arms. Branches containing two distinct numbers in one hook
 are rejected, as are hooks containing a number greater than their cell
 count. Repeated copies of the same number are allowed; the number need
-not equal the hook's arm length. Outside clues, letters, colors and existing
-manual borders do not constrain this search. Other puzzle rules (digit
+not equal the hook's arm length. Outside 2-clues must be able to see the
+three-cell hook along their row or column: a confirmed filled cell before
+that hook blocks the view. Blank cells may stay empty to allow the view.
+Every outside 2-clue must pass this check. Other outside digit clues,
+letters, colors and existing manual borders do not constrain this search.
+Other puzzle rules (digit
 counts, connectivity, empty 2×2 regions, pentominoes and outside visibility)
 are not checked by this operation.
 
@@ -97,6 +101,9 @@ of five. For hooks without known digits, the search checks for a consistent
 assignment of the digits 1 through the grid size, one per hook, obeying
 the existing small-hook rules, quotas and all selected pentomino sums.
 Sightline empty cells must also leave enough room to fill each hook's quota.
+Pentomino filling must also preserve the special visibility rule for
+outside 2-clues and the three-cell hook. Other outside digit clues remain
+outside the scope of this check.
 
 Choose **Combinations** to browse arrangements containing one placement
 of every required shape, or **Individual placements** for independently

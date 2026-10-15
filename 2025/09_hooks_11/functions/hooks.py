@@ -46,6 +46,41 @@ def small_hook_digits_allowed(cells, digits, anchor):
     return True
 
 
+def outside_two_rays(data):
+    """Only outside 2-clues participate in this special-case hook rule."""
+    rows, cols = data['rows'], data['cols']
+    rays = []
+    for key, value in data['entries'].items():
+        r, c = map(int, key.split(','))
+        if not value.isdecimal() or int(value) != 2 or (0 <= r < rows and 0 <= c < cols):
+            continue
+        if r == -1:
+            ray = [(row,c) for row in range(rows)]
+        elif r == rows:
+            ray = [(row,c) for row in reversed(range(rows))]
+        elif c == -1:
+            ray = [(r,col) for col in range(cols)]
+        else:
+            ray = [(r,col) for col in reversed(range(cols))]
+        rays.append(tuple(ray))
+    return rays
+
+
+def three_cell_hook_visible(cells, rays, filled):
+    """Every 2-clue needs an unobstructed possible filled cell in this hook."""
+    cells, filled = set(cells), set(filled)
+    room_for_two = len(cells & filled) < 2
+    for ray in rays:
+        for cell in ray:
+            if cell in cells and (room_for_two or cell in filled):
+                break
+            if cell in filled:
+                return False
+        else:
+            return False
+    return True
+
+
 def partition_borders(hooks, rows, cols):
     owner = {cell: index for index, hook in enumerate(hooks) for cell in hook}
     borders = {}
@@ -90,6 +125,10 @@ class HookSearch:
             r, c = map(int, key.split(','))
             if 0 <= r < n and 0 <= c < n and value.isdecimal():
                 digits[r, c] = int(value)
+        two_rays = outside_two_rays(self.data)
+        if n < 2 and two_rays:
+            self.outcome = 'complete'
+            return
         stack = [((*self.anchor, 1), [[self.anchor]])]
         while stack:
             if self.cancelled:
@@ -115,6 +154,8 @@ class HookSearch:
                         if len(hook_digits) > 1 or any(digit > len(cells) for digit in hook_digits):
                             continue
                         if not small_hook_digits_allowed(cells, hook_digits, self.anchor):
+                            continue
+                        if len(cells) == 3 and not three_cell_hook_visible(cells, two_rays, digits):
                             continue
                         stack.append((outer, hooks + [cells]))
             yield None

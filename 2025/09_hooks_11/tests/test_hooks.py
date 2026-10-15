@@ -4,7 +4,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from functions.hooks import HookSearch, hook_cells, canonical_borders, small_hook_digits_allowed
+from functions.hooks import (HookSearch, hook_cells, canonical_borders, small_hook_digits_allowed,
+                             outside_two_rays, three_cell_hook_visible)
 from functions.model import Puzzle, read, write, save_snapshot, load_snapshot
 
 
@@ -36,6 +37,40 @@ def regions(borders, n):
 
 
 class HookTests(unittest.TestCase):
+    def test_outside_two_clues_constrain_three_cell_hook_from_each_side(self):
+        for key in ('0,-1', '0,3', '-1,0', '3,0'):
+            puzzle, search = search_grid(3, {'1,1':'1', key:'2'})
+            self.assertEqual(search.outcome, 'complete')
+            self.assertEqual(len(search.candidates), 2, key)
+            rays = outside_two_rays(puzzle.data)
+            for candidate in search.candidates:
+                hook = next(group for group in regions(candidate, 3) if len(group) == 3)
+                self.assertTrue(three_cell_hook_visible(hook, rays, {(1,1)}))
+
+    def test_outside_two_cannot_look_through_singleton(self):
+        _, search = search_grid(3, {'1,1':'1', '1,-1':'2'})
+        self.assertEqual(len(search.candidates), 2)
+        for candidate in search.candidates:
+            hook = next(group for group in regions(candidate, 3) if len(group) == 3)
+            self.assertIn((1,0), hook)
+            self.assertNotIn((1,2), hook)
+
+    def test_every_outside_two_must_see_same_three_cell_hook(self):
+        _, one = search_grid(3, {'1,1':'1', '0,-1':'2', '3,0':'2'})
+        self.assertEqual(len(one.candidates), 1)
+        _, none = search_grid(3, {'1,1':'1', '0,-1':'2', '2,3':'2'})
+        self.assertEqual(none.candidates, [])
+        _, other_digits = search_grid(3, {'1,1':'1', '0,-1':'3', '2,3':'4'})
+        self.assertEqual(len(other_digits.candidates), 4)
+
+    def test_two_visibility_allows_empty_prefix_but_not_extra_two(self):
+        hook = {(0,0),(0,1),(1,0)}
+        self.assertTrue(three_cell_hook_visible(hook, [((0,2),(0,1),(0,0))], {(1,1)}))
+        self.assertFalse(three_cell_hook_visible(hook, [((0,2),(0,1),(0,0))], {(0,2)}))
+        # Both 2s are already filled off this sightline; its only hook cell
+        # cannot be filled as an additional 2.
+        self.assertFalse(three_cell_hook_visible(hook, [((0,1),(1,1),(2,1))], {(0,0),(1,0),(1,1)}))
+
     def test_canonical_borders_require_all_complete_layouts(self):
         layouts = [{'h,1,0': True, 'v,0,1': True}, {'h,1,0': True, 'v,1,1': True}]
         self.assertEqual(canonical_borders(layouts, 'complete'), {'h,1,0': True})

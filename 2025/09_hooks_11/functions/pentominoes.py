@@ -8,7 +8,7 @@ import math
 from .constants import (PENTOMINO_SHAPES, PENTOMINO_NODE_LIMIT,
                         PENTOMINO_CANDIDATE_LIMIT, PENTOMINO_PLACEMENT_LIMIT,
                         PENTOMINO_SUM_MODULUS)
-from .hooks import small_hook_digits_allowed
+from .hooks import small_hook_digits_allowed, outside_two_rays, three_cell_hook_visible
 
 
 def orientations(shape):
@@ -123,6 +123,7 @@ class HookContext:
             if 0 <= r < self.rows and 0 <= c < self.cols and value.isdecimal():
                 self.digits[r,c] = int(value)
         self.filled = frozenset(self.digits)
+        self.two_rays = outside_two_rays(self.data)
         anchor = next(iter(self.hooks[0]))
         self.domains = []
         for hook in self.hooks:
@@ -147,6 +148,8 @@ class HookContext:
             counts = Counter(self.owner[cell] for cell in piece.cells)
             coefficients.append(counts)
         if occupied & empty or has_filled_square(occupied):
+            return None
+        if self.two_rays and (len(self.hooks) < 2 or not three_cell_hook_visible(self.hooks[1], self.two_rays, occupied)):
             return None
         # Counts use a union: a given already covered by a piece counts once.
         counts = Counter(self.owner[cell] for cell in occupied)

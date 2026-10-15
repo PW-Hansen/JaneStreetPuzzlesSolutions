@@ -15,6 +15,17 @@ from pentomino_fixtures import example_puzzle, nested_context_data, finish
 
 
 class PentominoTests(unittest.TestCase):
+    def test_filling_cannot_block_outside_two_view_of_three_cell_hook(self):
+        data, borders = nested_context_data()
+        data['entries']['5,1'] = '2'
+        context = HookContext(data, borders)
+        self.assertIsNotNone(context.constraints([]))
+        blocker = Placement('I', frozenset({(4,1)}), frozenset())
+        self.assertIsNone(context.constraints([blocker]))
+        data['entries']['5,1'] = '3'
+        context = HookContext(data, borders)
+        self.assertIsNotNone(context.constraints([blocker]))
+
     def test_prunes_incompatible_hook_layout_and_confirms_sole_survivor(self):
         puzzle = example_puzzle()
         original = copy.deepcopy(puzzle.data)
