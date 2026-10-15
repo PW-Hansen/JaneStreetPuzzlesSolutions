@@ -29,3 +29,17 @@ def finish(generator):
             next(generator)
         except StopIteration as stopped:
             return stopped.value
+
+
+def nine_cell_side_pentomino_puzzle():
+    from functions.pentominoes import PentominoSearch
+    puzzle = Puzzle('Remaining example', 9, 9)
+    puzzle.data['entries'] = {f'{row},0':str(row+1) for row in range(9)}
+    puzzle.data['entries']['0,-1'] = 'I'
+    hooks = HookSearch(puzzle.data)
+    list(hooks.run())
+    puzzle.set_hook_analysis(hooks, 0.01)
+    pentominoes = PentominoSearch(puzzle.data)
+    list(pentominoes.run())
+    puzzle.set_pentomino_analysis(pentominoes, 0.01)
+    return puzzle

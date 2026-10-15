@@ -7,7 +7,7 @@ import math
 from pathlib import Path
 from .constants import COLORS
 from .hooks import canonical_borders
-from .pentominoes import hook_digest, validate_pentomino_analysis
+from .pentominoes import hook_digest, validate_pentomino_analysis, analysis_records
 
 
 def safe_name(name):
@@ -226,8 +226,39 @@ class Puzzle:
             return
         if view is not None:
             analysis['view'] = view
-        records = analysis['candidates' if analysis['view'] == 'combinations' else 'placements']
+        records = analysis_records(analysis)
         if -1 <= index < len(records):
             analysis['preview'] = index
             if index >= 0:
                 self.data['analysis']['preview'] = records[index]['hook_index']
+
+    def set_remaining_pentomino_analysis(self, search, elapsed):
+        analysis = copy.deepcopy(self.data['pentomino_analysis'])
+        surviving = [index for index in range(len(analysis['candidates'])) if index not in search.rejected_combinations]
+        base_remap = {old:new for new,old in enumerate(surviving)}
+        analysis['candidates'] = [analysis['candidates'][index] for index in surviving]
+        hooks = copy.deepcopy(self.data['analysis'])
+        keep_hooks = {record['hook_index'] for record in analysis['candidates']}
+        retained = [index for index in range(len(hooks['candidates']))
+                    if analysis['outcome'] != 'complete' or index in keep_hooks]
+        hook_remap = {old:new for new,old in enumerate(retained)}
+        discarded_hooks = len(hooks['candidates'])-len(retained)
+        hooks['candidates'] = [hooks['candidates'][index] for index in retained]
+        hooks['preview'] = hook_remap.get(hooks['preview'], 0 if retained else -1)
+        for record in analysis['candidates']:
+            record['hook_index'] = hook_remap[record['hook_index']]
+        analysis['placements'] = [dict(record, hook_index=hook_remap[record['hook_index']])
+                                  for record in analysis['placements'] if record['hook_index'] in hook_remap]
+        analysis['extensions'] = [dict(copy.deepcopy(record), hook_index=hook_remap[record['hook_index']],
+                                       base_index=base_remap[record['base_index']])
+                                  for record in search.candidates if record['base_index'] in base_remap]
+        analysis.update(remaining_outcome=search.outcome, remaining_elapsed=elapsed,
+                        remaining_nodes=search.nodes, remaining_source_incomplete=search.source_incomplete,
+                        discarded_combinations=len(search.rejected_combinations),
+                        discarded_hook_layouts=analysis.get('discarded_hook_layouts',0)+discarded_hooks,
+                        view='extensions', preview=0 if search.candidates else -1)
+        new = dict(self.data, analysis=hooks, pentomino_analysis=analysis)
+        analysis['source_hook_digest'] = hook_digest(new)
+        if analysis['extensions']:
+            hooks['preview'] = analysis['extensions'][0]['hook_index']
+        self.replace(new)

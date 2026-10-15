@@ -51,7 +51,8 @@ count. Repeated copies of the same number are allowed; the number need
 not equal the hook's arm length. Outside 2-clues must be able to see the
 three-cell hook along their row or column: a confirmed filled cell before
 that hook blocks the view. Blank cells may stay empty to allow the view.
-Every outside 2-clue must pass this check. Other outside digit clues,
+Every outside 2-clue must pass this check. Outside 3/4/5 clues additionally
+constrain the five-cell hook as described below. Other outside digit clues,
 letters, colors and existing manual borders do not constrain this search.
 Other puzzle rules (digit
 counts, connectivity, empty 2×2 regions, pentominoes and outside visibility)
@@ -61,6 +62,16 @@ The three-cell hook only permits digit 2. The five-cell hook permits only
 3 or 4 when it shares two edges with the singleton 1-hook. It also permits
 5 when it shares exactly one edge, or when the three-cell hook entirely
 separates it from the singleton.
+For each proposed five-cell hook, digits already entered elsewhere in the
+grid are unavailable. Givens inside the hook must agree with its candidate
+digit. Reject the hook if none of 3, 4 or 5 remains possible. For a candidate
+digit with outside clues, every matching clue must be able to reach this
+hook before a confirmed filled cell, without passing through two or more
+cells of the three-cell hook first (only one of those three cells can be
+empty). Passing through one potentially empty cell is allowed; cells past
+the first five-cell-hook cell do not count. These checks filter each
+candidate digit separately, rather than requiring the hook to satisfy
+outside clues for digits assigned to other hooks.
 These checks restrict entered digits without filling empty cells. The
 allowed-digit rules by cell count are in `functions/constants.py`.
 
@@ -103,8 +114,9 @@ assignment of the digits 1 through the grid size, one per hook, obeying
 the existing small-hook rules, quotas and all selected pentomino sums.
 Sightline empty cells must also leave enough room to fill each hook's quota.
 Pentomino filling must also preserve the special visibility rule for
-outside 2-clues and the three-cell hook. Other outside digit clues remain
-outside the scope of this check.
+outside 2-clues and the three-cell hook, and the candidate-digit checks
+for the five-cell hook and its matching 3/4/5 clues. Other outside digit
+clues remain outside the scope of this check.
 
 Choose **Combinations** to browse arrangements containing one placement
 of every required shape, or **Individual placements** for independently
@@ -135,5 +147,25 @@ Results based on an incomplete hook search are themselves incomplete.
 This operation places only letter-clued pieces: it does not complete
 unclued pentominoes, solve numeric outside clues, or prove that a partial
 arrangement can be extended into a fully connected final solution.
+
+**Draw remaining pentominoes** extends each stored compatible combination
+from Draw pentominoes with exactly three distinct unused shapes. P is
+excluded from both searches because it contains a filled 2×2 block.
+All rotations/reflections and positions are checked, preserving the
+original pieces and their clue sightlines. The entire extension must
+share one hook-digit assignment, satisfy pentomino sums and hook quotas,
+avoid overlap and filled 2×2 regions, and preserve the small-hook digit
+visibility rules. If the extension fills every hook's quota, the filled
+region must also be connected; partial extensions may connect later.
+
+Choose **Three additional pentominoes** to browse full extensions with
+their original pieces. The search always starts from the stored clued
+combinations, rather than repeatedly adding three to an earlier preview.
+Exhaustively unextendable combinations are discarded. Hook layouts with
+no surviving combinations are also discarded when the original clued
+combination search was complete, updating canonical borders. Untested
+combinations survive cancellation and limits. Results, pruning and border
+deductions save and undo together. The operation shares the pentomino
+search limits, Abort control, elapsed timer and snapshot/export support.
 
 Run checks with `python -m unittest discover -s tests`.

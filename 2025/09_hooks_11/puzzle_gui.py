@@ -10,7 +10,7 @@ from functions.constants import CELL_SIZE, MARGIN, COLORS, MODES, COLOR_KEYPAD
 from functions.model import Puzzle, safe_name, read, write, save_snapshot, load_snapshot
 from functions.rendering import draw, export_png
 from functions.hooks import HookSearch
-from functions.pentominoes import PentominoSearch
+from functions.pentominoes import PentominoSearch, RemainingPentominoSearch, analysis_records
 
 ROOT = Path(__file__).resolve().parent
 
@@ -122,12 +122,14 @@ class Editor:
         self.pentomino_abort_button.grid(row=0, column=1, pady=3)
         self.pentomino_view = tk.StringVar(value='Combinations')
         view_selector = ttk.Combobox(pentomino_controls, textvariable=self.pentomino_view,
-                                    values=('Combinations', 'Individual placements'), state='readonly', width=28)
+                                    values=('Combinations', 'Individual placements', 'Three additional pentominoes'), state='readonly', width=28)
         view_selector.grid(row=1, column=0, columnspan=2, sticky='ew', pady=4)
         view_selector.bind('<<ComboboxSelected>>', self.change_pentomino_view)
         ttk.Button(pentomino_controls, text='Previous', command=lambda: self.navigate_pentominoes(-1)).grid(row=2, column=0, pady=3)
         ttk.Button(pentomino_controls, text='Next', command=lambda: self.navigate_pentominoes(1)).grid(row=2, column=1, pady=3)
         ttk.Button(pentomino_controls, text='Confirmed view', command=self.confirmed_pentominoes).grid(row=3, column=0, columnspan=2, sticky='ew', pady=3)
+        self.draw_remaining_button = ttk.Button(pentomino_controls, text='Draw remaining pentominoes', command=self.draw_remaining_pentominoes)
+        self.draw_remaining_button.grid(row=4, column=0, columnspan=2, sticky='ew', pady=3)
         self.pentomino_status = tk.StringVar(value='Draw hooks first, then test the outside pentomino clues.')
         ttk.Label(pentomino_tab, textvariable=self.pentomino_status, wraplength=245, justify='left').pack(anchor='w', pady=6)
         controls = ttk.Frame(outer)
@@ -227,6 +229,7 @@ class Editor:
         self.search_steps = self.search.run()
         self.draw_hooks_button.configure(state='disabled')
         self.draw_pentominoes_button.configure(state='disabled')
+        self.draw_remaining_button.configure(state='disabled')
         self.abort_button.configure(state='normal')
         self.pentomino_abort_button.configure(state='normal')
         target = self.analysis_status if kind == 'hooks' else self.pentomino_status
@@ -236,6 +239,7 @@ class Editor:
     def finish_analysis_controls(self):
         self.draw_hooks_button.configure(state='normal')
         self.draw_pentominoes_button.configure(state='normal')
+        self.draw_remaining_button.configure(state='normal')
         self.abort_button.configure(state='disabled')
         self.pentomino_abort_button.configure(state='disabled')
 
@@ -256,6 +260,8 @@ class Editor:
             else:
                 if self.search_kind == 'hooks':
                     self.puzzle.set_hook_analysis(search, elapsed)
+                elif self.search_kind == 'remaining pentominoes':
+                    self.puzzle.set_remaining_pentomino_analysis(search, elapsed)
                 else:
                     self.puzzle.set_pentomino_analysis(search, elapsed)
                 self.changed()
@@ -319,20 +325,25 @@ class Editor:
             return
         outcome = {'complete': 'Complete', 'cancelled': 'Cancelled — incomplete', 'limit': 'Search limit — incomplete'}[analysis['outcome']]
         view = analysis['view']
-        self.pentomino_view.set('Combinations' if view == 'combinations' else 'Individual placements')
-        records = analysis['candidates' if view == 'combinations' else 'placements']
+        self.pentomino_view.set({'combinations':'Combinations', 'placements':'Individual placements', 'extensions':'Three additional pentominoes'}[view])
+        records = analysis_records(analysis)
         index = analysis['preview']
         preview = 'Confirmed view' if index < 0 else f'Preview {index+1}/{len(records)} · hook layout {records[index]["hook_index"]+1}'
         source_note = '\nInput hook layouts are incomplete.' if analysis.get('source_incomplete') else ''
         discarded = analysis.get('discarded_hook_layouts', 0)
-        self.pentomino_status.set(f"{outcome}{source_note}\n{len(analysis['placements'])} individual placements · {len(analysis['candidates'])} compatible combinations\n{discarded} hook layouts discarded\n{analysis['elapsed']:.2f} s · {analysis['nodes']:,} branches\n{preview}")
+        if view == 'extensions' and 'remaining_outcome' in analysis:
+            outcome = {'complete':'Complete', 'cancelled':'Cancelled — incomplete', 'limit':'Search limit — incomplete'}[analysis['remaining_outcome']]
+            input_note = '\nInput combinations are incomplete.' if analysis.get('remaining_source_incomplete') else ''
+            self.pentomino_status.set(f"{outcome}{input_note}\n{len(analysis.get('extensions',[]))} three-piece extensions\n{analysis.get('discarded_combinations',0)} combinations discarded · {discarded} hook layouts discarded\n{analysis['remaining_elapsed']:.2f} s · {analysis['remaining_nodes']:,} branches\n{preview}")
+        else:
+            self.pentomino_status.set(f"{outcome}{source_note}\n{len(analysis['placements'])} individual placements · {len(analysis['candidates'])} compatible combinations\n{discarded} hook layouts discarded\n{analysis['elapsed']:.2f} s · {analysis['nodes']:,} branches\n{preview}")
 
     def change_pentomino_view(self, event=None):
         if self.search is None:
             analysis = self.puzzle.data.get('pentomino_analysis')
             if analysis:
-                view = 'combinations' if self.pentomino_view.get() == 'Combinations' else 'placements'
-                records = analysis['candidates' if view == 'combinations' else 'placements']
+                view = {'Combinations':'combinations', 'Individual placements':'placements', 'Three additional pentominoes':'extensions'}[self.pentomino_view.get()]
+                records = analysis_records(analysis, view)
                 self.puzzle.preview_pentominoes(0 if records else -1, view)
                 self.persist()
                 self.redraw()
@@ -340,7 +351,7 @@ class Editor:
     def navigate_pentominoes(self, direction):
         analysis = self.puzzle.data.get('pentomino_analysis')
         if self.search is None and analysis:
-            records = analysis['candidates' if analysis['view'] == 'combinations' else 'placements']
+            records = analysis_records(analysis)
             if records:
                 index = analysis['preview']
                 index = (0 if direction > 0 else len(records)-1) if index < 0 else (index+direction) % len(records)
@@ -354,6 +365,16 @@ class Editor:
             self.puzzle.preview_hooks(-1)
             self.persist()
             self.redraw()
+
+    def draw_remaining_pentominoes(self):
+        if self.search is not None:
+            return
+        try:
+            self.search = RemainingPentominoSearch(copy.deepcopy(self.puzzle.data))
+        except ValueError as exc:
+            self.pentomino_status.set(str(exc))
+            return
+        self.start_analysis('remaining pentominoes')
 
     def click(self, event, right):
         self.canvas.focus_set()

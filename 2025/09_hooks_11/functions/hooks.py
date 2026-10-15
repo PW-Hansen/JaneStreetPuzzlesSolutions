@@ -49,13 +49,29 @@ def small_hook_digits_allowed(cells, digits, anchor):
     return True
 
 
+def available_five_cell_digits(cells, anchor, digits):
+    """Possible digits for a five-cell hook, considering givens anywhere."""
+    cells = set(cells)
+    known = {digit for cell, digit in digits.items() if cell in cells}
+    elsewhere = {digit for cell, digit in digits.items() if cell not in cells}
+    possible = set(HOOK_ALLOWED_DIGITS[5]) - elsewhere
+    if known:
+        possible = possible & known if len(known) == 1 else set()
+    return {digit for digit in possible if small_hook_digits_allowed(cells, {digit}, anchor)}
+
+
 def outside_two_rays(data):
     """Only outside 2-clues participate in this special-case hook rule."""
+    return outside_digit_rays(data, {2})
+
+
+def outside_digit_rays(data, allowed_digits):
+    """Sightlines for a selected set of outside numeric clue values."""
     rows, cols = data['rows'], data['cols']
     rays = []
     for key, value in data['entries'].items():
         r, c = map(int, key.split(','))
-        if not value.isdecimal() or int(value) != 2 or (0 <= r < rows and 0 <= c < cols):
+        if not value.isdecimal() or int(value) not in allowed_digits or (0 <= r < rows and 0 <= c < cols):
             continue
         if r == -1:
             ray = [(row,c) for row in range(rows)]
@@ -67,6 +83,26 @@ def outside_two_rays(data):
             ray = [(r,col) for col in reversed(range(cols))]
         rays.append(tuple(ray))
     return rays
+
+
+def five_cell_digits_from_clues(possible, cells, three_cells, rays_by_digit, filled):
+    """Filter candidate digits using only their own outside clue sightlines."""
+    cells, three_cells, filled = set(cells), set(three_cells), set(filled)
+
+    def can_see(ray):
+        through_three = 0
+        for cell in ray:
+            if cell in cells:
+                return True
+            if cell in filled:
+                return False
+            if cell in three_cells:
+                through_three += 1
+                if through_three >= 2:
+                    return False
+        return False
+
+    return {digit for digit in possible if all(can_see(ray) for ray in rays_by_digit.get(digit, ()))}
 
 
 def three_cell_hook_visible(cells, rays, filled):
@@ -129,6 +165,7 @@ class HookSearch:
             if 0 <= r < n and 0 <= c < n and value.isdecimal():
                 digits[r, c] = int(value)
         two_rays = outside_two_rays(self.data)
+        five_rays = {digit: outside_digit_rays(self.data, {digit}) for digit in HOOK_ALLOWED_DIGITS[5]}
         if n < 2 and two_rays:
             self.outcome = 'complete'
             return
@@ -160,6 +197,10 @@ class HookSearch:
                             continue
                         if len(cells) == 3 and not three_cell_hook_visible(cells, two_rays, digits):
                             continue
+                        if len(cells) == 5:
+                            possible = available_five_cell_digits(cells, self.anchor, digits)
+                            if not five_cell_digits_from_clues(possible, cells, hooks[1], five_rays, digits):
+                                continue
                         stack.append((outer, hooks + [cells]))
             yield None
         self.outcome = 'cancelled' if self.cancelled else 'complete'

@@ -5,7 +5,8 @@ import unittest
 from pathlib import Path
 
 from functions.hooks import (HookSearch, hook_cells, canonical_borders, small_hook_digits_allowed,
-                             outside_two_rays, three_cell_hook_visible)
+                             outside_two_rays, three_cell_hook_visible, available_five_cell_digits,
+                             five_cell_digits_from_clues, outside_digit_rays)
 from functions.model import Puzzle, read, write, save_snapshot, load_snapshot
 
 
@@ -37,6 +38,42 @@ def regions(borders, n):
 
 
 class HookTests(unittest.TestCase):
+    def test_five_cell_domain_uses_digits_elsewhere_and_singleton_contact(self):
+        cells = hook_cells((0,0,2), (0,0,3))
+        self.assertEqual(available_five_cell_digits(cells, (0,0), {}), {3,4,5})
+        elsewhere = {(0,3):3, (1,3):4, (2,3):5}
+        self.assertEqual(available_five_cell_digits(cells, (0,0), elsewhere), set())
+        self.assertEqual(available_five_cell_digits(cells, (0,0), {(0,2):3, (1,2):3}), {3})
+        self.assertEqual(available_five_cell_digits(cells, (0,0), {(0,2):3, (0,3):3}), set())
+        self.assertEqual(available_five_cell_digits(cells, (0,0), {(0,2):2}), set())
+        others = {(0,3):3, (1,3):4}
+        self.assertEqual(available_five_cell_digits(cells, (1,1), others), set())
+        self.assertEqual(available_five_cell_digits(cells, (0,1), others), {5})
+
+    def test_five_cell_clues_allow_one_three_cell_crossing_but_not_two(self):
+        cells, three = {(0,2),(1,2),(2,0),(2,1),(2,2)}, {(0,0),(0,1),(1,0)}
+        one = ((1,0),(1,2))
+        two = ((0,0),(0,1),(0,2))
+        for digit in (3,4,5):
+            self.assertEqual(five_cell_digits_from_clues({digit}, cells, three, {digit:[one]}, {}), {digit})
+            self.assertEqual(five_cell_digits_from_clues({digit}, cells, three, {digit:[two]}, {}), set())
+        # A failed 3-clue eliminates only digit 3, not 4 or 5.
+        self.assertEqual(five_cell_digits_from_clues({3,4,5}, cells, three, {3:[two]}, {}), {4,5})
+        self.assertEqual(five_cell_digits_from_clues({3}, cells, three, {3:[one,two]}, {}), set())
+        self.assertEqual(five_cell_digits_from_clues({3}, cells, three, {3:[one]}, {(1,0):2}), set())
+        self.assertEqual(five_cell_digits_from_clues({3}, cells, three, {3:[((0,3),(1,3))]}, {}), set())
+        # Cells of the three-cell hook beyond the first five-cell cell do not block it.
+        self.assertEqual(five_cell_digits_from_clues({3}, cells, three, {3:[tuple(reversed(two))]}, {}), {3})
+
+    def test_five_cell_outside_clue_rays_from_every_side(self):
+        puzzle = Puzzle('Rays', 5, 5)
+        puzzle.data['entries'] = {'-1,1':'3', '5,1':'4', '1,-1':'5', '1,5':'3', '0,0':'3'}
+        self.assertEqual([ray[0] for ray in outside_digit_rays(puzzle.data, {3,4,5})], [(0,1),(4,1),(1,0),(1,4)])
+
+    def test_hook_search_rejects_five_cell_digit_already_elsewhere(self):
+        _, search = search_grid(4, {'0,0':'1', '0,2':'3', '3,0':'3'})
+        self.assertEqual(search.candidates, [])
+
     def test_outside_two_clues_constrain_three_cell_hook_from_each_side(self):
         for key in ('0,-1', '0,3', '-1,0', '3,0'):
             puzzle, search = search_grid(3, {'1,1':'1', key:'2'})

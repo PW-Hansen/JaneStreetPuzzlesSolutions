@@ -7,8 +7,11 @@ import math
 
 from .constants import (PENTOMINO_SHAPES, PENTOMINO_NODE_LIMIT,
                         PENTOMINO_CANDIDATE_LIMIT, PENTOMINO_PLACEMENT_LIMIT,
-                        PENTOMINO_SUM_MODULUS)
-from .hooks import small_hook_digits_allowed, outside_two_rays, three_cell_hook_visible
+                        PENTOMINO_SUM_MODULUS, PENTOMINO_CELL_COUNT,
+                        REMAINING_PENTOMINO_COUNT, EXCLUDED_PENTOMINOES)
+from .hooks import (small_hook_digits_allowed, outside_two_rays, three_cell_hook_visible,
+                    available_five_cell_digits, outside_digit_rays, five_cell_digits_from_clues)
+from .constants import HOOK_ALLOWED_DIGITS
 
 
 def orientations(shape):
@@ -32,8 +35,24 @@ def preview_record(data):
     analysis = data.get('pentomino_analysis')
     if analysis is None or analysis['preview'] < 0:
         return None
-    records = analysis['candidates' if analysis['view'] == 'combinations' else 'placements']
+    records = analysis_records(analysis)
     return records[analysis['preview']]
+
+
+def analysis_records(analysis, view=None):
+    field_name = {'combinations':'candidates', 'placements':'placements', 'extensions':'extensions'}[view or analysis['view']]
+    return analysis.get(field_name, [])
+
+
+def translated_placements(name, rows, cols):
+    if name in EXCLUDED_PENTOMINOES:
+        return
+    for variant in orientations(PENTOMINO_SHAPES[name]):
+        height = max(r for r,c in variant)+1
+        width = max(c for r,c in variant)+1
+        for row in range(rows-height+1):
+            for col in range(cols-width+1):
+                yield frozenset((row+r,col+c) for r,c in variant)
 
 
 def clue_rays(data):
@@ -84,6 +103,20 @@ def has_filled_square(filled):
     return any({(r+1,c), (r,c+1), (r+1,c+1)} <= filled for r,c in filled)
 
 
+def filled_region_connected(filled):
+    if not filled:
+        return True
+    remaining = set(filled)
+    pending = [remaining.pop()]
+    while pending:
+        r,c = pending.pop()
+        for cell in ((r-1,c),(r+1,c),(r,c-1),(r,c+1)):
+            if cell in remaining:
+                remaining.remove(cell)
+                pending.append(cell)
+    return not remaining
+
+
 @dataclass(frozen=True)
 class Placement:
     name: str
@@ -124,6 +157,7 @@ class HookContext:
                 self.digits[r,c] = int(value)
         self.filled = frozenset(self.digits)
         self.two_rays = outside_two_rays(self.data)
+        self.five_rays = {digit: outside_digit_rays(self.data, {digit}) for digit in HOOK_ALLOWED_DIGITS[5]}
         anchor = next(iter(self.hooks[0]))
         self.domains = []
         for hook in self.hooks:
@@ -131,6 +165,8 @@ class HookContext:
             possible = known if known else set(range(1, len(self.hooks)+1))
             if len(known) > 1:
                 possible = set()
+            if len(hook) == 5:
+                possible = possible & available_five_cell_digits(hook, anchor, self.digits)
             self.domains.append(frozenset(digit for digit in possible
                 if 1 <= digit <= len(self.hooks) and digit <= len(hook)
                 and small_hook_digits_allowed(hook, {digit}, anchor)))
@@ -155,6 +191,8 @@ class HookContext:
         counts = Counter(self.owner[cell] for cell in occupied)
         domains = [set(digit for digit in possible if counts[index] <= digit <= len(hook-empty))
                    for index, (hook, possible) in enumerate(zip(self.hooks, self.domains))]
+        if len(self.hooks) >= 3:
+            domains[2] = five_cell_digits_from_clues(domains[2], self.hooks[2], self.hooks[1], self.five_rays, occupied)
         if any(not possible for possible in domains):
             return None
         return domains, coefficients
@@ -251,23 +289,18 @@ class PentominoSearch:
                 for name in sorted(self.clues):
                     self.progress = f'Hook layout {hook_index+1}/{len(self.layouts)} · placing {name}'
                     found = []
-                    for variant in orientations(PENTOMINO_SHAPES[name]):
-                        height = max(r for r,c in variant)+1
-                        width = max(c for r,c in variant)+1
-                        for row in range(context.rows-height+1):
-                            for col in range(context.cols-width+1):
-                                yield from self.step()
-                                cells = frozenset((row+r,col+c) for r,c in variant)
-                                piece = visible_placement(name, cells, self.clues, context.filled)
-                                if piece is None:
-                                    continue
-                                digits = yield from self.witness(context, [piece])
-                                if digits is not None:
-                                    if len(self.placements) >= self.placement_limit:
-                                        self.outcome = 'limit'
-                                        raise SearchStopped
-                                    found.append(piece)
-                                    self.placements.append(self.record(context, hook_index, [piece], digits))
+                    for cells in translated_placements(name, context.rows, context.cols):
+                        yield from self.step()
+                        piece = visible_placement(name, cells, self.clues, context.filled)
+                        if piece is None:
+                            continue
+                        digits = yield from self.witness(context, [piece])
+                        if digits is not None:
+                            if len(self.placements) >= self.placement_limit:
+                                self.outcome = 'limit'
+                                raise SearchStopped
+                            found.append(piece)
+                            self.placements.append(self.record(context, hook_index, [piece], digits))
                     by_shape[name] = found
                 self.progress = f'Hook layout {hook_index+1}/{len(self.layouts)} · testing combinations'
                 names = sorted(by_shape, key=lambda name: (len(by_shape[name]), name))
@@ -299,6 +332,91 @@ class PentominoSearch:
             return
 
 
+@dataclass
+class RemainingPentominoSearch(PentominoSearch):
+    rejected_combinations: set = field(default_factory=set, init=False)
+
+    def __post_init__(self):
+        super().__post_init__()
+        analysis = self.data.get('pentomino_analysis')
+        if not analysis or not analysis['candidates']:
+            raise ValueError('Run Draw pentominoes first and obtain at least one compatible combination.')
+        self.bases = analysis['candidates']
+        self.source_incomplete = self.source_incomplete or analysis['outcome'] != 'complete'
+        self.progress = 'Preparing remaining pentominoes'
+
+    def run(self):
+        try:
+            for base_index, record in enumerate(self.bases):
+                yield from self.step()
+                hook_index = record['hook_index']
+                context = HookContext(self.data, self.layouts[hook_index])
+                fixed = []
+                for piece in record['pieces']:
+                    cells = frozenset(tuple(map(int,key.split(','))) for key in piece['cells'])
+                    placement = visible_placement(piece['shape'], cells, self.clues, context.filled)
+                    if placement is None or piece['shape'] in EXCLUDED_PENTOMINOES:
+                        break
+                    fixed.append(placement)
+                used = {piece.name for piece in fixed}
+                unused = sorted(set(PENTOMINO_SHAPES) - used - EXCLUDED_PENTOMINOES)
+                minimum_filled = (len(fixed)+REMAINING_PENTOMINO_COUNT)*PENTOMINO_CELL_COUNT
+                if (len(fixed) != len(record['pieces']) or len(unused) < REMAINING_PENTOMINO_COUNT
+                    or minimum_filled > sum(range(1,len(context.hooks)+1))
+                    or (yield from self.witness(context, fixed)) is None):
+                    self.rejected_combinations.add(base_index)
+                    continue
+                by_shape = {}
+                for name in unused:
+                    self.progress = f'Combination {base_index+1}/{len(self.bases)} · placing {name}'
+                    found = []
+                    for cells in translated_placements(name, context.rows, context.cols):
+                        yield from self.step()
+                        piece = Placement(name, cells, frozenset())
+                        if (yield from self.witness(context, fixed+[piece])) is not None:
+                            if len(self.placements) >= self.placement_limit:
+                                self.outcome = 'limit'
+                                raise SearchStopped
+                            found.append(piece)
+                            self.placements.append(dict(base_index=base_index, shape=name))
+                    if found:
+                        by_shape[name] = found
+                names = sorted(by_shape)
+                candidate_start = len(self.candidates)
+                self.progress = f'Combination {base_index+1}/{len(self.bases)} · testing three additional pieces'
+
+                def extend(start, additional):
+                    yield from self.step()
+                    needed = REMAINING_PENTOMINO_COUNT-len(additional)
+                    if len(names)-start < needed:
+                        return
+                    for index in range(start, len(names)-needed+1):
+                        for piece in by_shape[names[index]]:
+                            selected = additional+[piece]
+                            digits = yield from self.witness(context, fixed+selected)
+                            if digits is None:
+                                continue
+                            if len(selected) == REMAINING_PENTOMINO_COUNT:
+                                filled = set(context.filled).union(*(placement.cells for placement in fixed+selected))
+                                if len(filled) == sum(digits) and not filled_region_connected(filled):
+                                    continue
+                                if len(self.candidates) >= self.candidate_limit:
+                                    self.outcome = 'limit'
+                                    raise SearchStopped
+                                candidate = self.record(context, hook_index, fixed+selected, digits)
+                                candidate['base_index'] = base_index
+                                self.candidates.append(candidate)
+                            else:
+                                yield from extend(index+1, selected)
+
+                yield from extend(0, [])
+                if len(self.candidates) == candidate_start:
+                    self.rejected_combinations.add(base_index)
+            self.outcome = 'cancelled' if self.cancelled else ('limit' if self.source_incomplete else 'complete')
+        except SearchStopped:
+            return
+
+
 def validate_pentomino_analysis(data, analysis):
     """Validate saved preview records before replacing a live puzzle."""
     if not isinstance(analysis, dict) or analysis.get('source_entries') != data['entries'] or analysis.get('source_borders') != data['borders'] or analysis.get('source_hook_digest') != hook_digest(data):
@@ -309,14 +427,23 @@ def validate_pentomino_analysis(data, analysis):
     if not isinstance(elapsed, (int, float)) or not math.isfinite(elapsed) or elapsed < 0 or type(analysis.get('nodes')) is not int or analysis['nodes'] < 0:
         raise ValueError('Invalid pentomino search statistics.')
     view = analysis.get('view')
-    if view not in ('combinations', 'placements'):
+    if view not in ('combinations', 'placements', 'extensions'):
         raise ValueError('Invalid pentomino view.')
-    for field_name in ('candidates', 'placements'):
+    for field_name in ('candidates', 'placements', *(['extensions'] if 'extensions' in analysis else [])):
         if not isinstance(analysis.get(field_name), list):
             raise ValueError('Invalid pentomino candidates.')
         for record in analysis[field_name]:
             if not isinstance(record, dict):
                 raise ValueError('Invalid pentomino placement.')
+            if field_name == 'extensions':
+                base_index = record.get('base_index')
+                if type(base_index) is not int or not 0 <= base_index < len(analysis['candidates']):
+                    raise ValueError('Invalid extended combination reference.')
+                base = analysis['candidates'][base_index]
+                if record.get('hook_index') != base['hook_index'] or len(record.get('pieces', [])) != len(base['pieces'])+REMAINING_PENTOMINO_COUNT or record['pieces'][:len(base['pieces'])] != base['pieces']:
+                    raise ValueError('Invalid three-pentomino extension.')
+                if any(not isinstance(piece, dict) or piece.get('shape') in EXCLUDED_PENTOMINOES for piece in record['pieces']):
+                    raise ValueError('A prohibited pentomino appears in an extension.')
             index = record.get('hook_index')
             if type(index) is not int or not data.get('analysis') or not 0 <= index < len(data['analysis']['candidates']):
                 raise ValueError('Invalid pentomino hook layout.')
@@ -350,6 +477,10 @@ def validate_pentomino_analysis(data, analysis):
             if not isinstance(record.get('hook_digits'), list) or len(record['hook_digits']) != data['rows'] or any(type(digit) is not int for digit in record['hook_digits']) or set(record['hook_digits']) != set(range(1,data['rows']+1)):
                 raise ValueError('Invalid hook digit assignment.')
     preview = analysis.get('preview')
-    records = analysis['candidates' if view == 'combinations' else 'placements']
+    if 'remaining_outcome' in analysis:
+        elapsed = analysis.get('remaining_elapsed')
+        if analysis['remaining_outcome'] not in ('complete', 'cancelled', 'limit') or not isinstance(elapsed, (int,float)) or not math.isfinite(elapsed) or elapsed < 0 or type(analysis.get('remaining_nodes')) is not int or analysis['remaining_nodes'] < 0:
+            raise ValueError('Invalid remaining-pentomino search statistics.')
+    records = analysis_records(analysis)
     if type(preview) is not int or not -1 <= preview < len(records):
         raise ValueError('Invalid pentomino preview index.')
