@@ -6,6 +6,25 @@ Requires Python with Tkinter and Pillow (`pip install Pillow`). Run
 New puzzles ask for a name, rows and columns in one dialog. Cells are 60 pixels;
 larger grids have scrollbars.
 
+To run the analyses without opening the GUI, use `python solve_puzzle.py X`.
+This loads `saved states/X/initial_state.json`, then runs **Draw hooks**,
+**Draw pentominoes**, and **Draw remaining pentominoes**, in that order,
+using the same rules and limits as the GUI. Only when a completed search
+leaves exactly one candidate, it exports the resulting display as
+`solved_state.png` in the project root and saves the full state to
+`saved states/X/solved_state.json`, replacing previous outputs of those
+names. Otherwise it reports an inconclusive result without exporting or
+changing existing solved-state files. The initial snapshot and working
+grid are preserved.
+Operation order and state names are configured in `functions/constants.py`.
+
+Console output reports each operation's outcome, candidates, elapsed time,
+and search limits. If a stage has no usable input candidates, dependent
+stages are skipped. Zero or multiple candidates, or an incomplete search
+even with one candidate, are inconclusive. Exit codes are 0 for a completed
+pipeline with exactly one candidate, 2 for inconclusive results, 1 for
+errors and 130 for interruption.
+
 Modes and shortcuts:
 
 - **Select (Ctrl+0)**: inspect without editing. Arrow keys move selection,

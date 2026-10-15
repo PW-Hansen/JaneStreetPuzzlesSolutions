@@ -9,6 +9,8 @@ from pathlib import Path
 from functions.constants import CELL_SIZE, MARGIN, COLORS, MODES, COLOR_KEYPAD
 from functions.model import Puzzle, safe_name, read, write, save_snapshot, load_snapshot
 from functions.rendering import draw, export_png
+from functions.state_export import print_state as export_state
+from functions.analysis_workflow import apply_analysis, analysis_summary
 from functions.hooks import HookSearch
 from functions.pentominoes import PentominoSearch, RemainingPentominoSearch, analysis_records
 
@@ -258,14 +260,9 @@ class Editor:
             if self.search_discard:
                 target.set(f'Cancelled because puzzle state changed · {elapsed:.2f} s')
             else:
-                if self.search_kind == 'hooks':
-                    self.puzzle.set_hook_analysis(search, elapsed)
-                elif self.search_kind == 'remaining pentominoes':
-                    self.puzzle.set_remaining_pentomino_analysis(search, elapsed)
-                else:
-                    self.puzzle.set_pentomino_analysis(search, elapsed)
+                apply_analysis(self.puzzle, self.search_kind, search, elapsed)
                 self.changed()
-                print(f'{self.search_kind.capitalize()} search {search.outcome}: {len(search.candidates)} candidates, {search.nodes} branches, {elapsed:.2f} s')
+                print(analysis_summary(self.search_kind, search, elapsed))
             return
         except Exception as exc:
             elapsed = perf_counter() - self.search_started
@@ -465,8 +462,9 @@ class Editor:
             if (path.exists() or (printing and png.exists())) and not messagebox.askyesno('Replace saved state?', f'Replace existing files for “{name}”?', parent=self.root):
                 return
             if printing:
-                export_png(png, self.puzzle.data, self.selected)
-            save_snapshot(path, self.puzzle, self.selected)
+                export_state(self.puzzle, ROOT, name, self.selected)
+            else:
+                save_snapshot(path, self.puzzle, self.selected)
             self.status.set(f'Saved {path.name}' + (f' and {png.name}.' if printing else '.'))
         except (OSError, ValueError, ImportError) as exc:
             messagebox.showerror('Save failed', str(exc), parent=self.root)
