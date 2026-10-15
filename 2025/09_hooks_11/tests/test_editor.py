@@ -12,6 +12,28 @@ from puzzle_gui import Editor
 
 
 class ModelTests(unittest.TestCase):
+    def test_canonical_borders_stay_black_in_preview(self):
+        from functions.hooks import HookSearch
+        puzzle = Puzzle('Canonical', 3, 3)
+        puzzle.change('entries', '1,1', '1')
+        search = HookSearch(puzzle.data)
+        list(search.run())
+        puzzle.set_hook_analysis(search, 0.1)
+        strokes = {}
+        draw(puzzle.data, lambda *args: None,
+             lambda points, color, width: strokes.update({points: (color, width)}),
+             lambda *args: None)
+        # Top boundary of the singleton center hook must remain solid black.
+        self.assertEqual(strokes[(120, 120, 180, 120)], ('black', 5))
+        self.assertIn(('#7040b0', 3), strokes.values())
+        puzzle.preview_hooks(-1)
+        strokes.clear()
+        draw(puzzle.data, lambda *args: None,
+             lambda points, color, width: strokes.update({points: (color, width)}),
+             lambda *args: None)
+        self.assertEqual(strokes[(120, 120, 180, 120)], ('black', 5))
+        self.assertNotIn(('#7040b0', 3), strokes.values())
+
     def test_snapshot_restores_history_and_selection(self):
         puzzle = Puzzle('Snapshot', 3, 4)
         puzzle.change('entries', '0,0', '9')
@@ -68,17 +90,28 @@ class GuiTests(unittest.TestCase):
         self.folder = tempfile.TemporaryDirectory(dir=Path(__file__).parent.resolve())
         self.patch = patch('puzzle_gui.ROOT', Path(self.folder.name))
         self.patch.start()
+        self.error_patch = patch('puzzle_gui.messagebox.showerror', side_effect=AssertionError('Unexpected GUI error dialog'))
+        self.error_patch.start()
+        self.writer_patch = patch('puzzle_gui.write', side_effect=self.capture_save)
+        self.writer_patch.start()
         self.root = tk.Tk()
+        self.root.withdraw()
         self.editor = Editor(self.root, Puzzle('Inspection', 9, 9))
         self.root.update()
 
     def tearDown(self):
         self.root.destroy()
         self.patch.stop()
+        self.error_patch.stop()
+        self.writer_patch.stop()
         self.folder.cleanup()
 
     def key(self, char='', keysym=''):
         self.editor.key(SimpleNamespace(char=char, keysym=keysym or char, state=0))
+
+    def capture_save(self, path, data):
+        # Test UI autosave requests without coupling every key to disk replacement.
+        self.saved_data = copy.deepcopy(data)
 
     def test_editing_select_and_restore(self):
         editor = self.editor
@@ -98,7 +131,9 @@ class GuiTests(unittest.TestCase):
         self.assertFalse(editor.puzzle.data['colors'])
         editor.redo()
         self.assertEqual(editor.puzzle.data['colors']['0,0'], 4)
-        restored = read(Path(self.folder.name) / 'grids' / 'Inspection.json')
+        path = Path(self.folder.name) / 'restored.json'
+        write(path, self.saved_data)
+        restored = read(path)
         self.assertEqual(restored, editor.puzzle.data)
         editor.set_mode(3)
         self.assertEqual(editor.mode.get(), 0)

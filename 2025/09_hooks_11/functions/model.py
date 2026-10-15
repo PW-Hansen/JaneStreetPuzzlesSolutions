@@ -3,8 +3,10 @@ import copy
 import json
 import os
 import re
+import math
 from pathlib import Path
 from .constants import COLORS
+from .hooks import canonical_borders
 
 
 def safe_name(name):
@@ -43,7 +45,29 @@ def validate(data):
         r, c = int(r), int(c)
         if value is not True or not ((axis == 'h' and 0 < r < rows and 0 <= c < cols) or (axis == 'v' and 0 <= r < rows and 0 < c < cols)):
             raise ValueError('Invalid internal border.')
-    return copy.deepcopy({key: data[key] for key in ('name', 'rows', 'cols', 'entries', 'colors', 'borders')})
+    result = copy.deepcopy({key: data[key] for key in ('name', 'rows', 'cols', 'entries', 'colors', 'borders')})
+    if data.get('analysis') is not None:
+        analysis = data['analysis']
+        if not isinstance(analysis, dict) or analysis.get('source_entries') != data['entries']:
+            raise ValueError('Hook analysis does not match the puzzle entries.')
+        candidates = analysis.get('candidates')
+        if not isinstance(candidates, list):
+            raise ValueError('Invalid hook candidates.')
+        for candidate in candidates:
+            validate(dict(result, borders=candidate))
+        preview = analysis.get('preview')
+        if type(preview) is not int or not -1 <= preview < len(candidates):
+            raise ValueError('Invalid hook preview.')
+        if analysis.get('outcome') not in ('complete', 'cancelled', 'limit'):
+            raise ValueError('Invalid hook search outcome.')
+        elapsed = analysis.get('elapsed')
+        if not isinstance(elapsed, (int, float)) or not math.isfinite(elapsed) or elapsed < 0:
+            raise ValueError('Invalid analysis elapsed time.')
+        if type(analysis.get('nodes')) is not int or analysis['nodes'] < 0:
+            raise ValueError('Invalid analysis branch count.')
+        result['analysis'] = copy.deepcopy(analysis)
+        result['analysis']['canonical_borders'] = canonical_borders(candidates, analysis['outcome'])
+    return result
 
 
 def read(path):
@@ -113,6 +137,8 @@ class Puzzle:
         self.replace(new)
 
     def replace(self, new):
+        if new.get('entries') != self.data['entries'] and new.get('analysis') == self.data.get('analysis'):
+            new = dict(new, analysis=None)
         new = validate(new)
         if (new['name'], new['rows'], new['cols']) != (self.data['name'], self.data['rows'], self.data['cols']):
             raise ValueError('Saved state belongs to a different puzzle or dimensions.')
@@ -131,10 +157,29 @@ class Puzzle:
             self.data = self.redo_stack.pop()
 
     def reset_edits(self):
-        self.replace(dict(self.data, entries={}, colors={}, borders={}))
+        self.replace(dict(self.data, entries={}, colors={}, borders={}, analysis=None))
 
     def clear_cell_borders(self, row, col):
         new = copy.deepcopy(self.data)
         for edge in (f'h,{row},{col}', f'h,{row+1},{col}', f'v,{row},{col}', f'v,{row},{col+1}'):
             new['borders'].pop(edge, None)
         self.replace(new)
+
+    def set_hook_analysis(self, search, elapsed):
+        analysis = dict(source_entries=copy.deepcopy(self.data['entries']),
+                        candidates=copy.deepcopy(search.candidates), preview=0 if search.candidates else -1,
+                        outcome=search.outcome, elapsed=elapsed, nodes=search.nodes)
+        self.replace(dict(self.data, analysis=analysis))
+
+    def preview_hooks(self, index):
+        analysis = self.data.get('analysis')
+        if analysis is not None and -1 <= index < len(analysis['candidates']):
+            analysis['preview'] = index
+
+    def use_hook_preview(self):
+        analysis = self.data.get('analysis')
+        if analysis is not None and analysis['preview'] >= 0:
+            new = copy.deepcopy(self.data)
+            new['borders'].update(analysis['candidates'][analysis['preview']])
+            new['analysis']['preview'] = -1
+            self.replace(new)

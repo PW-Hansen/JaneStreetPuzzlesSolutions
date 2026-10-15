@@ -41,7 +41,39 @@ overwrite confirmation. Failed loads leave the current puzzle intact.
 Reset edits clears all manually entered text (including outside entries),
 colors and drawn internal borders, preserving the puzzle's name and
 dimensions. No original clues are supplied by this project; a newly
-created puzzle is blank. There are no automated deductions or solver
-operations in this editor.
+created puzzle is blank.
+
+**Draw hooks** starts at the single in-grid 1-clue and grows the enclosing
+square by one row and one column at each step. Each new L-shaped hook has
+equal-length arms. Branches containing two distinct numbers in one hook
+are rejected, as are hooks containing a number greater than their cell
+count. Repeated copies of the same number are allowed; the number need
+not equal the hook's arm length. Outside clues, letters, colors and existing
+manual borders do not constrain this search. Other puzzle rules (digit
+counts, connectivity, empty 2×2 regions, pentominoes and outside visibility)
+are not checked by this operation.
+
+After a complete search, borders shared by every layout automatically
+become canonical black borders, visible even in Confirmed view. Cancelled
+or limited searches (and searches with no layouts) establish no canonical
+borders. These deductions are saved with analysis, undone with the search,
+and invalidated when entries change, preserving manually drawn borders.
+
+Other result borders appear in purple as speculative borders. **Previous/Next** browse
+layouts, **Confirmed view** hides the preview, and **Use hooks** adds the
+preview borders to confirmed black borders while preserving manual
+markings. Analysis and committing a layout can be undone and redone.
+Results, preview selection and elapsed time are saved with the puzzle and
+snapshots. Changing entries invalidates analysis; undo restores it.
+Reset edits also clears analysis. Editing, loading, undoing or resetting
+during a search cancels it and discards pending results.
+
+**Abort** stops a search and keeps any layouts already found as incomplete
+results. The final elapsed time remains visible. Search is bounded by
+`HOOK_NODE_LIMIT` and `HOOK_CANDIDATE_LIMIT` in `functions/constants.py`
+(200,000 branches and 1,000 layouts by default). Cancellation and limits
+are labeled incomplete; zero layouts in an incomplete search does not
+establish that no layout exists. The grid must be square and contain
+exactly one in-grid numeric 1-clue.
 
 Run checks with `python -m unittest discover -s tests`.

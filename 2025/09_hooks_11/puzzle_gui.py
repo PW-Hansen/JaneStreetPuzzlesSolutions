@@ -1,5 +1,7 @@
 """Launch the named grid editor: python puzzle_gui.py [name]."""
 import argparse
+import copy
+from time import perf_counter
 import tkinter as tk
 from tkinter import ttk, simpledialog, messagebox, filedialog
 from pathlib import Path
@@ -7,6 +9,7 @@ from pathlib import Path
 from functions.constants import CELL_SIZE, MARGIN, COLORS, MODES, COLOR_KEYPAD
 from functions.model import Puzzle, safe_name, read, write, save_snapshot, load_snapshot
 from functions.rendering import draw, export_png
+from functions.hooks import HookSearch
 
 ROOT = Path(__file__).resolve().parent
 
@@ -53,6 +56,8 @@ class Editor:
         self.mode = tk.IntVar(value=0)
         self.color = tk.IntVar(value=1)
         self.fresh_entry = True
+        self.search = None
+        self.search_callback = None
         root.title(f"{puzzle.data['name']} — Puzzle editor")
         root.geometry('1100x850')
         root.minsize(780, 600)
@@ -87,10 +92,22 @@ class Editor:
                                background=COLORS[i], variable=self.color, value=i, width=5 if i else 17
                                ).grid(row=row, column=col, columnspan=1 if i else 3, sticky='ew', padx=2, pady=2)
         self.details = tk.StringVar()
-        ttk.Label(panel, textvariable=self.details, wraplength=245, justify='left').pack(anchor='w', pady=22)
+        self.details_text = tk.Text(panel, width=32, height=7, wrap='word', font=('Segoe UI', 9),
+                                    relief='flat', background=root.cget('background'), state='disabled')
+        self.details_text.pack(anchor='w', pady=(12, 10))
         ttk.Label(panel, text='Analysis', font=('Segoe UI', 12, 'bold')).pack(anchor='w')
-        ttk.Label(panel, text='No puzzle analysis operations are configured. This editor stores manual entries, borders and colors.',
-                  wraplength=245, justify='left').pack(anchor='w', pady=8)
+        analysis_controls = ttk.Frame(panel)
+        analysis_controls.pack(anchor='w', pady=6)
+        self.draw_hooks_button = ttk.Button(analysis_controls, text='Draw hooks', command=self.draw_hooks)
+        self.draw_hooks_button.grid(row=0, column=0, padx=(0, 5), pady=3)
+        self.abort_button = ttk.Button(analysis_controls, text='Abort', command=self.abort_hooks, state='disabled')
+        self.abort_button.grid(row=0, column=1, pady=3)
+        ttk.Button(analysis_controls, text='Previous', command=lambda: self.navigate_hooks(-1)).grid(row=1, column=0, pady=3)
+        ttk.Button(analysis_controls, text='Next', command=lambda: self.navigate_hooks(1)).grid(row=1, column=1, pady=3)
+        ttk.Button(analysis_controls, text='Confirmed view', command=self.confirmed_hooks).grid(row=2, column=0, pady=3)
+        ttk.Button(analysis_controls, text='Use hooks', command=self.use_hooks).grid(row=2, column=1, pady=3)
+        self.analysis_status = tk.StringVar(value='Ready to draw hooks from the 1-clue.')
+        ttk.Label(panel, textvariable=self.analysis_status, wraplength=245, justify='left').pack(anchor='w', pady=6)
         controls = ttk.Frame(outer)
         controls.grid(row=1, column=0, columnspan=2, sticky='w', pady=(14, 8))
         for label, command in [('Save state', self.save_state), ('Load state', self.load_state), ('Print state', self.print_state),
@@ -133,6 +150,12 @@ class Editor:
             'Choose a color with 1–9, then click cells. Clicking the same color clears it. Right-click/Delete/Backspace clears only the cell color.'
         )[self.mode.get()]
         self.details.set(f'Active: {MODES[self.mode.get()]}\n\nSelected: {selected}\nEntry: {value}\n\n{help_text}')
+        self.details_text.configure(state='normal')
+        self.details_text.delete('1.0', 'end')
+        self.details_text.insert('1.0', self.details.get())
+        self.details_text.configure(state='disabled')
+        if self.search is None:
+            self.update_analysis_status()
 
     def cell_key(self):
         return ','.join(map(str, self.selected))
@@ -148,8 +171,94 @@ class Editor:
             return False
 
     def changed(self):
+        if self.search is not None:
+            self.search.cancelled = True
+            self.search_discard = True
         self.persist()
         self.redraw()
+
+    def draw_hooks(self):
+        if self.search is not None:
+            return
+        try:
+            self.search = HookSearch(copy.deepcopy(self.puzzle.data))
+        except ValueError as exc:
+            self.analysis_status.set(str(exc))
+            return
+        self.search_started = perf_counter()
+        self.search_discard = False
+        self.search_steps = self.search.run()
+        self.draw_hooks_button.configure(state='disabled')
+        self.abort_button.configure(state='normal')
+        self.analysis_status.set('Drawing hooks · size 1 · 0.0 s')
+        self.search_callback = self.root.after(1, self.advance_hooks)
+
+    def advance_hooks(self):
+        self.search_callback = None
+        deadline = perf_counter() + 0.012
+        try:
+            while perf_counter() < deadline:
+                next(self.search_steps)
+        except StopIteration:
+            search = self.search
+            elapsed = perf_counter() - self.search_started
+            self.search = None
+            self.draw_hooks_button.configure(state='normal')
+            self.abort_button.configure(state='disabled')
+            if self.search_discard:
+                self.analysis_status.set(f'Cancelled because puzzle state changed · {elapsed:.2f} s')
+            else:
+                self.puzzle.set_hook_analysis(search, elapsed)
+                self.changed()
+                print(f'Hook search {search.outcome}: {len(search.candidates)} layouts, {search.nodes} branches, {elapsed:.2f} s')
+            return
+        except Exception as exc:
+            elapsed = perf_counter() - self.search_started
+            self.search = None
+            self.draw_hooks_button.configure(state='normal')
+            self.abort_button.configure(state='disabled')
+            self.analysis_status.set(f'Hook search failed · {elapsed:.2f} s\n{exc}')
+            return
+        elapsed = perf_counter() - self.search_started
+        self.analysis_status.set(f'Drawing hooks · size {self.search.size}\n{self.search.nodes:,} branches · {len(self.search.candidates)} layouts · {elapsed:.1f} s')
+        self.search_callback = self.root.after(1, self.advance_hooks)
+
+    def abort_hooks(self):
+        if self.search is not None:
+            self.search.cancelled = True
+
+    def update_analysis_status(self):
+        analysis = self.puzzle.data.get('analysis')
+        if analysis is None:
+            self.analysis_status.set('Ready to draw hooks from the 1-clue.')
+            return
+        count = len(analysis['candidates'])
+        outcome = {'complete': 'Complete', 'cancelled': 'Cancelled — incomplete', 'limit': 'Search limit — incomplete'}[analysis['outcome']]
+        result = f'{count} layouts' if count or analysis['outcome'] != 'complete' else 'No compatible layouts'
+        preview = analysis['preview']
+        view = f'Preview {preview+1}/{count} (purple)' if preview >= 0 else 'Confirmed view'
+        canonical_count = len(analysis.get('canonical_borders', {}))
+        self.analysis_status.set(f"{outcome} · {result}\n{analysis['elapsed']:.2f} s · {analysis['nodes']:,} branches\n{canonical_count} canonical borders · {view}")
+
+    def navigate_hooks(self, direction):
+        analysis = self.puzzle.data.get('analysis')
+        if self.search is None and analysis and analysis['candidates']:
+            index = analysis['preview']
+            index = (0 if direction > 0 else len(analysis['candidates'])-1) if index < 0 else (index+direction) % len(analysis['candidates'])
+            self.puzzle.preview_hooks(index)
+            self.persist()
+            self.redraw()
+
+    def confirmed_hooks(self):
+        if self.search is None:
+            self.puzzle.preview_hooks(-1)
+            self.persist()
+            self.redraw()
+
+    def use_hooks(self):
+        if self.search is None:
+            self.puzzle.use_hook_preview()
+            self.changed()
 
     def click(self, event, right):
         self.canvas.focus_set()
@@ -270,6 +379,10 @@ class Editor:
 
     def close(self):
         if self.persist():
+            if self.search_callback is not None:
+                self.root.after_cancel(self.search_callback)
+            if self.search is not None:
+                self.search.cancelled = True
             self.puzzle.undo_stack.clear()
             self.puzzle.redo_stack.clear()
             self.root.destroy()

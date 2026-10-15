@@ -13,12 +13,23 @@ def draw(data, rectangle, line, text, selected=None):
         line((m, m+r*s, m+cols*s, m+r*s), '#777777', 1)
     for c in range(cols+1):
         line((m+c*s, m, m+c*s, m+rows*s), '#777777', 1)
-    for key in data['borders']:
+    analysis = data.get('analysis')
+    confirmed_borders = dict(data['borders'])
+    if analysis:
+        confirmed_borders.update(analysis.get('canonical_borders', {}))
+    for key in confirmed_borders:
         axis, r, c = key.split(',')
         x, y = m+int(c)*s, m+int(r)*s
         line((x, y, x+s if axis == 'h' else x, y+s if axis == 'v' else y), 'black', 5)
     for points in ((m,m,m+cols*s,m), (m,m,m,m+rows*s), (m+cols*s,m,m+cols*s,m+rows*s), (m,m+rows*s,m+cols*s,m+rows*s)):
         line(points, 'black', 5)
+    if analysis and analysis['preview'] >= 0:
+        for key in analysis['candidates'][analysis['preview']]:
+            if key in confirmed_borders:
+                continue
+            axis, r, c = key.split(',')
+            x, y = m+int(c)*s, m+int(r)*s
+            line((x, y, x+s if axis == 'h' else x, y+s if axis == 'v' else y), '#7040b0', 3)
     if selected is not None:
         r, c = selected
         x, y = m+c*s, m+r*s

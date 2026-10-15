@@ -1,0 +1,168 @@
+import copy
+import math
+import tempfile
+import unittest
+from pathlib import Path
+
+from functions.hooks import HookSearch, hook_cells, canonical_borders
+from functions.model import Puzzle, read, write, save_snapshot, load_snapshot
+
+
+def search_grid(n, entries, **limits):
+    puzzle = Puzzle('Hooks', n, n)
+    for key, value in entries.items():
+        puzzle.change('entries', key, value)
+    search = HookSearch(puzzle.data, **limits)
+    list(search.run())
+    return puzzle, search
+
+
+def regions(borders, n):
+    remaining = {(r, c) for r in range(n) for c in range(n)}
+    groups = []
+    while remaining:
+        group = {remaining.pop()}
+        pending = list(group)
+        while pending:
+            r, c = pending.pop()
+            for nr, nc, edge in ((r-1, c, f'h,{r},{c}'), (r+1, c, f'h,{r+1},{c}'),
+                                 (r, c-1, f'v,{r},{c}'), (r, c+1, f'v,{r},{c+1}')):
+                if (nr, nc) in remaining and edge not in borders:
+                    remaining.remove((nr, nc))
+                    group.add((nr, nc))
+                    pending.append((nr, nc))
+        groups.append(group)
+    return groups
+
+
+class HookTests(unittest.TestCase):
+    def test_canonical_borders_require_all_complete_layouts(self):
+        layouts = [{'h,1,0': True, 'v,0,1': True}, {'h,1,0': True, 'v,1,1': True}]
+        self.assertEqual(canonical_borders(layouts, 'complete'), {'h,1,0': True})
+        self.assertEqual(canonical_borders(layouts[:1], 'complete'), layouts[0])
+        for outcome in ('cancelled', 'limit'):
+            self.assertEqual(canonical_borders(layouts[:1], outcome), {})
+        self.assertEqual(canonical_borders([], 'complete'), {})
+
+    def test_canonical_borders_are_undoable_and_invalidated_separately(self):
+        puzzle, search = search_grid(3, {'1,1':'1'})
+        puzzle.change('borders', 'h,1,0', True)
+        original = copy.deepcopy(puzzle.data)
+        puzzle.set_hook_analysis(search, 0.25)
+        expected = {'h,1,1': True, 'h,2,1': True, 'v,1,1': True, 'v,1,2': True}
+        self.assertEqual(puzzle.data['analysis']['canonical_borders'], expected)
+        puzzle.preview_hooks(-1)
+        self.assertEqual(puzzle.data['analysis']['canonical_borders'], expected)
+        puzzle.undo()
+        self.assertEqual(puzzle.data, original)
+        puzzle.redo()
+        self.assertEqual(puzzle.data['analysis']['canonical_borders'], expected)
+        puzzle.change('entries', '0,0', '2')
+        self.assertNotIn('analysis', puzzle.data)
+        self.assertEqual(puzzle.data['borders'], original['borders'])
+        puzzle.undo()
+        self.assertEqual(puzzle.data['analysis']['canonical_borders'], expected)
+
+    def test_all_expansion_orientations(self):
+        inner = (1, 1, 1)
+        for top, left in ((0,0), (0,1), (1,0), (1,1)):
+            cells = hook_cells(inner, (top, left, 2))
+            self.assertEqual(len(cells), 3)
+            self.assertEqual(len(set(cells)), 3)
+            self.assertNotIn((1,1), cells)
+
+    def test_exhaustive_unconstrained_small_grids(self):
+        for n in range(1, 5):
+            for r in range(n):
+                for c in range(n):
+                    _, search = search_grid(n, {f'{r},{c}': '1'})
+                    self.assertEqual(search.outcome, 'complete')
+                    self.assertEqual(len(search.candidates), math.comb(n-1, r)*math.comb(n-1, c))
+                    self.assertEqual(len({tuple(sorted(candidate)) for candidate in search.candidates}), len(search.candidates))
+                    for candidate in search.candidates:
+                        groups = regions(candidate, n)
+                        self.assertEqual(sorted(map(len, groups)), list(range(1, 2*n, 2)))
+                        self.assertIn({(r,c)}, groups)
+
+    def test_distinct_digits_rejected_but_repeated_allowed(self):
+        _, allowed = search_grid(2, {'0,0': '1', '0,1': '3', '1,0': '3'})
+        self.assertEqual(len(allowed.candidates), 1)
+        _, rejected = search_grid(2, {'0,0': '1', '0,1': '2', '1,0': '3'})
+        self.assertEqual(rejected.outcome, 'complete')
+        self.assertEqual(rejected.candidates, [])
+
+    def test_only_interior_numbers_restrict_hooks(self):
+        _, search = search_grid(2, {'0,0': '1', '-1,0': '1', '0,2': '9', '0,1': 'F', '1,0': '2'})
+        self.assertEqual(len(search.candidates), 1)
+
+    def test_digit_cannot_exceed_hook_cell_count(self):
+        # The size-2 hook has three cells: 3 fits, 4 does not.
+        _, allowed = search_grid(2, {'0,0': '1', '0,1': '3'})
+        self.assertEqual(len(allowed.candidates), 1)
+        _, rejected = search_grid(2, {'0,0': '1', '0,1': '4'})
+        self.assertEqual(rejected.outcome, 'complete')
+        self.assertEqual(rejected.candidates, [])
+        # A 4 may still occur on the five-cell size-3 hook.
+        _, larger = search_grid(3, {'0,0': '1', '2,2': '4'})
+        self.assertEqual(len(larger.candidates), 1)
+        _, too_large = search_grid(3, {'0,0': '1', '2,2': '6'})
+        self.assertEqual(too_large.candidates, [])
+
+    def test_each_candidate_matches_numeric_clues(self):
+        entries = {'1,1': '1', '0,0': '2', '0,1': '3', '2,2': '2'}
+        _, search = search_grid(3, entries)
+        for candidate in search.candidates:
+            for group in regions(candidate, 3):
+                self.assertLessEqual(len({entries[f'{r},{c}'] for r,c in group if f'{r},{c}' in entries}), 1)
+        self.assertLess(len(search.candidates), 4)
+
+    def test_anchor_validation(self):
+        for rows, cols, entries in ((2,3,{'0,0':'1'}), (2,2,{}), (2,2,{'0,0':'1','1,1':'1'})):
+            puzzle = Puzzle('Invalid', rows, cols)
+            puzzle.data['entries'] = entries
+            with self.assertRaises(ValueError):
+                HookSearch(puzzle.data)
+
+    def test_cancellation_and_limits_are_incomplete(self):
+        _, limited = search_grid(4, {'1,1':'1'}, node_limit=2)
+        self.assertEqual(limited.outcome, 'limit')
+        _, limited = search_grid(4, {'1,1':'1'}, candidate_limit=1)
+        self.assertEqual(limited.outcome, 'limit')
+        puzzle = Puzzle('Cancelled', 4, 4)
+        puzzle.data['entries'] = {'1,1':'1'}
+        search = HookSearch(puzzle.data)
+        steps = search.run()
+        next(steps)
+        search.cancelled = True
+        list(steps)
+        self.assertEqual(search.outcome, 'cancelled')
+
+    def test_history_persistence_invalidation_and_commit(self):
+        puzzle, search = search_grid(3, {'1,1':'1'})
+        original = copy.deepcopy(puzzle.data)
+        puzzle.set_hook_analysis(search, 0.25)
+        analyzed = copy.deepcopy(puzzle.data)
+        puzzle.undo()
+        self.assertEqual(puzzle.data, original)
+        puzzle.redo()
+        self.assertEqual(puzzle.data, analyzed)
+        with tempfile.TemporaryDirectory(dir=Path(__file__).parent) as folder:
+            path = Path(folder) / 'working.json'
+            write(path, puzzle.data)
+            self.assertEqual(read(path), analyzed)
+            snapshot = Path(folder) / 'snapshot.json'
+            save_snapshot(snapshot, puzzle, None)
+            puzzle.change('entries', '0,0', '2')
+            self.assertNotIn('analysis', puzzle.data)
+            load_snapshot(snapshot, puzzle)
+            self.assertEqual(puzzle.data, analyzed)
+        puzzle.use_hook_preview()
+        self.assertEqual(puzzle.data['borders'], search.candidates[0])
+        self.assertEqual(puzzle.data['analysis']['preview'], -1)
+        puzzle.undo()
+        self.assertEqual(puzzle.data['borders'], {})
+        self.assertEqual(puzzle.data['analysis']['preview'], 0)
+
+
+if __name__ == '__main__':
+    unittest.main()
