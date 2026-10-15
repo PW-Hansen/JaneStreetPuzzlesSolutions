@@ -158,6 +158,9 @@ class HookContext:
                 self.digits[r,c] = int(value)
         self.filled = frozenset(self.digits)
         self.two_rays = outside_two_rays(self.data)
+        self.numeric_rays = {digit: outside_digit_rays(self.data, {digit})
+                             for digit in {int(value) for key,value in self.data['entries'].items()
+                                           if value.isdecimal() and tuple(map(int,key.split(','))) not in self.owner}}
         self.five_rays = {digit: outside_digit_rays(self.data, {digit}) for digit in HOOK_ALLOWED_DIGITS[5]}
         anchor = next(iter(self.hooks[0]))
         self.domains = []
@@ -196,7 +199,28 @@ class HookContext:
             domains[2] = five_cell_digits_from_clues(domains[2], self.hooks[2], self.hooks[1], self.five_rays, occupied)
         if any(not possible for possible in domains):
             return None
+        if not self.numeric_clues_possible(occupied, empty, domains):
+            return None
         return domains, coefficients
+
+    def numeric_clues_possible(self, occupied, empty, domains, assigned=None):
+        """A numeric clue needs a possible matching digit before any blocker."""
+        assigned = assigned or {}
+        used = set(assigned.values())
+        counts = Counter(self.owner[cell] for cell in occupied)
+        for digit, rays in self.numeric_rays.items():
+            for ray in rays:
+                for cell in ray:
+                    index = self.owner[cell]
+                    possible = {assigned[index]} if index in assigned else set(domains[index])-used
+                    if cell not in empty and digit in possible:
+                        if cell in occupied or (counts[index] < digit and not has_filled_square(set(occupied) | {cell})):
+                            break
+                    if cell in occupied:
+                        return False
+                else:
+                    return False
+        return True
 
 
 class SearchStopped(Exception):
@@ -259,6 +283,8 @@ class PentominoSearch:
                 constraints = context.constraints(pieces, extra_filled=set(forced) | trial)
                 if constraints is None or any(digit not in domain for digit,domain in zip(digits,constraints[0])):
                     continue
+                if not context.numeric_clues_possible(occupied | trial, empty, constraints[0], dict(enumerate(digits))):
+                    continue
                 common = trial if common is None else common & trial
                 if not common:
                     # At least one completion exists and none of its cells is forced.
@@ -281,9 +307,13 @@ class PentominoSearch:
             return None
         domains, coefficients = constraints
         assigned = {}
+        occupied = set(context.filled).union(*(piece.cells for piece in pieces))
+        empty = set().union(*(piece.empty for piece in pieces))
 
         def solve(used):
             yield from self.step()
+            if not context.numeric_clues_possible(occupied, empty, domains, assigned):
+                return None
             if len(assigned) == len(domains):
                 if any(sum(count*assigned[index] for index,count in counts.items()) % PENTOMINO_SUM_MODULUS for counts in coefficients):
                     return None

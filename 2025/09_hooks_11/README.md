@@ -115,8 +115,13 @@ the existing small-hook rules, quotas and all selected pentomino sums.
 Sightline empty cells must also leave enough room to fill each hook's quota.
 Pentomino filling must also preserve the special visibility rule for
 outside 2-clues and the three-cell hook, and the candidate-digit checks
-for the five-cell hook and its matching 3/4/5 clues. Other outside digit
-clues remain outside the scope of this check.
+for the five-cell hook and its matching 3/4/5 clues. Both pentomino analyses
+also check all outside numeric clues: the first filled cell must match
+the clue. A wrong filled digit blocks the view unless an earlier available
+cell could still receive the matching digit. Reserved empty cells, hook
+quotas, filled 2×2 restrictions and the current hook-digit assignment are
+respected when checking that possibility. The same checks apply to forced
+hook digits during propagation.
 
 Choose **Combinations** to browse arrangements containing one placement
 of every required shape, or **Individual placements** for independently
@@ -145,7 +150,7 @@ hooks. Limits are configured with `PENTOMINO_NODE_LIMIT` (500,000),
 `PENTOMINO_CANDIDATE_LIMIT` (1,000 combinations) in `functions/constants.py`.
 Results based on an incomplete hook search are themselves incomplete.
 This operation places only letter-clued pieces: it does not complete
-unclued pentominoes, solve numeric outside clues, or prove that a partial
+unclued pentominoes, complete all numeric sightlines, or prove that a partial
 arrangement can be extended into a fully connected final solution.
 
 **Draw remaining pentominoes** extends each stored compatible combination

@@ -27,6 +27,9 @@ class PentominoTests(unittest.TestCase):
         self.assertIsNone(context.constraints([blocker]))
         data['entries']['5,1'] = '6'
         context = HookContext(data, borders)
+        self.assertIsNone(context.constraints([blocker]))
+        data['entries']['5,1'] = '5'
+        context = HookContext(data, borders)
         self.assertIsNotNone(context.constraints([blocker]))
 
     def test_prunes_incompatible_hook_layout_and_confirms_sole_survivor(self):
