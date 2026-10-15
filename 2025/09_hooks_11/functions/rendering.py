@@ -1,5 +1,6 @@
 """Common geometry for the canvas and PNG renderer."""
-from .constants import CELL_SIZE, MARGIN, COLORS
+from .constants import CELL_SIZE, MARGIN, COLORS, PENTOMINO_SHAPES, PENTOMINO_OUTLINE_COLORS
+from .pentominoes import preview_record
 
 
 def draw(data, rectangle, line, text, selected=None):
@@ -30,12 +31,31 @@ def draw(data, rectangle, line, text, selected=None):
             axis, r, c = key.split(',')
             x, y = m+int(c)*s, m+int(r)*s
             line((x, y, x+s if axis == 'h' else x, y+s if axis == 'v' else y), '#7040b0', 3)
+    pentomino = preview_record(data)
+    if pentomino is not None:
+        for piece in pentomino['pieces']:
+            cells = {tuple(map(int, key.split(','))) for key in piece['cells']}
+            color = PENTOMINO_OUTLINE_COLORS[list(PENTOMINO_SHAPES).index(piece['shape'])]
+            for r,c in cells:
+                x, y = m+c*s, m+r*s
+                left, right = (x+6 if (r,c-1) not in cells else x), (x+s-6 if (r,c+1) not in cells else x+s)
+                top, bottom = (y+6 if (r-1,c) not in cells else y), (y+s-6 if (r+1,c) not in cells else y+s)
+                if (r-1,c) not in cells:
+                    line((left, y+6, right, y+6), color, 3)
+                if (r+1,c) not in cells:
+                    line((left, y+s-6, right, y+s-6), color, 3)
+                if (r,c-1) not in cells:
+                    line((x+6, top, x+6, bottom), color, 3)
+                if (r,c+1) not in cells:
+                    line((x+s-6, top, x+s-6, bottom), color, 3)
     if selected is not None:
         r, c = selected
         x, y = m+c*s, m+r*s
         for points in ((x+4,y+4,x+s-4,y+4), (x+4,y+4,x+4,y+s-4), (x+s-4,y+4,x+s-4,y+s-4), (x+4,y+s-4,x+s-4,y+s-4)):
             line(points, '#1769bd', 3)
-    for key, value in data['entries'].items():
+    entries = dict(pentomino['entries']) if pentomino is not None else {}
+    entries.update(data['entries'])
+    for key, value in entries.items():
         r, c = map(int, key.split(','))
         text((m+(c+.5)*s, m+(r+.5)*s), value, 'black' if value.isdecimal() else '#c62828')
 

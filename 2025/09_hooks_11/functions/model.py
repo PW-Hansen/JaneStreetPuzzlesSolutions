@@ -7,6 +7,7 @@ import math
 from pathlib import Path
 from .constants import COLORS
 from .hooks import canonical_borders
+from .pentominoes import hook_digest, validate_pentomino_analysis
 
 
 def safe_name(name):
@@ -67,6 +68,9 @@ def validate(data):
             raise ValueError('Invalid analysis branch count.')
         result['analysis'] = copy.deepcopy(analysis)
         result['analysis']['canonical_borders'] = canonical_borders(candidates, analysis['outcome'])
+    if data.get('pentomino_analysis') is not None:
+        validate_pentomino_analysis(result, data['pentomino_analysis'])
+        result['pentomino_analysis'] = copy.deepcopy(data['pentomino_analysis'])
     return result
 
 
@@ -139,6 +143,10 @@ class Puzzle:
     def replace(self, new):
         if new.get('entries') != self.data['entries'] and new.get('analysis') == self.data.get('analysis'):
             new = dict(new, analysis=None)
+        if new.get('pentomino_analysis') == self.data.get('pentomino_analysis') and (
+            new.get('entries') != self.data['entries'] or new.get('borders') != self.data['borders']
+            or hook_digest(new) != hook_digest(self.data)):
+            new = dict(new, pentomino_analysis=None)
         new = validate(new)
         if (new['name'], new['rows'], new['cols']) != (self.data['name'], self.data['rows'], self.data['cols']):
             raise ValueError('Saved state belongs to a different puzzle or dimensions.')
@@ -157,7 +165,7 @@ class Puzzle:
             self.data = self.redo_stack.pop()
 
     def reset_edits(self):
-        self.replace(dict(self.data, entries={}, colors={}, borders={}, analysis=None))
+        self.replace(dict(self.data, entries={}, colors={}, borders={}, analysis=None, pentomino_analysis=None))
 
     def clear_cell_borders(self, row, col):
         new = copy.deepcopy(self.data)
@@ -169,12 +177,14 @@ class Puzzle:
         analysis = dict(source_entries=copy.deepcopy(self.data['entries']),
                         candidates=copy.deepcopy(search.candidates), preview=0 if search.candidates else -1,
                         outcome=search.outcome, elapsed=elapsed, nodes=search.nodes)
-        self.replace(dict(self.data, analysis=analysis))
+        self.replace(dict(self.data, analysis=analysis, pentomino_analysis=None))
 
     def preview_hooks(self, index):
         analysis = self.data.get('analysis')
         if analysis is not None and -1 <= index < len(analysis['candidates']):
             analysis['preview'] = index
+            if self.data.get('pentomino_analysis'):
+                self.data['pentomino_analysis']['preview'] = -1
 
     def use_hook_preview(self):
         analysis = self.data.get('analysis')
@@ -183,3 +193,41 @@ class Puzzle:
             new['borders'].update(analysis['candidates'][analysis['preview']])
             new['analysis']['preview'] = -1
             self.replace(new)
+
+    def set_pentomino_analysis(self, search, elapsed):
+        hooks = copy.deepcopy(self.data['analysis'])
+        retained = [index for index in range(len(hooks['candidates'])) if index not in search.rejected_layouts]
+        remap = {old: new for new, old in enumerate(retained)}
+        hooks['candidates'] = [hooks['candidates'][index] for index in retained]
+        hooks['preview'] = remap.get(hooks['preview'], 0 if retained else -1)
+        new = dict(self.data, analysis=hooks)
+
+        def surviving_records(records):
+            return [dict(copy.deepcopy(record), hook_index=remap[record['hook_index']])
+                    for record in records if record['hook_index'] in remap]
+
+        candidates = surviving_records(search.candidates)
+        placements = surviving_records(search.placements)
+        analysis = dict(source_entries=copy.deepcopy(self.data['entries']),
+                        source_borders=copy.deepcopy(self.data['borders']), source_hook_digest=hook_digest(new),
+                        candidates=candidates, placements=placements,
+                        view='combinations', preview=0 if candidates else -1,
+                        outcome=search.outcome, elapsed=elapsed, nodes=search.nodes,
+                        source_incomplete=search.source_incomplete,
+                        discarded_hook_layouts=len(search.rejected_layouts))
+        new['pentomino_analysis'] = analysis
+        if candidates:
+            new['analysis']['preview'] = candidates[0]['hook_index']
+        self.replace(new)
+
+    def preview_pentominoes(self, index, view=None):
+        analysis = self.data.get('pentomino_analysis')
+        if analysis is None:
+            return
+        if view is not None:
+            analysis['view'] = view
+        records = analysis['candidates' if analysis['view'] == 'combinations' else 'placements']
+        if -1 <= index < len(records):
+            analysis['preview'] = index
+            if index >= 0:
+                self.data['analysis']['preview'] = records[index]['hook_index']

@@ -82,4 +82,50 @@ are labeled incomplete; zero layouts in an incomplete search does not
 establish that no layout exists. The grid must be square and contain
 exactly one in-grid numeric 1-clue.
 
+In the **Pentominoes** analysis tab, **Draw pentominoes** requires results
+from Draw hooks and at least one outside letter clue. It tests all distinct
+rotations/reflections and grid positions of each named shape, separately
+for every available hook layout. Repeated clues for a letter constrain one
+shared piece. Each clue must see that piece as the first filled cell on
+its row/column sightline; all cells before it must remain empty.
+
+Every pentomino cell is treated as filled. Placements and combinations
+are rejected for overlap, a filled 2×2 region, an obscured required clue,
+or exceeding any hook's digit quota. Existing numeric entries count once,
+including those covered by a placed piece. Pentomino sums must be multiples
+of five. For hooks without known digits, the search checks for a consistent
+assignment of the digits 1 through the grid size, one per hook, obeying
+the existing small-hook rules, quotas and all selected pentomino sums.
+Sightline empty cells must also leave enough room to fill each hook's quota.
+
+Choose **Combinations** to browse arrangements containing one placement
+of every required shape, or **Individual placements** for independently
+valid placements that may not extend to a compatible combination. A shared
+digit assignment and hook layout must support each entire combination.
+When exhaustive testing rules out a hook layout (including layouts where
+individual placements exist but no compatible combination does), that
+layout is discarded. Untested or partially tested layouts are retained.
+Canonical borders are then recomputed from the remaining hook layouts:
+one remaining layout makes all of its borders canonical; several make
+their shared borders canonical. An incomplete original hook search still
+cannot establish canonical borders. Pruning, new canonical borders and
+pentomino results form one undoable operation; preview references are
+updated to match the remaining layouts.
+Each preview shows the matching hook layout, colored pentomino outlines,
+and black digits in every pentomino cell. When several hook-digit
+assignments work, the preview shows one supporting assignment. Previews
+preserve all confirmed entries, colors and borders. **Confirmed view**
+hides speculative hooks and pentominoes; **Previous/Next** browse results.
+
+Pentomino results and previews autosave, support undo/redo, and are
+included in snapshots and PNG exports. Entry/border edits or rerunning
+Draw hooks invalidate them. Abort and elapsed-time reporting work as for
+hooks. Limits are configured with `PENTOMINO_NODE_LIMIT` (500,000),
+`PENTOMINO_PLACEMENT_LIMIT` (20,000 individual placements) and
+`PENTOMINO_CANDIDATE_LIMIT` (1,000 combinations) in `functions/constants.py`.
+Results based on an incomplete hook search are themselves incomplete.
+This operation places only letter-clued pieces: it does not complete
+unclued pentominoes, solve numeric outside clues, or prove that a partial
+arrangement can be extended into a fully connected final solution.
+
 Run checks with `python -m unittest discover -s tests`.

@@ -10,6 +10,7 @@ from functions.constants import CELL_SIZE, MARGIN, COLORS, MODES, COLOR_KEYPAD
 from functions.model import Puzzle, safe_name, read, write, save_snapshot, load_snapshot
 from functions.rendering import draw, export_png
 from functions.hooks import HookSearch
+from functions.pentominoes import PentominoSearch
 
 ROOT = Path(__file__).resolve().parent
 
@@ -96,7 +97,12 @@ class Editor:
                                     relief='flat', background=root.cget('background'), state='disabled')
         self.details_text.pack(anchor='w', pady=(12, 10))
         ttk.Label(panel, text='Analysis', font=('Segoe UI', 12, 'bold')).pack(anchor='w')
-        analysis_controls = ttk.Frame(panel)
+        analysis_tabs = ttk.Notebook(panel)
+        analysis_tabs.pack(anchor='w', fill='x', pady=6)
+        hook_tab, pentomino_tab = ttk.Frame(analysis_tabs), ttk.Frame(analysis_tabs)
+        analysis_tabs.add(hook_tab, text='Hooks')
+        analysis_tabs.add(pentomino_tab, text='Pentominoes')
+        analysis_controls = ttk.Frame(hook_tab)
         analysis_controls.pack(anchor='w', pady=6)
         self.draw_hooks_button = ttk.Button(analysis_controls, text='Draw hooks', command=self.draw_hooks)
         self.draw_hooks_button.grid(row=0, column=0, padx=(0, 5), pady=3)
@@ -107,7 +113,23 @@ class Editor:
         ttk.Button(analysis_controls, text='Confirmed view', command=self.confirmed_hooks).grid(row=2, column=0, pady=3)
         ttk.Button(analysis_controls, text='Use hooks', command=self.use_hooks).grid(row=2, column=1, pady=3)
         self.analysis_status = tk.StringVar(value='Ready to draw hooks from the 1-clue.')
-        ttk.Label(panel, textvariable=self.analysis_status, wraplength=245, justify='left').pack(anchor='w', pady=6)
+        ttk.Label(hook_tab, textvariable=self.analysis_status, wraplength=245, justify='left').pack(anchor='w', pady=6)
+        pentomino_controls = ttk.Frame(pentomino_tab)
+        pentomino_controls.pack(anchor='w', pady=6)
+        self.draw_pentominoes_button = ttk.Button(pentomino_controls, text='Draw pentominoes', command=self.draw_pentominoes)
+        self.draw_pentominoes_button.grid(row=0, column=0, padx=(0, 5), pady=3)
+        self.pentomino_abort_button = ttk.Button(pentomino_controls, text='Abort', command=self.abort_hooks, state='disabled')
+        self.pentomino_abort_button.grid(row=0, column=1, pady=3)
+        self.pentomino_view = tk.StringVar(value='Combinations')
+        view_selector = ttk.Combobox(pentomino_controls, textvariable=self.pentomino_view,
+                                    values=('Combinations', 'Individual placements'), state='readonly', width=28)
+        view_selector.grid(row=1, column=0, columnspan=2, sticky='ew', pady=4)
+        view_selector.bind('<<ComboboxSelected>>', self.change_pentomino_view)
+        ttk.Button(pentomino_controls, text='Previous', command=lambda: self.navigate_pentominoes(-1)).grid(row=2, column=0, pady=3)
+        ttk.Button(pentomino_controls, text='Next', command=lambda: self.navigate_pentominoes(1)).grid(row=2, column=1, pady=3)
+        ttk.Button(pentomino_controls, text='Confirmed view', command=self.confirmed_pentominoes).grid(row=3, column=0, columnspan=2, sticky='ew', pady=3)
+        self.pentomino_status = tk.StringVar(value='Draw hooks first, then test the outside pentomino clues.')
+        ttk.Label(pentomino_tab, textvariable=self.pentomino_status, wraplength=245, justify='left').pack(anchor='w', pady=6)
         controls = ttk.Frame(outer)
         controls.grid(row=1, column=0, columnspan=2, sticky='w', pady=(14, 8))
         for label, command in [('Save state', self.save_state), ('Load state', self.load_state), ('Print state', self.print_state),
@@ -156,6 +178,7 @@ class Editor:
         self.details_text.configure(state='disabled')
         if self.search is None:
             self.update_analysis_status()
+            self.update_pentomino_status()
 
     def cell_key(self):
         return ','.join(map(str, self.selected))
@@ -185,13 +208,36 @@ class Editor:
         except ValueError as exc:
             self.analysis_status.set(str(exc))
             return
+        self.start_analysis('hooks')
+
+    def draw_pentominoes(self):
+        if self.search is not None:
+            return
+        try:
+            self.search = PentominoSearch(copy.deepcopy(self.puzzle.data))
+        except ValueError as exc:
+            self.pentomino_status.set(str(exc))
+            return
+        self.start_analysis('pentominoes')
+
+    def start_analysis(self, kind):
+        self.search_kind = kind
         self.search_started = perf_counter()
         self.search_discard = False
         self.search_steps = self.search.run()
         self.draw_hooks_button.configure(state='disabled')
+        self.draw_pentominoes_button.configure(state='disabled')
         self.abort_button.configure(state='normal')
-        self.analysis_status.set('Drawing hooks · size 1 · 0.0 s')
+        self.pentomino_abort_button.configure(state='normal')
+        target = self.analysis_status if kind == 'hooks' else self.pentomino_status
+        target.set('Drawing hooks · size 1 · 0.0 s' if kind == 'hooks' else 'Preparing pentominoes · 0.0 s')
         self.search_callback = self.root.after(1, self.advance_hooks)
+
+    def finish_analysis_controls(self):
+        self.draw_hooks_button.configure(state='normal')
+        self.draw_pentominoes_button.configure(state='normal')
+        self.abort_button.configure(state='disabled')
+        self.pentomino_abort_button.configure(state='disabled')
 
     def advance_hooks(self):
         self.search_callback = None
@@ -203,24 +249,30 @@ class Editor:
             search = self.search
             elapsed = perf_counter() - self.search_started
             self.search = None
-            self.draw_hooks_button.configure(state='normal')
-            self.abort_button.configure(state='disabled')
+            self.finish_analysis_controls()
+            target = self.analysis_status if self.search_kind == 'hooks' else self.pentomino_status
             if self.search_discard:
-                self.analysis_status.set(f'Cancelled because puzzle state changed · {elapsed:.2f} s')
+                target.set(f'Cancelled because puzzle state changed · {elapsed:.2f} s')
             else:
-                self.puzzle.set_hook_analysis(search, elapsed)
+                if self.search_kind == 'hooks':
+                    self.puzzle.set_hook_analysis(search, elapsed)
+                else:
+                    self.puzzle.set_pentomino_analysis(search, elapsed)
                 self.changed()
-                print(f'Hook search {search.outcome}: {len(search.candidates)} layouts, {search.nodes} branches, {elapsed:.2f} s')
+                print(f'{self.search_kind.capitalize()} search {search.outcome}: {len(search.candidates)} candidates, {search.nodes} branches, {elapsed:.2f} s')
             return
         except Exception as exc:
             elapsed = perf_counter() - self.search_started
             self.search = None
-            self.draw_hooks_button.configure(state='normal')
-            self.abort_button.configure(state='disabled')
-            self.analysis_status.set(f'Hook search failed · {elapsed:.2f} s\n{exc}')
+            self.finish_analysis_controls()
+            target = self.analysis_status if self.search_kind == 'hooks' else self.pentomino_status
+            target.set(f'{self.search_kind.capitalize()} search failed · {elapsed:.2f} s\n{exc}')
             return
         elapsed = perf_counter() - self.search_started
-        self.analysis_status.set(f'Drawing hooks · size {self.search.size}\n{self.search.nodes:,} branches · {len(self.search.candidates)} layouts · {elapsed:.1f} s')
+        if self.search_kind == 'hooks':
+            self.analysis_status.set(f'Drawing hooks · size {self.search.size}\n{self.search.nodes:,} branches · {len(self.search.candidates)} layouts · {elapsed:.1f} s')
+        else:
+            self.pentomino_status.set(f'{self.search.progress}\n{len(self.search.placements)} placements · {len(self.search.candidates)} combinations\n{self.search.nodes:,} branches · {elapsed:.1f} s')
         self.search_callback = self.root.after(1, self.advance_hooks)
 
     def abort_hooks(self):
@@ -259,6 +311,49 @@ class Editor:
         if self.search is None:
             self.puzzle.use_hook_preview()
             self.changed()
+
+    def update_pentomino_status(self):
+        analysis = self.puzzle.data.get('pentomino_analysis')
+        if analysis is None:
+            self.pentomino_status.set('Draw hooks first, then test the outside pentomino clues.')
+            return
+        outcome = {'complete': 'Complete', 'cancelled': 'Cancelled — incomplete', 'limit': 'Search limit — incomplete'}[analysis['outcome']]
+        view = analysis['view']
+        self.pentomino_view.set('Combinations' if view == 'combinations' else 'Individual placements')
+        records = analysis['candidates' if view == 'combinations' else 'placements']
+        index = analysis['preview']
+        preview = 'Confirmed view' if index < 0 else f'Preview {index+1}/{len(records)} · hook layout {records[index]["hook_index"]+1}'
+        source_note = '\nInput hook layouts are incomplete.' if analysis.get('source_incomplete') else ''
+        discarded = analysis.get('discarded_hook_layouts', 0)
+        self.pentomino_status.set(f"{outcome}{source_note}\n{len(analysis['placements'])} individual placements · {len(analysis['candidates'])} compatible combinations\n{discarded} hook layouts discarded\n{analysis['elapsed']:.2f} s · {analysis['nodes']:,} branches\n{preview}")
+
+    def change_pentomino_view(self, event=None):
+        if self.search is None:
+            analysis = self.puzzle.data.get('pentomino_analysis')
+            if analysis:
+                view = 'combinations' if self.pentomino_view.get() == 'Combinations' else 'placements'
+                records = analysis['candidates' if view == 'combinations' else 'placements']
+                self.puzzle.preview_pentominoes(0 if records else -1, view)
+                self.persist()
+                self.redraw()
+
+    def navigate_pentominoes(self, direction):
+        analysis = self.puzzle.data.get('pentomino_analysis')
+        if self.search is None and analysis:
+            records = analysis['candidates' if analysis['view'] == 'combinations' else 'placements']
+            if records:
+                index = analysis['preview']
+                index = (0 if direction > 0 else len(records)-1) if index < 0 else (index+direction) % len(records)
+                self.puzzle.preview_pentominoes(index)
+                self.persist()
+                self.redraw()
+
+    def confirmed_pentominoes(self):
+        if self.search is None:
+            self.puzzle.preview_pentominoes(-1)
+            self.puzzle.preview_hooks(-1)
+            self.persist()
+            self.redraw()
 
     def click(self, event, right):
         self.canvas.focus_set()
