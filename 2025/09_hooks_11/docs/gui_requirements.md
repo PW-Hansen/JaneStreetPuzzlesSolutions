@@ -71,6 +71,6 @@ Cell size: 60 pixels
 
 ## Modes
 
-- **Digit/Letter Entering**: Allow for centering digits into grid cells. Furthermore, it should be possible to place digits or numbers right outside the grid, i.e. above a cell, below a cell, or left/right of a cell. Numbers should be red.
+- **Digit/Letter Entering**: Allow for centering digits into grid cells. Furthermore, it should be possible to place digits or numbers right outside the grid, i.e. above a cell, below a cell, or left/right of a cell. Numbers should be red, digits should be black.
 - **Border Drawing**: Makes it possible to turn internal cell borders into thick, black borders, akin to the edge of the grid.
-- **Coloring mdoe**: Colors cells in one of eight colors (which can be selected with number keys in this mode), with 0 being a "no color". Having a (non-null) selected color and clicking on a cell that already has that color should remove that color.
+- **Coloring**: Colors cells in one of 9 colors (which can be selected with number keys in this mode), plus a "no color" selected with 0. Having a (non-null) selected color and clicking on a cell that already has that color should remove that color.
