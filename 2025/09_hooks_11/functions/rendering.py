@@ -1,6 +1,7 @@
 """Common geometry for the canvas and PNG renderer."""
 from .constants import CELL_SIZE, MARGIN, COLORS, PENTOMINO_SHAPES, PENTOMINO_OUTLINE_COLORS
 from .pentominoes import preview_record
+from .display_state import displayed_entries
 
 
 def draw(data, rectangle, line, text, selected=None):
@@ -53,10 +54,7 @@ def draw(data, rectangle, line, text, selected=None):
         x, y = m+c*s, m+r*s
         for points in ((x+4,y+4,x+s-4,y+4), (x+4,y+4,x+4,y+s-4), (x+s-4,y+4,x+s-4,y+s-4), (x+4,y+s-4,x+s-4,y+s-4)):
             line(points, '#1769bd', 3)
-    entries = dict(pentomino['entries']) if pentomino is not None else {}
-    if pentomino is not None:
-        entries.update(pentomino.get('forced_entries', {}))
-    entries.update(data['entries'])
+    entries = displayed_entries(data)
     for key, value in entries.items():
         r, c = map(int, key.split(','))
         text((m+(c+.5)*s, m+(r+.5)*s), value, 'black' if value.isdecimal() else '#c62828')

@@ -49,6 +49,7 @@ class SolverTests(unittest.TestCase):
         self.assertEqual(result.status,'inconclusive')
         self.assertIsNone(result.snapshot)
         self.assertIsNone(result.png)
+        self.assertIsNone(result.answer)
         self.assertFalse((root/f'{SOLVED_STATE_NAME}.png').exists())
         self.assertEqual(len(result.puzzle.data['pentomino_analysis']['extensions']),1)
         self.assertEqual(source.read_bytes(),initial_bytes)
@@ -100,6 +101,8 @@ class SolverTests(unittest.TestCase):
                 self.assertEqual(result.status,'complete')
                 self.assertTrue(result.png.is_file())
                 self.assertEqual(read(result.snapshot),result.puzzle.data)
+                self.assertIsNone(result.answer)  # this fixture is only a partial grid
+                self.assertTrue(any('Answer key unavailable' in message for message in messages))
             else:
                 self.assertEqual(result.status,'inconclusive')
                 self.assertIsNone(result.png)

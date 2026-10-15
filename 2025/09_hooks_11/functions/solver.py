@@ -7,6 +7,7 @@ from .constants import INITIAL_STATE_NAME, SOLVED_STATE_NAME, SOLVER_OPERATIONS
 from .model import Puzzle, read, safe_name
 from .analysis_workflow import create_analysis, apply_analysis, analysis_summary, missing_prerequisite
 from .state_export import print_state
+from .answer_key import AnswerKey, compute_answer_key
 
 
 @dataclass
@@ -16,6 +17,7 @@ class SolveResult:
     stages: list
     snapshot: Path | None
     png: Path | None
+    answer: AnswerKey | None = None
 
 
 def load_initial_puzzle(root, name):
@@ -61,11 +63,19 @@ def solve_named_puzzle(root, name, report=print):
     status = 'complete' if not incomplete and len(candidates) == 1 else 'inconclusive'
     report(f'Pipeline {status}: {len(candidates)} three-pentomino extensions remain.')
     snapshot = png = None
+    answer = None
     if status == 'complete':
         snapshot, png = print_state(puzzle, root, SOLVED_STATE_NAME)
         report(f'Saved {snapshot}\nExported {png}')
+        try:
+            answer = compute_answer_key(puzzle.data)
+        except ValueError as exc:
+            report(f'Answer key unavailable: {exc}')
+        else:
+            report(answer.report())
     else:
         reason = 'Search was incomplete.' if incomplete else 'Exactly one candidate is required.'
         report(f'Inconclusive result. {reason} No solved state exported.')
+        report('Answer key not generated: result is inconclusive.')
     report(f'Elapsed: {perf_counter()-started:.2f} s')
-    return SolveResult(status, puzzle, stages, snapshot, png)
+    return SolveResult(status, puzzle, stages, snapshot, png, answer)

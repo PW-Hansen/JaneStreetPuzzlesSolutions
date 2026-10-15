@@ -25,6 +25,17 @@ even with one candidate, are inconclusive. Exit codes are 0 for a completed
 pipeline with exactly one candidate, 2 for inconclusive results, 1 for
 errors and 130 for interruption.
 
+The **Answer key** analysis tab provides **Generate answer key** for the
+displayed grid, including selected pentomino previews and forced digits.
+It lists the areas of orthogonally connected empty regions and their
+product. Hook borders and cell colors do not split empty regions. The
+grid must have each digit n exactly n times, connected filled cells and
+no filled 2×2 region; incomplete or invalid grids report an explanation.
+Changing displayed digits clears the previous answer. The solver calls
+the same calculation after its unique result and prints the region areas
+and answer, or explains why the displayed result is still incomplete.
+Inconclusive solver runs do not generate an answer key.
+
 Modes and shortcuts:
 
 - **Select (Ctrl+0)**: inspect without editing. Arrow keys move selection,

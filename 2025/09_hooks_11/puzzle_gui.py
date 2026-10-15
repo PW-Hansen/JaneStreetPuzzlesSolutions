@@ -11,6 +11,8 @@ from functions.model import Puzzle, safe_name, read, write, save_snapshot, load_
 from functions.rendering import draw, export_png
 from functions.state_export import print_state as export_state
 from functions.analysis_workflow import apply_analysis, analysis_summary
+from functions.answer_key import compute_answer_key
+from functions.display_state import displayed_entries
 from functions.hooks import HookSearch
 from functions.pentominoes import PentominoSearch, RemainingPentominoSearch, analysis_records
 
@@ -104,6 +106,15 @@ class Editor:
         hook_tab, pentomino_tab = ttk.Frame(analysis_tabs), ttk.Frame(analysis_tabs)
         analysis_tabs.add(hook_tab, text='Hooks')
         analysis_tabs.add(pentomino_tab, text='Pentominoes')
+        answer_tab = ttk.Frame(analysis_tabs)
+        analysis_tabs.add(answer_tab, text='Answer key')
+        self.answer_button = ttk.Button(answer_tab, text='Generate answer key', command=self.generate_answer_key)
+        self.answer_button.pack(anchor='w', pady=8)
+        ttk.Label(answer_tab, text='Uses the displayed grid, including the selected preview.',
+                  wraplength=245, justify='left').pack(anchor='w', pady=5)
+        self.answer_text = tk.Text(answer_tab, width=30, height=8, wrap='word', state='disabled', font=('Segoe UI',9))
+        self.answer_text.pack(fill='both', expand=True, pady=5)
+        self.answer_source = None
         analysis_controls = ttk.Frame(hook_tab)
         analysis_controls.pack(anchor='w', pady=6)
         self.draw_hooks_button = ttk.Button(analysis_controls, text='Draw hooks', command=self.draw_hooks)
@@ -161,6 +172,9 @@ class Editor:
         return 'break'
 
     def redraw(self):
+        if self.answer_source is not None and self.answer_source != displayed_entries(self.puzzle.data):
+            self.show_answer_text('The displayed digits changed. Generate the answer key again.')
+            self.answer_source = None
         self.canvas.delete('all')
         data = self.puzzle.data
         self.canvas.configure(scrollregion=(0, 0, 2*MARGIN+data['cols']*CELL_SIZE, 2*MARGIN+data['rows']*CELL_SIZE))
@@ -232,6 +246,7 @@ class Editor:
         self.draw_hooks_button.configure(state='disabled')
         self.draw_pentominoes_button.configure(state='disabled')
         self.draw_remaining_button.configure(state='disabled')
+        self.answer_button.configure(state='disabled')
         self.abort_button.configure(state='normal')
         self.pentomino_abort_button.configure(state='normal')
         target = self.analysis_status if kind == 'hooks' else self.pentomino_status
@@ -242,6 +257,7 @@ class Editor:
         self.draw_hooks_button.configure(state='normal')
         self.draw_pentominoes_button.configure(state='normal')
         self.draw_remaining_button.configure(state='normal')
+        self.answer_button.configure(state='normal')
         self.abort_button.configure(state='disabled')
         self.pentomino_abort_button.configure(state='disabled')
 
@@ -372,6 +388,26 @@ class Editor:
             self.pentomino_status.set(str(exc))
             return
         self.start_analysis('remaining pentominoes')
+
+    def show_answer_text(self, text):
+        self.answer_text.configure(state='normal')
+        self.answer_text.delete('1.0','end')
+        self.answer_text.insert('1.0',text)
+        self.answer_text.configure(state='disabled')
+
+    def generate_answer_key(self):
+        if self.search is not None:
+            self.show_answer_text('Wait for the current analysis to finish.')
+            return
+        try:
+            answer = compute_answer_key(self.puzzle.data)
+        except ValueError as exc:
+            self.show_answer_text(f'Answer key unavailable: {exc}')
+            self.answer_source = None
+        else:
+            self.show_answer_text(answer.report())
+            self.answer_source = displayed_entries(self.puzzle.data)
+            print(answer.report())
 
     def click(self, event, right):
         self.canvas.focus_set()
