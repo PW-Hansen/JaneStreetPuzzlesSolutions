@@ -53,6 +53,12 @@ manual borders do not constrain this search. Other puzzle rules (digit
 counts, connectivity, empty 2×2 regions, pentominoes and outside visibility)
 are not checked by this operation.
 
+The three-cell hook only permits digit 2. The five-cell hook only permits
+3 or 4 when it shares an edge with the singleton 1-hook; it can contain
+5 when the three-cell hook entirely separates it from the singleton.
+These checks restrict entered digits without filling empty cells. The
+allowed-digit rules by cell count are in `functions/constants.py`.
+
 After a complete search, borders shared by every layout automatically
 become canonical black borders, visible even in Confirmed view. Cancelled
 or limited searches (and searches with no layouts) establish no canonical

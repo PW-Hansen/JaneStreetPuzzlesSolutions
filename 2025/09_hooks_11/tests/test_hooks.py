@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from functions.hooks import HookSearch, hook_cells, canonical_borders
+from functions.hooks import HookSearch, hook_cells, canonical_borders, small_hook_digits_allowed
 from functions.model import Puzzle, read, write, save_snapshot, load_snapshot
 
 
@@ -85,7 +85,7 @@ class HookTests(unittest.TestCase):
                         self.assertIn({(r,c)}, groups)
 
     def test_distinct_digits_rejected_but_repeated_allowed(self):
-        _, allowed = search_grid(2, {'0,0': '1', '0,1': '3', '1,0': '3'})
+        _, allowed = search_grid(2, {'0,0': '1', '0,1': '2', '1,0': '2'})
         self.assertEqual(len(allowed.candidates), 1)
         _, rejected = search_grid(2, {'0,0': '1', '0,1': '2', '1,0': '3'})
         self.assertEqual(rejected.outcome, 'complete')
@@ -96,8 +96,8 @@ class HookTests(unittest.TestCase):
         self.assertEqual(len(search.candidates), 1)
 
     def test_digit_cannot_exceed_hook_cell_count(self):
-        # The size-2 hook has three cells: 3 fits, 4 does not.
-        _, allowed = search_grid(2, {'0,0': '1', '0,1': '3'})
+        # Five cells can contain 5 when separated from the singleton.
+        _, allowed = search_grid(3, {'0,0': '1', '2,2': '5'})
         self.assertEqual(len(allowed.candidates), 1)
         _, rejected = search_grid(2, {'0,0': '1', '0,1': '4'})
         self.assertEqual(rejected.outcome, 'complete')
@@ -107,6 +107,51 @@ class HookTests(unittest.TestCase):
         self.assertEqual(len(larger.candidates), 1)
         _, too_large = search_grid(3, {'0,0': '1', '2,2': '6'})
         self.assertEqual(too_large.candidates, [])
+
+    def test_three_cell_hook_only_allows_two(self):
+        for digit in ('0', '3', '4', '5'):
+            _, search = search_grid(2, {'0,0':'1', '1,1':digit})
+            self.assertEqual(search.candidates, [], digit)
+        _, search = search_grid(2, {'0,0':'1', '1,1':'2'})
+        self.assertEqual(len(search.candidates), 1)
+
+    def test_five_cell_hook_touching_singleton(self):
+        for digit in ('3', '4'):
+            _, search = search_grid(3, {'1,1':'1', '0,0':digit})
+            self.assertTrue(search.candidates, digit)
+            for candidate in search.candidates:
+                hook = next(group for group in regions(candidate, 3) if (0,0) in group)
+                self.assertEqual(len(hook), 5)
+                self.assertTrue(any(abs(r-1)+abs(c-1) == 1 for r,c in hook))
+        for digit in ('2', '5'):
+            _, search = search_grid(3, {'1,1':'1', '0,0':digit})
+            for candidate in search.candidates:
+                hook = next(group for group in regions(candidate, 3) if (0,0) in group)
+                self.assertNotEqual(len(hook), 5)
+            if digit == '5':
+                self.assertEqual(search.candidates, [])
+
+    def test_five_allowed_only_when_separated(self):
+        for anchor_row in range(3):
+            for anchor_col in range(3):
+                for row in range(3):
+                    for col in range(3):
+                        if (row,col) == (anchor_row,anchor_col):
+                            continue
+                        _, search = search_grid(3, {f'{anchor_row},{anchor_col}':'1', f'{row},{col}':'5'})
+                        for candidate in search.candidates:
+                            hook = next(group for group in regions(candidate, 3) if (row,col) in group)
+                            self.assertEqual(len(hook), 5)
+                            self.assertFalse(any(abs(r-anchor_row)+abs(c-anchor_col) == 1 for r,c in hook))
+        _, separated = search_grid(3, {'0,0':'1', '2,2':'5'})
+        self.assertEqual(len(separated.candidates), 1)
+
+    def test_small_hook_rules_leave_blank_hooks_and_diagonal_contacts(self):
+        cells = hook_cells((0,0,2), (0,0,3))
+        self.assertTrue(small_hook_digits_allowed(cells, set(), (1,1)))
+        # (1,1) touches the outer L along an edge, whereas (0,0) does not.
+        self.assertFalse(small_hook_digits_allowed(cells, {5}, (1,1)))
+        self.assertTrue(small_hook_digits_allowed(cells, {5}, (0,0)))
 
     def test_each_candidate_matches_numeric_clues(self):
         entries = {'1,1': '1', '0,0': '2', '0,1': '3', '2,2': '2'}

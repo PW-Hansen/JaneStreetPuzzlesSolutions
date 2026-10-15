@@ -1,11 +1,12 @@
 """Incremental outward hook search, independent of Tkinter.
 
-Only the requested geometry, digit-consistency and cell-capacity constraints
-are used. A hook's digit need not equal its arm length.
+Only the requested geometry, digit-consistency, cell-capacity and small-hook
+digit constraints are used. A hook's digit need not equal its arm length.
 """
 from dataclasses import dataclass, field
 
-from .constants import HOOK_NODE_LIMIT, HOOK_CANDIDATE_LIMIT
+from .constants import (HOOK_NODE_LIMIT, HOOK_CANDIDATE_LIMIT,
+                        HOOK_ALLOWED_DIGITS, HOOK_ANCHOR_ADJACENT_ALLOWED_DIGITS)
 
 
 def anchor_cell(data):
@@ -29,6 +30,20 @@ def hook_cells(inner, outer):
     col = new_left if new_left < left else new_left + new_size - 1
     return ([(row, c) for c in range(new_left, new_left + new_size)] +
             [(r, col) for r in range(new_top, new_top + new_size) if r != row])
+
+
+def small_hook_digits_allowed(cells, digits, anchor):
+    """Apply cell-count rules and orthogonal adjacency to the singleton."""
+    allowed = HOOK_ALLOWED_DIGITS.get(len(cells))
+    if allowed is not None and not digits <= allowed:
+        return False
+    adjacent_allowed = HOOK_ANCHOR_ADJACENT_ALLOWED_DIGITS.get(len(cells))
+    if adjacent_allowed is not None:
+        row, col = anchor
+        touches_anchor = any(abs(r-row) + abs(c-col) == 1 for r, c in cells)
+        if touches_anchor and not digits <= adjacent_allowed:
+            return False
+    return True
 
 
 def partition_borders(hooks, rows, cols):
@@ -98,6 +113,8 @@ class HookSearch:
                         cells = hook_cells(square, outer)
                         hook_digits = {digits[cell] for cell in cells if cell in digits}
                         if len(hook_digits) > 1 or any(digit > len(cells) for digit in hook_digits):
+                            continue
+                        if not small_hook_digits_allowed(cells, hook_digits, self.anchor):
                             continue
                         stack.append((outer, hooks + [cells]))
             yield None
