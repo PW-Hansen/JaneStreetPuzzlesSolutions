@@ -30,3 +30,4 @@ These rules apply throughout this repository. They describe how to organize and 
 - Run checks appropriate to the change. For visual changes, inspect the resulting interface or exported artifact rather than relying only on code inspection.
 - Do not remove any code unless instructed to do so. If a change renders existing code redundant, simply report it.
 - Keep documentation concise and accurate. Update affected usage instructions, configuration descriptions, and measured runtime claims when relevant.
+- Do not add functionality without being explicitly asked to do so. Even if a rule that has been shared through e.g. docs/rules.md could be incorporated into the current query, refrain from doing so unless prompted. If a prompt would run contrary to a rule, bring this up and ask for clarification, but do not just unilaterally do "the right thing" instead of what was requested.
